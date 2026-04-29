@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleProp, StyleSheet, Text, ViewStyle } from 'react-native';
 import { tokens } from '../tokens';
 
 interface AppButtonProps {
@@ -8,14 +8,23 @@ interface AppButtonProps {
   backgroundColor: string;
   pressedColor: string;
   textColor: string;
+  style?: StyleProp<ViewStyle>;
 }
 
-export function AppButton({ label, onPress, backgroundColor, pressedColor, textColor }: AppButtonProps) {
+export function AppButton({
+  label,
+  onPress,
+  backgroundColor,
+  pressedColor,
+  textColor,
+  style,
+}: AppButtonProps) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
+        style,
         { backgroundColor: pressed ? pressedColor : backgroundColor },
       ]}
     >
