@@ -6,25 +6,48 @@ export function HorizontalSubMenu({ items, selectedKey, onSelect, theme }) {
   const baseBg = tokens.colors.blue[800];
   const selectedBg = tokens.colors.blue[100];
   const dividerColor = tokens.colors.blue[700];
+  const useFixedRow = items.length <= 4;
+
+  const renderItems = () =>
+    items.map((item, index) => {
+      const active = selectedKey === item.key;
+      return (
+        <Pressable
+          key={item.key}
+          onPress={() => onSelect(item.key)}
+          style={[
+            styles.item,
+            useFixedRow ? styles.itemFixed : null,
+            active ? { backgroundColor: selectedBg } : null,
+          ]}
+        >
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.label,
+              useFixedRow ? styles.labelFixed : null,
+              { color: active ? tokens.colors.blue[800] : theme.buttonText },
+            ]}
+          >
+            {item.label}
+          </Text>
+          {index < items.length - 1 ? <View style={[styles.divider, { backgroundColor: dividerColor }]} /> : null}
+        </Pressable>
+      );
+    });
+
+  if (useFixedRow) {
+    return (
+      <View style={[styles.wrap, { backgroundColor: baseBg }]}>
+        <View style={styles.fixedRow}>{renderItems()}</View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.wrap, { backgroundColor: baseBg }]}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {items.map((item, index) => {
-          const active = selectedKey === item.key;
-          return (
-            <Pressable
-              key={item.key}
-              onPress={() => onSelect(item.key)}
-              style={[styles.item, active ? { backgroundColor: selectedBg } : null]}
-            >
-              <Text style={[styles.label, { color: active ? tokens.colors.blue[800] : theme.buttonText }]}>
-                {item.label}
-              </Text>
-              {index < items.length - 1 ? <View style={[styles.divider, { backgroundColor: dividerColor }]} /> : null}
-            </Pressable>
-          );
-        })}
+        {renderItems()}
       </ScrollView>
     </View>
   );
@@ -38,6 +61,10 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     paddingHorizontal: 0,
   },
+  fixedRow: {
+    flexDirection: 'row',
+    width: '100%',
+  },
   item: {
     minHeight: 42,
     paddingHorizontal: tokens.spacing.md,
@@ -48,9 +75,17 @@ const styles = StyleSheet.create({
     marginRight: 0,
     borderRadius: 0,
   },
+  itemFixed: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: tokens.spacing.xs,
+  },
   label: {
     fontSize: tokens.typography.caption,
     fontWeight: '700',
+  },
+  labelFixed: {
+    fontSize: 12,
   },
   divider: {
     position: 'absolute',

@@ -1,15 +1,19 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
+import { SurfaceCard } from '../design-system/components/SurfaceCard';
+import { AppButton } from '../design-system/components/AppButton';
 
 export function ProfileScreen() {
   const { user, reloadMe, updateThemeMode } = useAuth();
   const mode = user?.themeMode || 'dark';
   const theme = useMemo(() => getTheme(mode), [mode]);
   const [loadingMode, setLoadingMode] = useState(false);
+  const [loadingReload, setLoadingReload] = useState(false);
   const [error, setError] = useState('');
+  const roleNames = (user?.roles || []).map((r) => r.slug).filter(Boolean);
 
   const onToggleTheme = async () => {
     const nextMode = mode === 'dark' ? 'light' : 'dark';
@@ -24,37 +28,110 @@ export function ProfileScreen() {
     }
   };
 
+  const onReloadProfile = async () => {
+    setLoadingReload(true);
+    setError('');
+    try {
+      await reloadMe();
+    } catch (err) {
+      setError(err?.message || 'No se pudo recargar el perfil');
+    } finally {
+      setLoadingReload(false);
+    }
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={styles.content}>
       <Text style={[styles.title, { color: theme.textPrimary }]}>Perfil</Text>
-      <Text style={[styles.row, { color: theme.textPrimary }]}>Email: {user?.email || '-'}</Text>
-      <Text style={[styles.row, { color: theme.textPrimary }]}>Estado: {user?.estado || '-'}</Text>
-      <Text style={[styles.row, { color: theme.textPrimary }]}>Tema: {mode}</Text>
-      <Text style={[styles.row, { color: theme.textPrimary }]}>Roles: {(user?.roles || []).map((r) => r.slug).join(', ') || '-'}</Text>
+
+      <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Informacion de cuenta</Text>
+        <View style={styles.infoGrid}>
+          <View style={styles.infoItem}>
+            <Text style={[styles.label, { color: theme.textSecondary }]}>Email</Text>
+            <Text numberOfLines={1} style={[styles.value, { color: theme.textPrimary }]}>
+              {user?.email || '-'}
+            </Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.label, { color: theme.textSecondary }]}>Estado</Text>
+            <Text style={[styles.value, { color: theme.textPrimary }]}>{user?.estado || '-'}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.label, { color: theme.textSecondary }]}>Tema</Text>
+            <Text style={[styles.value, { color: theme.textPrimary }]}>{mode}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.label, { color: theme.textSecondary }]}>Roles</Text>
+            <Text numberOfLines={1} style={[styles.value, { color: theme.textPrimary }]}>
+              {roleNames.join(', ') || '-'}
+            </Text>
+          </View>
+        </View>
+      </SurfaceCard>
+
       {error ? <Text style={[styles.error, { color: theme.alert }]}>{error}</Text> : null}
-      <Pressable style={[styles.button, { backgroundColor: theme.buttonBg }]} onPress={onToggleTheme}>
-        <Text style={[styles.buttonText, { color: theme.buttonText }]}>
-          {loadingMode ? 'Actualizando tema...' : 'Cambiar tema'}
-        </Text>
-      </Pressable>
-      <Pressable style={[styles.button, { backgroundColor: theme.buttonBg }]} onPress={reloadMe}>
-        <Text style={[styles.buttonText, { color: theme.buttonText }]}>Recargar perfil</Text>
-      </Pressable>
-    </View>
+
+      <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Acciones</Text>
+        <View style={styles.actionList}>
+          <AppButton
+            label={loadingMode ? 'Actualizando tema...' : 'Cambiar tema'}
+            onPress={onToggleTheme}
+            backgroundColor={theme.buttonBg}
+            pressedColor={theme.buttonBgPressed}
+            textColor={theme.buttonText}
+            style={styles.actionButton}
+          />
+          <AppButton
+            label={loadingReload ? 'Recargando perfil...' : 'Recargar perfil'}
+            onPress={onReloadProfile}
+            backgroundColor={theme.buttonBg}
+            pressedColor={theme.buttonBgPressed}
+            textColor={theme.buttonText}
+            style={styles.actionButton}
+          />
+        </View>
+      </SurfaceCard>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: tokens.spacing.md, gap: tokens.spacing.sm },
-  title: { fontSize: tokens.typography.heading, fontWeight: '700', marginBottom: tokens.spacing.xs },
-  row: { fontSize: tokens.typography.body },
-  button: {
-    borderRadius: tokens.radius.md,
-    paddingVertical: tokens.spacing.sm,
-    paddingHorizontal: tokens.spacing.md,
-    alignItems: 'center',
+  container: { flex: 1 },
+  content: {
+    padding: tokens.spacing.md,
+    gap: tokens.spacing.md,
+  },
+  title: {
+    fontSize: tokens.typography.heading,
+    fontWeight: '700',
+  },
+  sectionTitle: {
+    fontSize: tokens.typography.body,
+    fontWeight: '700',
+  },
+  infoGrid: {
+    gap: tokens.spacing.sm,
     marginTop: tokens.spacing.xs,
   },
-  buttonText: { fontWeight: '700' },
+  infoItem: {
+    gap: 2,
+  },
+  label: {
+    fontSize: tokens.typography.caption,
+    fontWeight: '700',
+  },
+  value: {
+    fontSize: tokens.typography.body,
+    fontWeight: '600',
+  },
+  actionList: {
+    gap: tokens.spacing.sm,
+    marginTop: tokens.spacing.xs,
+  },
+  actionButton: {
+    width: '100%',
+  },
   error: { fontSize: tokens.typography.caption, fontWeight: '600' },
 });

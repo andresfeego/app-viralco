@@ -1,14 +1,20 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useCan } from '../hooks/useCan';
+import { useAuth } from '../hooks/useAuth';
+import { getTheme } from '../design-system/theme';
+import { tokens } from '../design-system/tokens';
 
 export function ProtectedScreen({ permission, children }) {
   const allowed = useCan(permission);
+  const { user } = useAuth();
+  const mode = user?.themeMode || 'dark';
+  const theme = getTheme(mode);
 
   if (!allowed) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.text}>No tienes permisos para ver esta vista.</Text>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <Text style={[styles.text, { color: theme.textSecondary }]}>No tienes permisos para ver esta vista.</Text>
       </View>
     );
   }
@@ -21,11 +27,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: tokens.spacing.lg,
   },
   text: {
-    fontSize: 16,
-    color: '#4b5563',
+    fontSize: tokens.typography.body,
     textAlign: 'center',
   },
 });

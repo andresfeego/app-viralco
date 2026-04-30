@@ -11,6 +11,7 @@ import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { PendingApprovalScreen } from './src/screens/PendingApprovalScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SuperAdminUsersScreen } from './src/screens/SuperAdminUsersScreen';
+import { EventsScreen } from './src/screens/EventsScreen';
 import { SectionHeader } from './src/components/SectionHeader';
 import { BottomMainMenu } from './src/components/BottomMainMenu';
 import { getTheme } from './src/design-system/theme';
@@ -39,6 +40,13 @@ function MainFlow() {
   const { initializing, isAuthenticated, user, logout } = useAuth();
   const mode = user?.themeMode || 'dark';
   const [screen, setScreen] = useState('eventos');
+  const [eventsHeaderConfig, setEventsHeaderConfig] = useState({
+    title: t('menu_002'),
+    subtitle: '',
+    iconName: 'champagne-glasses',
+    onBack: null,
+    backLabel: 'Volver',
+  });
   const theme = useMemo(() => getTheme(mode), [mode]);
 
   const isSuperAdmin = useMemo(
@@ -75,40 +83,41 @@ function MainFlow() {
   const selectedKey = menuItems.some((item) => item.key === screen) ? screen : defaultKey;
   const selectedItem = menuItems.find((item) => item.key === selectedKey) || menuItems[0];
 
-  const renderSuperAdminView = () => <SuperAdminUsersScreen />;
-  const renderCuentaView = () => (
-    <View style={styles.placeholderWrap}>
-      <ProfileScreen />
-      <Pressable style={[styles.dangerButton, { backgroundColor: theme.alert }]} onPress={logout}>
-        <Text style={styles.primaryText}>Cerrar sesion</Text>
-      </Pressable>
-    </View>
-  );
-  const renderEventosView = () => (
-    <View style={styles.placeholderWrap}>
-      <Text style={[styles.placeholderTitle, { color: theme.textPrimary }]}>Eventos</Text>
-      <Text style={[styles.placeholderText, { color: theme.textSecondary }]}>Esta seccion se conectara en la Fase 3.</Text>
-    </View>
-  );
-  const renderConfiguracionView = () => (
-    <View style={styles.placeholderWrap}>
-      <Text style={[styles.placeholderTitle, { color: theme.textPrimary }]}>Configuracion</Text>
-    </View>
-  );
-
-  const tabViews = {
-    superadmin: renderSuperAdminView,
-    cuenta: renderCuentaView,
-    eventos: renderEventosView,
-    configuracion: renderConfiguracionView,
-  };
-  const ActiveView = tabViews[selectedKey] || renderEventosView;
+  const headerTitle = selectedKey === 'eventos' ? eventsHeaderConfig.title : selectedItem.headerTitle;
+  const headerSubtitle = selectedKey === 'eventos' ? eventsHeaderConfig.subtitle : '';
+  const headerIconName = selectedKey === 'eventos' ? eventsHeaderConfig.iconName : selectedItem.iconName;
+  const headerOnBack = selectedKey === 'eventos' ? eventsHeaderConfig.onBack : null;
+  const headerBackLabel = selectedKey === 'eventos' ? eventsHeaderConfig.backLabel : 'Volver';
 
   return (
     <View style={[styles.page, { backgroundColor: theme.background }]}>
-      <SectionHeader title={selectedItem.headerTitle} iconName={selectedItem.iconName} theme={theme} />
+      <SectionHeader
+        title={headerTitle}
+        subtitle={headerSubtitle}
+        iconName={headerIconName}
+        onBack={headerOnBack}
+        backLabel={headerBackLabel}
+        theme={theme}
+      />
       <View style={styles.panelBody}>
-        <ActiveView />
+        {selectedKey === 'superadmin' ? <SuperAdminUsersScreen /> : null}
+        {selectedKey === 'cuenta' ? (
+          <View style={styles.placeholderWrap}>
+            <ProfileScreen />
+            <Pressable style={[styles.dangerButton, { backgroundColor: theme.alert }]} onPress={logout}>
+              <Text style={styles.primaryText}>Cerrar sesion</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {selectedKey === 'eventos' ? (
+          <EventsScreen
+            allowedSections={['list', 'create', 'overlays']}
+            onHeaderChange={setEventsHeaderConfig}
+          />
+        ) : null}
+        {selectedKey === 'configuracion' ? (
+          <EventsScreen initialSection="branding" allowedSections={['branding']} showKpi={false} />
+        ) : null}
       </View>
       <BottomMainMenu items={menuItems} selectedKey={selectedKey} onSelect={setScreen} theme={theme} />
     </View>

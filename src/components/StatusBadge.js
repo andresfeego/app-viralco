@@ -25,12 +25,18 @@ const VARIANT_STYLES = {
   },
 };
 
-export function StatusBadge({ label, flag = 'info' }) {
+export function StatusBadge({ label, flag = 'info', compact = false }) {
   const variant = VARIANT_STYLES[flag] || VARIANT_STYLES.info;
 
   return (
-    <View style={[styles.badge, { backgroundColor: variant.backgroundColor, borderColor: variant.borderColor }]}>
-      <Text style={[styles.label, { color: variant.textColor }]}>{label}</Text>
+    <View
+      style={[
+        styles.badge,
+        compact ? styles.badgeCompact : null,
+        { backgroundColor: variant.backgroundColor, borderColor: variant.borderColor },
+      ]}
+    >
+      <Text style={[styles.label, compact ? styles.labelCompact : null, { color: variant.textColor }]}>{label}</Text>
     </View>
   );
 }
@@ -43,9 +49,16 @@ const styles = StyleSheet.create({
     paddingVertical: tokens.spacing.xxs,
     alignSelf: 'flex-start',
   },
+  badgeCompact: {
+    paddingHorizontal: tokens.spacing.xs,
+    paddingVertical: 2,
+  },
   label: {
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
+  },
+  labelCompact: {
+    fontSize: 10,
   },
 });
