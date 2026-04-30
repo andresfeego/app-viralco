@@ -19,9 +19,9 @@ import { ENABLE_DEBUG_LOGIN_PRESETS } from '../config/debug';
 const logoViralco = require('../assets/branding/logo_viralco_alpha.png');
 const logoViralcoWhite = require('../assets/branding/logo_white_viralco_alpha.png');
 const QUICK_CREDENTIALS = {
-  SA: { email: 'superadmin@viralco.local', password: 'ViralCo_SA_2026!' },
-  AUA: { email: 'admin.active@viralco.local', password: 'ViralCo_Admin_2026!' },
-  AUP: { email: 'admin.pending@viralco.local', password: 'ViralCo_Pending_2026!' },
+  SA: { email: 'superadmin@viralco.local', password: 'demo_password' },
+  AUA: { email: 'admin.active@viralco.local', password: 'demo_password' },
+  AUP: { email: 'admin.pending@viralco.local', password: 'demo_password' },
 };
 
 function LoginField({
@@ -66,8 +66,8 @@ export function LoginScreen({ onGoRegister, onGoForgot }) {
   const theme = useMemo(() => getTheme(mode), [mode]);
   const logoSource = mode === 'dark' ? logoViralcoWhite : logoViralco;
 
-  const [email, setEmail] = useState('superadmin@viralco.local');
-  const [password, setPassword] = useState('ViralCo_SA_2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const applyQuickCredentials = (key) => {
