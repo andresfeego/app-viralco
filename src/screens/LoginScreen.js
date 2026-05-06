@@ -14,15 +14,10 @@ import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { AppButton } from '../design-system/components/AppButton';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
-import { ENABLE_DEBUG_LOGIN_PRESETS } from '../config/debug';
+import { ENABLE_DEBUG_LOGIN_PRESETS, QUICK_CREDENTIALS } from '../config/debug';
 
 const logoViralco = require('../assets/branding/logo_viralco_alpha.png');
 const logoViralcoWhite = require('../assets/branding/logo_white_viralco_alpha.png');
-const QUICK_CREDENTIALS = {
-  SA: { email: 'superadmin@viralco.local', password: 'demo_password' },
-  AUA: { email: 'admin.active@viralco.local', password: 'demo_password' },
-  AUP: { email: 'admin.pending@viralco.local', password: 'demo_password' },
-};
 
 function LoginField({
   label,
