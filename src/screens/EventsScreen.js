@@ -600,13 +600,8 @@ export function EventsScreen({
       return;
     }
     try {
-      try {
-        // Fallback seguro: si el módulo nativo no está disponible no rompemos la app.
-        const Clipboard = require('@react-native-clipboard/clipboard').default;
-        Clipboard?.setString?.(sharingUrl);
-      } catch {
-        // Sin módulo nativo, mantenemos feedback visual y menú de compartir.
-      }
+      await Share.share({ message: sharingUrl });
+      setOk('Se abrio compartir para copiar o enviar el enlace.');
       setCopyDone(true);
       setTimeout(() => setCopyDone(false), 1400);
       setError('');
