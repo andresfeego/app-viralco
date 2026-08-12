@@ -1,6 +1,6 @@
 ---
 name: viralco-ui-guardrails
-description: Enforce ViralCo frontend UI guardrails when building or editing interfaces in the ViralCo project. Use this for any new page, component, dashboard, form, table, card, modal, tooltip, chart wrapper, or reusable UI work in frontend. Requires using existing design-system tokens and reusable components first, forbids hardcoded UI values, and mandates marking unresolved one-off UI with a comp_hardcode label.
+description: Enforce ViralCo frontend UI guardrails when building or editing interfaces in the ViralCo project. Use this for any new page, component, dashboard, form, table, card, modal, tooltip, chart wrapper, or reusable UI work in frontend. Requires using existing design-system tokens and reusable components first, forbids hardcoded UI values, mandates explicit light/dark theme compatibility, and mandates marking unresolved one-off UI with a comp_hardcode label.
 ---
 
 Use this skill for any UI work in `frontend` of the ViralCo project.
@@ -9,10 +9,10 @@ Use this skill for any UI work in `frontend` of the ViralCo project.
 
 1. Reuse before creating.
    Use existing reusable UI from:
-   - `src/design-system/components`
-   - `src/design-system/tokens`
-   - `src/design-system/ui.css`
-   - `src/design-system/portal.tsx`
+   - `frontend/src/design-system/components`
+   - `frontend/src/design-system/tokens`
+   - `frontend/src/design-system/ui.css`
+   - `frontend/src/design-system/portal.tsx`
 
 2. Tokens first.
    Never hardcode colors, spacing, radius, elevation, focus rings, or semantic states in component code or CSS.
@@ -46,16 +46,28 @@ Use this skill for any UI work in `frontend` of the ViralCo project.
 6. `/ui-components` is the contract.
    Any new reusable UI primitive must be demonstrated in `/ui-components` so it can be reviewed and reused.
 
+7. No unsolicited copy.
+   Do not add titles, subtitles, helper text, descriptive paragraphs, placeholder storytelling text, or marketing copy unless the user explicitly asks for that content.
+   Default behavior: keep only strictly functional labels required for interaction.
+
+8. Theme compatibility is mandatory.
+   Any new or edited UI must work in both light and dark modes using the existing theme system.
+   - Do not ship components that only render correctly in one theme.
+   - Do not bypass theme variables with fixed colors.
+   - Theme switching must not break contrast, borders, focus ring, or interactive states.
+
 ## Workflow
 
 For every UI task:
 
 1. Inspect existing tokens and reusable components first.
 2. Decide whether the request fits an existing primitive.
-3. If not, create a reusable primitive in `src/design-system/components`.
+3. If not, create a reusable primitive in `frontend/src/design-system/components`.
 4. Wire styling through existing tokens and semantic CSS variables.
 5. Add a showcase block in `/ui-components`.
 6. Check touched files for hardcoded UI values before finishing.
+7. Check touched UI for unsolicited copy; remove any non-requested descriptive text.
+8. Verify touched UI in both light and dark themes.
 
 ## Required checks before finishing
 
@@ -74,12 +86,12 @@ If found:
 ## Current source of truth
 
 Use these as source of truth:
-- `src/design-system/tokens/value.tokens.json`
-- `src/design-system/tokens/light.tokens.json`
-- `src/design-system/tokens/dark.tokens.json`
-- `src/design-system/components`
-- `src/design-system/ui.css`
-- `src/design-system/portal.tsx`
+- `frontend/src/design-system/tokens/value.tokens.json`
+- `frontend/src/design-system/tokens/light.tokens.json`
+- `frontend/src/design-system/tokens/dark.tokens.json`
+- `frontend/src/design-system/components`
+- `frontend/src/design-system/ui.css`
+- `frontend/src/design-system/portal.tsx`
 
 ## Output standard
 
@@ -87,3 +99,4 @@ When completing UI work, explicitly state:
 - whether only reusable components were used
 - whether any `comp_hardcode` labels remain
 - which reusable components were added or extended
+- whether light/dark mode was verified
