@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Icon from '@react-native-vector-icons/fontawesome6';
 import { useAuth } from '../hooks/useAuth';
-import { activateUserApi, createAdminUserApi, deactivateUserApi, listAdminUsersApi, listBitacoraApi } from '../services/api/admin';
+import { createAdminUserApi, listAdminUsersApi, listBitacoraApi, updateUserStatusApi } from '../services/api/admin';
 import { ProtectedScreen } from '../components/ProtectedScreen';
 import { HorizontalSubMenu } from '../components/HorizontalSubMenu';
 import { StatusBadge } from '../components/StatusBadge';
@@ -17,31 +17,21 @@ const SUB_SECTIONS = [
 ];
 
 function getEstadoFlag(userItem) {
-  const estadoId = Number(userItem?.estadoId || 0);
-  if (estadoId === 2) {
+  const slug = userItem?.status?.slug;
+  if (slug === 'active') {
     return 'success';
   }
-  if (estadoId === 3) {
+  if (slug === 'suspended') {
     return 'error';
   }
-  if (estadoId === 1) {
+  if (slug === 'pending') {
     return 'warn';
   }
   return 'info';
 }
 
 function getEstadoLabel(userItem) {
-  const estadoId = Number(userItem?.estadoId || 0);
-  if (estadoId === 2) {
-    return t('status_001');
-  }
-  if (estadoId === 3) {
-    return t('status_002');
-  }
-  if (estadoId === 1) {
-    return t('status_000');
-  }
-  return t('status_003');
+  return userItem?.status?.name || t('status_003');
 }
 
 export function SuperAdminUsersScreen() {
@@ -56,6 +46,8 @@ export function SuperAdminUsersScreen() {
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [bitacoraItems, setBitacoraItems] = useState([]);
   const [bitacoraLoading, setBitacoraLoading] = useState(false);
   const [bitacoraHasMore, setBitacoraHasMore] = useState(false);
@@ -67,7 +59,7 @@ export function SuperAdminUsersScreen() {
   const [bitacoraEndDate, setBitacoraEndDate] = useState('');
 
   const isSuperAdmin = useMemo(
-    () => (user?.roles || []).some((role) => role.slug === 'super_admin'),
+    () => (user?.globalRoles || []).some((role) => role.slug === 'super_admin'),
     [user]
   );
 
@@ -93,7 +85,7 @@ export function SuperAdminUsersScreen() {
 
   const activate = async (id) => {
     try {
-      await activateUserApi(id);
+      await updateUserStatusApi(id, 'active');
       await loadUsers();
     } catch (err) {
       setError(err?.message || 'No se pudo activar usuario');
@@ -102,7 +94,7 @@ export function SuperAdminUsersScreen() {
 
   const deactivate = async (id) => {
     try {
-      await deactivateUserApi(id);
+      await updateUserStatusApi(id, 'suspended');
       await loadUsers();
     } catch (err) {
       setError(err?.message || 'No se pudo desactivar usuario');
@@ -114,7 +106,9 @@ export function SuperAdminUsersScreen() {
     setError('');
     setMessage('');
     try {
-      const payload = await createAdminUserApi({ email, password });
+      const payload = await createAdminUserApi({ email, password, name, phone: phone || undefined });
+      setName('');
+      setPhone('');
       setEmail('');
       setPassword('');
       setMessage(`Usuario admin creado: ${payload?.user?.email || ''}`);
@@ -168,7 +162,7 @@ export function SuperAdminUsersScreen() {
     if (section === 'bitacora') {
       loadBitacora(1, false);
     }
-  }, [section, user?.id, bitacoraStartDate, bitacoraEndDate]);
+  }, [section, user?.id, bitacoraStartDate, bitacoraEndDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredBitacoraItems = useMemo(() => {
     const query = String(bitacoraSearch || '').trim().toLowerCase();
@@ -227,7 +221,7 @@ export function SuperAdminUsersScreen() {
                     <StatusBadge label={getEstadoLabel(item)} flag={getEstadoFlag(item)} />
                   </View>
                   <View style={styles.row}>
-                    {Number(item?.estadoId || 0) === 2 ? (
+                    {item?.status?.slug === 'active' ? (
                       <Pressable style={[styles.actionButton, { backgroundColor: theme.alert }]} onPress={() => deactivate(item.id)}>
                         <Text style={[styles.actionText, { color: theme.buttonText }]}>Desactivar</Text>
                       </Pressable>
@@ -246,6 +240,21 @@ export function SuperAdminUsersScreen() {
         {section === 'crear' ? (
           <View style={styles.contentWrap}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Crear usuario admin</Text>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder={t('auth_001')}
+              placeholderTextColor={theme.textSecondary}
+              style={[styles.input, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
+            />
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              placeholder={t('auth_002')}
+              placeholderTextColor={theme.textSecondary}
+              keyboardType="phone-pad"
+              style={[styles.input, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
+            />
             <TextInput
               value={email}
               onChangeText={setEmail}

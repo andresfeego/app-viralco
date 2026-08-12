@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
+import { t } from '../i18n';
 
 export function RegisterScreen({ onGoLogin }) {
   const { register } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -15,10 +18,10 @@ export function RegisterScreen({ onGoLogin }) {
     setError('');
     setMessage('');
     try {
-      const payload = await register(email, password);
-      setMessage(payload.message || 'Usuario registrado correctamente');
+      const payload = await register({ email, password, name, phone: phone || undefined });
+      setMessage(payload.message || t('auth_009'));
     } catch (err) {
-      setError(err?.message || 'No se pudo registrar usuario');
+      setError(err?.message || t('auth_010'));
     } finally {
       setLoading(false);
     }
@@ -26,10 +29,12 @@ export function RegisterScreen({ onGoLogin }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Registro</Text>
-      <TextInput placeholder="Correo" style={styles.input} autoCapitalize="none" value={email} onChangeText={setEmail} />
+      <Text style={styles.title}>{t('auth_000')}</Text>
+      <TextInput placeholder={t('auth_001')} style={styles.input} value={name} onChangeText={setName} />
+      <TextInput placeholder={t('auth_002')} style={styles.input} keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
+      <TextInput placeholder={t('auth_003')} style={styles.input} autoCapitalize="none" value={email} onChangeText={setEmail} />
       <TextInput
-        placeholder="Contrasena"
+        placeholder={t('auth_004')}
         style={styles.input}
         secureTextEntry
         value={password}
@@ -38,10 +43,10 @@ export function RegisterScreen({ onGoLogin }) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {message ? <Text style={styles.ok}>{message}</Text> : null}
       <Pressable style={styles.button} onPress={onSubmit} disabled={loading}>
-        <Text style={styles.buttonText}>{loading ? 'Registrando...' : 'Registrar'}</Text>
+        <Text style={styles.buttonText}>{loading ? t('auth_005') : t('auth_006')}</Text>
       </Pressable>
       <Pressable onPress={onGoLogin}>
-        <Text style={styles.link}>Volver a login</Text>
+        <Text style={styles.link}>{t('auth_007')}</Text>
       </Pressable>
     </View>
   );

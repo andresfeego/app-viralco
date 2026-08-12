@@ -14,10 +14,15 @@ import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { AppButton } from '../design-system/components/AppButton';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
-import { ENABLE_DEBUG_LOGIN_PRESETS, QUICK_CREDENTIALS } from '../config/debug';
+import { ENABLE_DEBUG_LOGIN_PRESETS } from '../config/debug';
 
 const logoViralco = require('../assets/branding/logo_viralco_alpha.png');
 const logoViralcoWhite = require('../assets/branding/logo_white_viralco_alpha.png');
+const QUICK_CREDENTIALS = {
+  SA: { email: 'superadmin@viralco.local', password: 'superadmin1234' },
+  AUA: { email: 'adminuseractivo@viralco.local', password: 'adminuseractivo1234' },
+  AUP: { email: 'useradminpendiente@viralco.local', password: 'useradminpendiente1234' },
+};
 
 function LoginField({
   label,
@@ -61,8 +66,8 @@ export function LoginScreen({ onGoRegister, onGoForgot }) {
   const theme = useMemo(() => getTheme(mode), [mode]);
   const logoSource = mode === 'dark' ? logoViralcoWhite : logoViralco;
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('superadmin@viralco.local');
+  const [password, setPassword] = useState('superadmin1234');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const applyQuickCredentials = (key) => {

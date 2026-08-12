@@ -111,7 +111,7 @@ export function AuthProvider({ children }) {
     [applyTokens]
   );
 
-  const register = useCallback(async (email, password) => registerApi({ email, password }), []);
+  const register = useCallback(async (input) => registerApi(input), []);
 
   const logout = useCallback(async () => {
     try {

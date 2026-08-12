@@ -1,21 +1,20 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
+import { t } from '../i18n';
 
 export function PendingApprovalScreen() {
   const { user, logout } = useAuth();
 
   const message =
-    user?.estado === 'inactive'
-      ? 'Tu cuenta esta inactiva. Contacta al Super Admin.'
-      : 'Tu cuenta esta pendiente de aprobacion por Super Admin.';
+    user?.status?.slug === 'suspended' ? t('auth_012') : t('auth_011');
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Acceso restringido</Text>
+      <Text style={styles.title}>{t('auth_013')}</Text>
       <Text style={styles.text}>{message}</Text>
       <Pressable style={styles.button} onPress={logout}>
-        <Text style={styles.buttonText}>Cerrar sesion</Text>
+        <Text style={styles.buttonText}>{t('auth_014')}</Text>
       </Pressable>
     </View>
   );

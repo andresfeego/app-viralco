@@ -1,1488 +1,460 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Linking, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import Icon from '@react-native-vector-icons/fontawesome6';
+import { FlatList, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { AppButton } from '../design-system/components/AppButton';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
 import { useAuth } from '../hooks/useAuth';
 import { t } from '../i18n';
-import { HorizontalSubMenu } from '../components/HorizontalSubMenu';
 import { EventListCard } from '../components/EventListCard';
-import { EventQuickActions } from '../components/EventQuickActions';
-import { CopyActionButton } from '../components/CopyActionButton';
-import { ShareMenuButton } from '../components/ShareMenuButton';
+import { HorizontalSubMenu } from '../components/HorizontalSubMenu';
+import { listAccountsApi } from '../services/api/accounts';
 import {
+  createAccountLibraryAssetApi,
   createEventApi,
-  createEventOverlayApi,
+  createEventResourceApi,
   getEventDetailApi,
-  listEventOverlaysApi,
+  listAccountLibraryApi,
+  listEventResourcesApi,
   listEventsApi,
+  listEventTypesApi,
+  prepareAccountLibraryUploadApi,
   updateEventApi,
   updateEventBrandingApi,
-  updateEventOverlayApi,
+  updateEventResourceApi,
 } from '../services/api/events';
 
 const EVENT_STATUS = ['draft', 'active', 'archived'];
-const OVERLAY_TYPES = ['frame', 'overlay', 'background', 'logo', 'other'];
-const VISIBLE_MODES = ['video_360', 'photo_collage', 'video_message', 'gif'];
-const EVENT_TYPE_OPTIONS = [
-  'Baby Shower',
-  'Bar/Bat Mitzvah',
-  'Birthday Party',
-  'Bridal Shower',
-  'Corporate',
-  'Engagement',
-  'Holiday Party',
-  'Other',
-  'School Event',
-  'Sweet 16',
-  'Wedding',
-];
+const RESOURCE_PURPOSES = ['frame', 'overlay', 'intro', 'outro', 'music', 'logo', 'background', 'template', 'branding', 'other'];
+
 function normalizeEvent(item) {
-  if (!item) {
-    return null;
-  }
+  if (!item) return null;
   return {
-    id: item.id,
+    id: String(item.id || ''),
+    accountId: String(item.accountId || ''),
     name: String(item.name || ''),
-    slug: String(item.slug || item.publicKey || ''),
-    eventDate: String(item.eventDate || ''),
+    slug: String(item.slug || ''),
+    eventDate: String(item.startDate || item.eventDate || ''),
+    startDate: String(item.startDate || item.eventDate || ''),
+    endDate: String(item.endDate || ''),
     status: String(item.status || 'draft'),
+    timezone: String(item.timezone || 'America/Bogota'),
     description: String(item.description || ''),
-    phone: String(item.phone || ''),
     branding: {
-      logoUrl: String(item.branding?.logoUrl || ''),
-      backgroundUrl: String(item.branding?.backgroundUrl || ''),
+      logoResourceId: String(item.branding?.logoResourceId || ''),
+      backgroundResourceId: String(item.branding?.backgroundResourceId || ''),
+      phone: String(item.branding?.phone || ''),
       primaryColor: String(item.branding?.primaryColor || ''),
-      secondaryColor: String(item.branding?.secondaryColor || ''),
-      textColor: String(item.branding?.textColor || ''),
+      interval: String(item.branding?.interval || ''),
+      maxEvents: item.branding?.maxEvents == null ? '' : String(item.branding.maxEvents),
+      maxStorageGb: item.branding?.maxStorageGb == null ? '' : String(item.branding.maxStorageGb),
+      maxDevices: item.branding?.maxDevices == null ? '' : String(item.branding.maxDevices),
     },
+    modes: Array.isArray(item.modes) ? item.modes : [],
   };
 }
 
-function normalizeOverlay(item) {
+function normalizeLibraryEntry(item) {
+  const asset = item?.asset || item;
   return {
-    id: item.id,
-    eventId: item.eventId,
-    name: String(item.name || ''),
-    fileUrl: String(item.fileUrl || ''),
-    type: String(item.type || 'overlay'),
-    layerOrder: Number(item.layerOrder || 0),
-    isActive: Boolean(item.isActive ?? true),
+    id: String(item?.id || asset?.id || ''),
+    libraryAssetId: String(item?.libraryAssetId || asset?.id || ''),
+    name: String(item?.displayName || asset?.name || ''),
+    type: String(asset?.type || ''),
+    fileUrl: String(asset?.fileUrl || ''),
+    ownerType: String(asset?.ownerType || ''),
+    asset,
   };
 }
 
-function isValidHttpUrl(value) {
-  if (!value) {
-    return true;
-  }
-  return /^https?:\/\/.+/i.test(value);
-}
-
-function isValidHexColor(value) {
-  if (!value) {
-    return true;
-  }
-  return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(String(value).trim());
+function normalizeResource(item) {
+  return {
+    id: String(item.id || ''),
+    libraryAssetId: String(item.libraryAssetId || ''),
+    purpose: String(item.purpose || ''),
+    placement: String(item.placement || ''),
+    orderIndex: Number(item.orderIndex || 0),
+    isActive: Boolean(item.isActive ?? true),
+    asset: item.asset || null,
+  };
 }
 
 function isValidDateYmd(value) {
-  const raw = String(value || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    return false;
-  }
-  const [year, month, day] = raw.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month && date.getUTCDate() === day;
+  return !value || /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());
+}
+
+function activeAccountRole(user, accountId) {
+  const membership = (user?.accounts || []).find((item) => String(item.account?.id) === String(accountId));
+  return membership?.status === 'active' ? membership?.role?.slug : null;
 }
 
 export function EventsScreen({
   initialSection = 'list',
-  allowedSections = ['list', 'create', 'detail', 'branding', 'overlays'],
+  allowedSections = ['list', 'create', 'detail', 'branding', 'resources'],
   showKpi = true,
   onHeaderChange = null,
 }) {
   const { user } = useAuth();
-  const mode = user?.themeMode || 'dark';
-  const theme = useMemo(() => getTheme(mode), [mode]);
-
-  const normalizedAllowedSections = useMemo(
-    () => allowedSections.filter((key) => ['list', 'create', 'detail', 'branding', 'overlays'].includes(key)),
-    [allowedSections]
-  );
-  const [section, setSection] = useState(
-    normalizedAllowedSections.includes(initialSection) ? initialSection : normalizedAllowedSections[0] || 'list'
-  );
+  const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
+  const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
+  const normalizedSections = allowedSections.filter((key) => ['list', 'create', 'detail', 'branding', 'resources', 'overlays'].includes(key)).map((key) => (key === 'overlays' ? 'resources' : key));
+  const [section, setSection] = useState(normalizedSections.includes(initialSection) ? initialSection : normalizedSections[0] || 'list');
+  const [accounts, setAccounts] = useState([]);
+  const [accountId, setAccountId] = useState('');
+  const [modes, setModes] = useState([]);
   const [events, setEvents] = useState([]);
-  const [selectedEventId, setSelectedEventId] = useState(null);
-  const [openedEventId, setOpenedEventId] = useState(null);
+  const [selectedEventId, setSelectedEventId] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [overlays, setOverlays] = useState([]);
-
-  const [loadingList, setLoadingList] = useState(false);
-  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [library, setLibrary] = useState([]);
+  const [resources, setResources] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
-  const [fieldErrors, setFieldErrors] = useState({});
-  const [eventTypeOpen, setEventTypeOpen] = useState(false);
-  const [activeAction, setActiveAction] = useState('');
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [linkSharingEnabled, setLinkSharingEnabled] = useState(true);
-  const [shareMenuOpen, setShareMenuOpen] = useState(false);
-  const [copyDone, setCopyDone] = useState(false);
+  const [eventForm, setEventForm] = useState({ name: '', slug: '', startDate: '', endDate: '', status: 'draft', timezone: 'America/Bogota', description: '', modeSlugs: ['foto'] });
+  const [brandingForm, setBrandingForm] = useState({ logoResourceId: '', backgroundResourceId: '', phone: '', primaryColor: '', interval: '', maxEvents: '', maxStorageGb: '', maxDevices: '' });
+  const [libraryForm, setLibraryForm] = useState({ name: '', purpose: 'overlay', key: '', fileUrl: '', mimeType: 'image/png', sizeBytes: '1' });
+  const [resourceForm, setResourceForm] = useState({ libraryAssetId: '', purpose: 'overlay', placement: '', orderIndex: '0', isActive: true });
 
-  const [eventForm, setEventForm] = useState({
-    name: '',
-    eventDate: '',
-    status: 'draft',
-    eventType: '',
-    imageUrl: '',
-    phone: '',
-    description: '',
-  });
-  const [brandingForm, setBrandingForm] = useState({
-    logoUrl: '',
-    backgroundUrl: '',
-    primaryColor: '',
-    secondaryColor: '',
-    textColor: '',
-  });
-  const [overlayForm, setOverlayForm] = useState({
-    name: '',
-    fileUrl: '',
-    type: 'overlay',
-    layerOrder: '0',
-    isActive: true,
-  });
-
-  const isAdmin = useMemo(() => {
-    const slugs = (user?.roles || []).map((role) => String(role.slug || ''));
-    return slugs.includes('super_admin') || slugs.includes('admin');
-  }, [user]);
-
-  const canEdit = isAdmin;
-
+  const roleSlug = activeAccountRole(user, accountId);
+  const canEdit = isSuperAdmin || ['owner', 'admin'].includes(roleSlug);
   const eventMenu = [
     { key: 'list', label: t('event_000') },
     { key: 'create', label: t('event_001') },
     { key: 'detail', label: t('event_002') },
     { key: 'branding', label: t('event_003') },
-    { key: 'overlays', label: t('event_004') },
-  ].filter((item) => normalizedAllowedSections.includes(item.key));
+    { key: 'resources', label: 'Recursos' },
+  ].filter((item) => normalizedSections.includes(item.key));
 
-  useEffect(() => {
-    if (!normalizedAllowedSections.includes(section)) {
-      setSection(normalizedAllowedSections[0] || 'list');
-    }
-  }, [normalizedAllowedSections, section]);
+  const stats = useMemo(() => ({
+    active: events.filter((event) => event.status === 'active').length,
+    draft: events.filter((event) => event.status === 'draft').length,
+    archived: events.filter((event) => event.status === 'archived').length,
+  }), [events]);
 
-  const selectedEventName = useMemo(() => {
-    if (!selectedEvent) {
-      return t('event_030');
-    }
-    return selectedEvent.name || t('event_030');
-  }, [selectedEvent]);
-  const openedEvent = useMemo(
-    () => events.find((item) => item.id === openedEventId) || selectedEvent || null,
-    [events, openedEventId, selectedEvent]
-  );
+  const clearMessages = () => { setError(''); setOk(''); };
 
-  const openedEventCategory = useMemo(() => {
-    const raw = String(openedEvent?.description || '').replace(/^Tipo:\s*/i, '').toLowerCase();
-    if (raw.includes('boda') || raw.includes('matrimonio')) {
-      return 'heart';
-    }
-    if (raw.includes('cumple') || raw.includes('fiesta')) {
-      return 'cake-candles';
-    }
-    if (raw.includes('concierto') || raw.includes('festival')) {
-      return 'music';
-    }
-    if (raw.includes('expo') || raw.includes('feria')) {
-      return 'store';
-    }
-    if (raw.includes('marca') || raw.includes('lanzamiento')) {
-      return 'bullhorn';
-    }
-    return 'calendar-check';
-  }, [openedEvent?.description]);
+  const loadAccounts = useCallback(async () => {
+    try {
+      const payload = await listAccountsApi();
+      const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
+      setAccounts(rows);
+      setAccountId((current) => current || String(rows[0]?.id || ''));
+    } catch (err) { setError(err?.message || t('account_006')); }
+  }, []);
 
-  useEffect(() => {
-    if (!onHeaderChange) {
-      return;
-    }
-    if (openedEvent) {
-      onHeaderChange({
-        title: openedEvent.name || t('menu_002'),
-        subtitle: openedEvent.eventDate || '',
-        iconName: openedEventCategory,
-        onBack: () => setOpenedEventId(null),
-        backLabel: 'Volver al listado',
-      });
-      return;
-    }
-    onHeaderChange({
-      title: t('menu_002'),
-      subtitle: '',
-      iconName: 'champagne-glasses',
-      onBack: null,
-      backLabel: 'Volver al listado',
-    });
-  }, [onHeaderChange, openedEvent, openedEventCategory]);
-
-  const eventStats = useMemo(() => {
-    const draft = events.filter((item) => item.status === 'draft').length;
-    const active = events.filter((item) => item.status === 'active').length;
-    const archived = events.filter((item) => item.status === 'archived').length;
-    return { draft, active, archived };
-  }, [events]);
-
-  const clearMessages = () => {
-    setError('');
-    setOk('');
-  };
+  const loadModes = useCallback(async () => {
+    try {
+      const payload = await listEventTypesApi();
+      const rows = Array.isArray(payload?.modes) ? payload.modes : Array.isArray(payload?.types) ? payload.types : [];
+      setModes(rows);
+      const defaults = rows.filter((mode) => mode.isDefault).map((mode) => mode.slug);
+      if (defaults.length) setEventForm((prev) => ({ ...prev, modeSlugs: defaults }));
+    } catch (err) { setError(err?.message || 'No se pudieron cargar modos'); }
+  }, []);
 
   const loadEvents = useCallback(async () => {
-    setLoadingList(true);
-    clearMessages();
+    if (!accountId) return;
+    setLoading(true); clearMessages();
     try {
-      const payload = await listEventsApi();
-      const rows = Array.isArray(payload?.events) ? payload.events : Array.isArray(payload) ? payload : [];
-      const normalized = rows.map(normalizeEvent).filter(Boolean);
+      const payload = await listEventsApi(accountId);
+      const normalized = (payload?.events || []).map(normalizeEvent).filter(Boolean);
       setEvents(normalized);
-      if (normalized.length > 0 && !selectedEventId) {
-        setSelectedEventId(normalized[0].id);
-      }
-    } catch (err) {
-      setError(err?.message || t('event_040'));
-    } finally {
-      setLoadingList(false);
-    }
-  }, [selectedEventId]);
+      if (!selectedEventId && normalized[0]?.id) setSelectedEventId(normalized[0].id);
+    } catch (err) { setError(err?.message || t('event_040')); }
+    finally { setLoading(false); }
+  }, [accountId, selectedEventId]);
 
   const loadEventDetail = useCallback(async (eventId) => {
-    if (!eventId) {
-      return;
-    }
-    setLoadingDetail(true);
-    clearMessages();
+    if (!eventId) return;
     try {
       const payload = await getEventDetailApi(eventId);
-      const eventData = normalizeEvent(payload?.event || payload);
-      setSelectedEvent(eventData);
+      const event = normalizeEvent(payload?.event || payload);
+      setSelectedEvent(event);
       setEventForm({
-        name: eventData?.name || '',
-        eventDate: eventData?.eventDate || '',
-        status: eventData?.status || 'draft',
-        eventType: String(eventData?.description || '').replace(/^Tipo:\s*/i, ''),
-        imageUrl: eventData?.branding?.backgroundUrl || '',
-        phone: eventData?.phone || '',
-        description: eventData?.description || '',
+        name: event?.name || '', slug: event?.slug || '', startDate: event?.startDate || '', endDate: event?.endDate || '',
+        status: event?.status || 'draft', timezone: event?.timezone || 'America/Bogota', description: event?.description || '',
+        modeSlugs: event?.modes?.map((item) => item.mode?.slug).filter(Boolean) || ['foto'],
       });
-      setBrandingForm({
-        logoUrl: eventData?.branding?.logoUrl || '',
-        backgroundUrl: eventData?.branding?.backgroundUrl || '',
-        primaryColor: eventData?.branding?.primaryColor || '',
-        secondaryColor: eventData?.branding?.secondaryColor || '',
-        textColor: eventData?.branding?.textColor || '',
-      });
-    } catch (err) {
-      setError(err?.message || t('event_041'));
-    } finally {
-      setLoadingDetail(false);
-    }
-  }, []);
+      setBrandingForm(event?.branding || brandingForm);
+    } catch (err) { setError(err?.message || t('event_041')); }
+  }, [brandingForm]);
 
-  const loadOverlays = useCallback(async (eventId) => {
-    if (!eventId) {
-      return;
-    }
-    clearMessages();
+  const loadLibraryAndResources = useCallback(async (eventId) => {
+    if (!accountId) return;
     try {
-      const payload = await listEventOverlaysApi(eventId);
-      const rows = Array.isArray(payload?.overlays) ? payload.overlays : Array.isArray(payload) ? payload : [];
-      const normalized = rows.map(normalizeOverlay).sort((a, b) => a.layerOrder - b.layerOrder);
-      setOverlays(normalized);
-    } catch (err) {
-      setError(err?.message || t('event_042'));
-    }
-  }, []);
+      const [libraryPayload, resourcePayload] = await Promise.all([
+        listAccountLibraryApi(accountId),
+        eventId ? listEventResourcesApi(eventId) : Promise.resolve({ resources: [] }),
+      ]);
+      const normalizedLibrary = (libraryPayload?.library || []).map(normalizeLibraryEntry);
+      setLibrary(normalizedLibrary);
+      setResources((resourcePayload?.resources || []).map(normalizeResource));
+      if (!resourceForm.libraryAssetId && normalizedLibrary[0]?.libraryAssetId) setResourceForm((prev) => ({ ...prev, libraryAssetId: normalizedLibrary[0].libraryAssetId }));
+    } catch (err) { setError(err?.message || t('event_042')); }
+  }, [accountId, resourceForm.libraryAssetId]);
+
+  useEffect(() => { loadAccounts(); loadModes(); }, [loadAccounts, loadModes]);
+  useEffect(() => { loadEvents(); }, [loadEvents]);
+  useEffect(() => {
+    if (selectedEventId && ['detail', 'branding', 'resources'].includes(section)) loadEventDetail(selectedEventId);
+    if (['branding', 'resources'].includes(section)) loadLibraryAndResources(selectedEventId);
+  }, [loadEventDetail, loadLibraryAndResources, section, selectedEventId]);
 
   useEffect(() => {
-    loadEvents();
-  }, [loadEvents]);
+    if (!onHeaderChange) return;
+    onHeaderChange({ title: selectedEvent?.name || t('menu_002'), subtitle: selectedEvent?.startDate || '', iconName: selectedEvent ? 'calendar-check' : 'champagne-glasses', onBack: null, backLabel: 'Volver al listado' });
+  }, [onHeaderChange, selectedEvent]);
 
-  useEffect(() => {
-    if (!selectedEventId) {
-      return;
-    }
-    if (!['detail', 'branding', 'overlays'].includes(section)) {
-      return;
-    }
-    loadEventDetail(selectedEventId);
-    loadOverlays(selectedEventId);
-  }, [loadEventDetail, loadOverlays, section, selectedEventId]);
-
-  useEffect(() => {
-    setError('');
-    setOk('');
-    setFieldErrors({});
-  }, [section]);
-
-  const validateEventForm = (form, formMode = 'create') => {
-    const nextErrors = {};
-    const name = String(form.name || '').trim();
-    const eventDate = String(form.eventDate || '').trim();
-    const status = String(form.status || '').trim().toLowerCase();
-    const eventType = String(form.eventType || '').trim();
-    const imageUrl = String(form.imageUrl || '').trim();
-
-    if (!name) {
-      nextErrors.name = t('event_050');
-    }
-    if (!eventDate) {
-      nextErrors.eventDate = t('event_051');
-    } else if (!isValidDateYmd(eventDate)) {
-      nextErrors.eventDate = 'La fecha debe ser valida y tener formato YYYY-MM-DD.';
-    }
-    if (formMode === 'create' && !eventType) {
-      nextErrors.eventType = 'El tipo de evento es requerido.';
-    }
-    if (eventType && !EVENT_TYPE_OPTIONS.includes(eventType)) {
-      nextErrors.eventType = 'Selecciona un tipo de evento de la lista.';
-    }
-    if (imageUrl && !isValidHttpUrl(imageUrl)) {
-      nextErrors.imageUrl = 'La imagen debe ser una URL valida (http/https).';
-    }
-    if (status && !EVENT_STATUS.includes(status)) {
-      nextErrors.status = `Estado invalido. Usa: ${EVENT_STATUS.join(', ')}.`;
-    }
-
-    return nextErrors;
-  };
-
-  const validateBrandingForm = (form) => {
-    const nextErrors = {};
-    if (!isValidHttpUrl(form.logoUrl)) {
-      nextErrors.logoUrl = t('event_053');
-    }
-    if (!isValidHttpUrl(form.backgroundUrl)) {
-      nextErrors.backgroundUrl = t('event_053');
-    }
-    if (!isValidHexColor(form.primaryColor)) {
-      nextErrors.primaryColor = 'Color invalido. Usa formato HEX, por ejemplo #1D4ED8.';
-    }
-    if (!isValidHexColor(form.secondaryColor)) {
-      nextErrors.secondaryColor = 'Color invalido. Usa formato HEX, por ejemplo #0EA5E9.';
-    }
-    if (!isValidHexColor(form.textColor)) {
-      nextErrors.textColor = 'Color invalido. Usa formato HEX, por ejemplo #F8FAFC.';
-    }
-    return nextErrors;
-  };
-
-  const validateOverlayForm = (form) => {
-    const nextErrors = {};
-    if (!String(form.name || '').trim()) {
-      nextErrors.overlayName = t('event_054');
-    }
-    if (!String(form.fileUrl || '').trim()) {
-      nextErrors.fileUrl = t('event_055');
-    } else if (!isValidHttpUrl(form.fileUrl)) {
-      nextErrors.fileUrl = t('event_055');
-    }
-    const numericOrder = Number(form.layerOrder);
-    if (Number.isNaN(numericOrder) || !Number.isInteger(numericOrder) || numericOrder < 0) {
-      nextErrors.layerOrder = t('event_056');
-    }
-    if (!OVERLAY_TYPES.includes(String(form.type || '').trim())) {
-      nextErrors.type = `Tipo invalido. Usa: ${OVERLAY_TYPES.join(', ')}.`;
-    }
-    return nextErrors;
+  const validateEvent = () => {
+    if (!accountId) return 'Selecciona una cuenta';
+    if (!String(eventForm.name || '').trim()) return t('event_050');
+    if (!isValidDateYmd(eventForm.startDate) || !isValidDateYmd(eventForm.endDate)) return 'Las fechas deben usar YYYY-MM-DD';
+    if (!EVENT_STATUS.includes(eventForm.status)) return `Estado invalido: ${EVENT_STATUS.join(', ')}`;
+    return '';
   };
 
   const onCreateEvent = async () => {
-    if (!canEdit) {
-      setError(t('event_060'));
-      return;
-    }
-    const nextErrors = validateEventForm(eventForm, 'create');
-    if (Object.keys(nextErrors).length > 0) {
-      setFieldErrors(nextErrors);
-      setError('Revisa los campos del formulario.');
-      return;
-    }
-    setFieldErrors({});
-    setSaving(true);
-    clearMessages();
+    const validation = validateEvent();
+    if (validation) { setError(validation); return; }
+    if (!canEdit) { setError(t('event_060')); return; }
+    setSaving(true); clearMessages();
     try {
-      const payload = await createEventApi({
-        name: eventForm.name,
-        eventDate: eventForm.eventDate,
-        status: eventForm.status || 'draft',
-        description: `Tipo: ${eventForm.eventType}`,
-        phone: '',
-        branding: { backgroundUrl: eventForm.imageUrl || '' },
-        visibleModes: VISIBLE_MODES,
-      });
-      const created = normalizeEvent(payload?.event || payload);
+      const payload = await createEventApi(accountId, eventForm);
+      const event = normalizeEvent(payload?.event || payload);
       setOk(t('event_061'));
       await loadEvents();
-      if (created?.id) {
-        setSelectedEventId(created.id);
-      }
-      setSection('detail');
-    } catch (err) {
-      setError(err?.message || t('event_062'));
-    } finally {
-      setSaving(false);
-    }
+      if (event?.id) { setSelectedEventId(event.id); setSection('detail'); }
+    } catch (err) { setError(err?.message || t('event_062')); }
+    finally { setSaving(false); }
   };
 
   const onUpdateEvent = async () => {
-    if (!selectedEventId) {
-      return;
-    }
-    if (!canEdit) {
-      setError(t('event_060'));
-      return;
-    }
-    const nextErrors = validateEventForm(eventForm, 'update');
-    if (Object.keys(nextErrors).length > 0) {
-      setFieldErrors(nextErrors);
-      setError('Revisa los campos del formulario.');
-      return;
-    }
-    setFieldErrors({});
-    setSaving(true);
-    clearMessages();
+    const validation = validateEvent();
+    if (validation) { setError(validation); return; }
+    if (!selectedEventId || !canEdit) { setError(t('event_060')); return; }
+    setSaving(true); clearMessages();
+    try { await updateEventApi(selectedEventId, eventForm); setOk(t('event_063')); await loadEvents(); await loadEventDetail(selectedEventId); }
+    catch (err) { setError(err?.message || t('event_064')); }
+    finally { setSaving(false); }
+  };
+
+  const onPrepareLibraryUpload = async () => {
+    if (!accountId || !canEdit) return;
+    setSaving(true); clearMessages();
     try {
-      await updateEventApi(selectedEventId, {
-        name: eventForm.name,
-        eventDate: eventForm.eventDate,
-        status: eventForm.status,
-        phone: eventForm.phone || '',
-        description: eventForm.description || '',
-      });
-      setOk(t('event_063'));
-      await loadEventDetail(selectedEventId);
-      await loadEvents();
-    } catch (err) {
-      setError(err?.message || t('event_064'));
-    } finally {
-      setSaving(false);
-    }
+      const payload = await prepareAccountLibraryUploadApi(accountId, { purpose: libraryForm.purpose, fileName: `${libraryForm.purpose}.png`, contentType: libraryForm.mimeType, sizeBytes: Number(libraryForm.sizeBytes || 1) });
+      setLibraryForm((prev) => ({ ...prev, key: payload.key, fileUrl: payload.fileUrl }));
+      setOk('Upload R2 preparado para biblioteca');
+    } catch (err) { setError(err?.message || 'No se pudo preparar upload'); }
+    finally { setSaving(false); }
+  };
+
+  const onCreateLibraryAsset = async () => {
+    if (!accountId || !canEdit) { setError(t('event_060')); return; }
+    setSaving(true); clearMessages();
+    try {
+      await createAccountLibraryAssetApi(accountId, { ...libraryForm, type: libraryForm.purpose, sizeBytes: Number(libraryForm.sizeBytes || 1) });
+      setLibraryForm({ name: '', purpose: 'overlay', key: '', fileUrl: '', mimeType: 'image/png', sizeBytes: '1' });
+      setOk('Recurso agregado a biblioteca');
+      await loadLibraryAndResources(selectedEventId);
+    } catch (err) { setError(err?.message || 'No se pudo crear recurso'); }
+    finally { setSaving(false); }
+  };
+
+  const onCreateResource = async () => {
+    if (!selectedEventId || !canEdit) { setError(t('event_060')); return; }
+    setSaving(true); clearMessages();
+    try {
+      await createEventResourceApi(selectedEventId, { ...resourceForm, orderIndex: Number(resourceForm.orderIndex || 0) });
+      setResourceForm((prev) => ({ ...prev, placement: '', orderIndex: '0', isActive: true }));
+      setOk('Recurso asignado al evento');
+      await loadLibraryAndResources(selectedEventId);
+    } catch (err) { setError(err?.message || 'No se pudo asignar recurso'); }
+    finally { setSaving(false); }
   };
 
   const onSaveBranding = async () => {
-    if (!selectedEventId) {
-      return;
-    }
-    if (!canEdit) {
-      setError(t('event_060'));
-      return;
-    }
-    const nextErrors = validateBrandingForm(brandingForm);
-    if (Object.keys(nextErrors).length > 0) {
-      setFieldErrors(nextErrors);
-      setError('Revisa los campos de branding.');
-      return;
-    }
-    setFieldErrors({});
-    setSaving(true);
-    clearMessages();
-    try {
-      await updateEventBrandingApi(selectedEventId, brandingForm);
-      setOk(t('event_065'));
-      await loadEventDetail(selectedEventId);
-    } catch (err) {
-      setError(err?.message || t('event_066'));
-    } finally {
-      setSaving(false);
-    }
+    if (!selectedEventId || !canEdit) { setError(t('event_060')); return; }
+    setSaving(true); clearMessages();
+    try { await updateEventBrandingApi(selectedEventId, brandingForm); setOk(t('event_065')); await loadEventDetail(selectedEventId); }
+    catch (err) { setError(err?.message || t('event_066')); }
+    finally { setSaving(false); }
   };
 
-  const onCreateOverlay = async () => {
-    if (!selectedEventId) {
-      return;
-    }
-    if (!canEdit) {
-      setError(t('event_060'));
-      return;
-    }
-    const nextErrors = validateOverlayForm(overlayForm);
-    if (Object.keys(nextErrors).length > 0) {
-      setFieldErrors(nextErrors);
-      setError('Revisa los campos de overlays.');
-      return;
-    }
-    setFieldErrors({});
+  const moveResource = async (item, direction) => {
+    const ordered = [...resources].sort((a, b) => a.orderIndex - b.orderIndex);
+    const index = ordered.findIndex((resource) => resource.id === item.id);
+    const target = ordered[index + direction];
+    if (!target) return;
     setSaving(true);
-    clearMessages();
     try {
-      await createEventOverlayApi(selectedEventId, {
-        ...overlayForm,
-        layerOrder: Number(overlayForm.layerOrder),
-      });
-      setOverlayForm({
-        name: '',
-        fileUrl: '',
-        type: 'overlay',
-        layerOrder: '0',
-        isActive: true,
-      });
-      setOk(t('event_067'));
-      await loadOverlays(selectedEventId);
-    } catch (err) {
-      setError(err?.message || t('event_068'));
-    } finally {
-      setSaving(false);
-    }
+      await updateEventResourceApi(selectedEventId, item.id, { orderIndex: target.orderIndex });
+      await updateEventResourceApi(selectedEventId, target.id, { orderIndex: item.orderIndex });
+      await loadLibraryAndResources(selectedEventId);
+    } catch (err) { setError(err?.message || t('event_070')); }
+    finally { setSaving(false); }
   };
 
-  const moveOverlay = async (overlay, direction) => {
-    if (!selectedEventId || !canEdit) {
-      return;
-    }
-    const ordered = [...overlays].sort((a, b) => a.layerOrder - b.layerOrder);
-    const index = ordered.findIndex((item) => item.id === overlay.id);
-    const nextIndex = index + direction;
-    if (index < 0 || nextIndex < 0 || nextIndex >= ordered.length) {
-      return;
-    }
+  const selectedAccount = accounts.find((account) => String(account.id) === String(accountId));
 
-    const current = ordered[index];
-    const target = ordered[nextIndex];
-
-    setSaving(true);
-    clearMessages();
-    try {
-      await updateEventOverlayApi(selectedEventId, current.id, { layerOrder: target.layerOrder });
-      await updateEventOverlayApi(selectedEventId, target.id, { layerOrder: current.layerOrder });
-      setOk(t('event_069'));
-      await loadOverlays(selectedEventId);
-    } catch (err) {
-      setError(err?.message || t('event_070'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const renderEventCard = ({ item }) => (
-    <EventListCard
-      item={item}
-      selected={item.id === selectedEventId}
-      theme={theme}
-      onPress={() => {
-        setSelectedEventId(item.id);
-        setOpenedEventId(item.id);
-      }}
-      dateLabel={t('event_011')}
-    />
+  const renderInput = (label, value, onChangeText, props = {}) => (
+    <>
+      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{label}</Text>
+      <TextInput value={value} onChangeText={onChangeText} placeholder={label} placeholderTextColor={theme.textSecondary} style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]} editable={props.editable ?? canEdit} {...props} />
+    </>
   );
-
-  const renderFieldError = (keyName) =>
-    fieldErrors[keyName] ? <Text style={[styles.fieldError, { color: theme.alert }]}>{fieldErrors[keyName]}</Text> : null;
-
-  const onQuickAction = (key) => {
-    setActiveAction(key);
-    setOk('');
-    setError('');
-  };
-
-  const sharingUrl = `https://fotoshare.co/e/${openedEvent?.slug || 'evento'}`;
-
-  const onCopySharingUrl = async () => {
-    if (!linkSharingEnabled) {
-      setError('Activa Link Sharing para copiar el enlace.');
-      return;
-    }
-    try {
-      await Share.share({ message: sharingUrl });
-      setOk('Se abrio compartir para copiar o enviar el enlace.');
-      setCopyDone(true);
-      setTimeout(() => setCopyDone(false), 1400);
-      setError('');
-    } catch {
-      setError('No se pudo copiar el enlace.');
-    }
-  };
-
-  const onShareSharingUrl = () => {
-    if (!linkSharingEnabled) {
-      setError('Activa Link Sharing para compartir el enlace.');
-      return;
-    }
-    setShareMenuOpen((prev) => !prev);
-    setError('');
-  };
-
-  const onShareToChannel = async (channel) => {
-    if (!linkSharingEnabled) {
-      return;
-    }
-    const encodedUrl = encodeURIComponent(sharingUrl);
-    const encodedText = encodeURIComponent(`Mira este evento: ${sharingUrl}`);
-    const destinations = {
-      email: [
-        `mailto:?subject=${encodeURIComponent('Link del evento')}&body=${encodedText}`,
-      ],
-      whatsapp: [
-        `whatsapp://send?text=${encodedText}`,
-        `https://wa.me/?text=${encodedText}`,
-      ],
-      x: [
-        `twitter://post?message=${encodedText}`,
-        `https://x.com/intent/tweet?text=${encodedText}`,
-      ],
-      facebook: [
-        `fb://facewebmodal/f?href=${encodeURIComponent(`https://www.facebook.com/sharer/sharer.php?u=${sharingUrl}`)}`,
-        `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
-      ],
-    };
-
-    const urls = destinations[channel] || [];
-    try {
-      let opened = false;
-      for (const url of urls) {
-        const can = await Linking.canOpenURL(url);
-        if (can) {
-          await Linking.openURL(url);
-          opened = true;
-          break;
-        }
-      }
-      if (!opened) {
-        await Share.share({ message: sharingUrl, url: sharingUrl });
-      }
-      setOk('Abriendo opciones de compartir.');
-      setError('');
-    } catch {
-      setError('No se pudo compartir el enlace.');
-    } finally {
-      setShareMenuOpen(false);
-    }
-  };
-
-  const onOpenSharingUrl = async () => {
-    if (!linkSharingEnabled) {
-      setError('Activa Link Sharing para abrir el enlace.');
-      return;
-    }
-    try {
-      await Linking.openURL(sharingUrl);
-    } catch {
-      setError('No se pudo abrir el enlace.');
-    }
-  };
-
-  const onDeleteEventLocal = () => {
-    if (!openedEvent?.id) {
-      return;
-    }
-    if (deleteConfirmText.trim().toUpperCase() !== 'ELIMINAR') {
-      setError('Escribe ELIMINAR para confirmar.');
-      return;
-    }
-    const remaining = events.filter((item) => item.id !== openedEvent.id);
-    setEvents(remaining);
-    setDeleteConfirmText('');
-    setActiveAction('');
-    setOpenedEventId(null);
-    setSelectedEventId(remaining[0]?.id || null);
-    setOk('Evento eliminado localmente.');
-  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {openedEventId ? (
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            <View style={styles.metricRow3}>
-              <View style={styles.metricItem}>
-                <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Sesiones</Text>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>0</Text>
-              </View>
-              <View style={styles.metricItem}>
-                <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Imagenes</Text>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>0</Text>
-              </View>
-              <View style={styles.metricItem}>
-                <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Videos</Text>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>0</Text>
-              </View>
-            </View>
-            <Text style={[styles.metricLink, { color: theme.primary }]}>Analiticas</Text>
-          </SurfaceCard>
-
-          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            <View style={styles.metricRow4}>
-              <View style={styles.metricItem}>
-                <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Subidas</Text>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>0</Text>
-              </View>
-              <View style={styles.metricItem}>
-                <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Email</Text>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>0</Text>
-              </View>
-              <View style={styles.metricItem}>
-                <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>SMS</Text>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>0</Text>
-              </View>
-              <View style={styles.metricItem}>
-                <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>WhatsApp</Text>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>0</Text>
-              </View>
-            </View>
-            <Text style={[styles.metricSubText, { color: theme.textSecondary }]}>0 compartidos totales</Text>
-          </SurfaceCard>
-
-          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            <View style={styles.linkHead}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Link Sharing</Text>
-              <View style={styles.linkToggleWrap}>
-                <Switch
-                  value={linkSharingEnabled}
-                  onValueChange={setLinkSharingEnabled}
-                  trackColor={{
-                    false: '#8b949e',
-                    true: '#e13b80',
-                  }}
-                  thumbColor="#f6f8fa"
-                />
-                <Text style={[styles.linkStatusText, { color: theme.textPrimary }]}>
-                  {linkSharingEnabled ? 'ON' : 'OFF'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.linkActionsRow}>
-              <Pressable
-                style={[styles.linkRow, { borderColor: theme.border, backgroundColor: theme.background }]}
-                onPress={onOpenSharingUrl}
-              >
-                <Icon
-                  name="link"
-                  iconStyle="solid"
-                  size={14}
-                  color={linkSharingEnabled ? theme.textSecondary : theme.textSecondary}
-                />
-                <Text
-                  numberOfLines={1}
-                  style={[styles.linkText, { color: linkSharingEnabled ? theme.textSecondary : theme.textSecondary }]}
-                >
-                  {linkSharingEnabled ? sharingUrl : 'Event link is disabled.'}
-                </Text>
-              </Pressable>
-              <CopyActionButton
-                theme={theme}
-                disabled={!linkSharingEnabled}
-                copied={copyDone}
-                onPress={onCopySharingUrl}
-              />
-              <ShareMenuButton
-                theme={theme}
-                disabled={!linkSharingEnabled}
-                isOpen={shareMenuOpen}
-                onToggle={onShareSharingUrl}
-                onRequestClose={() => setShareMenuOpen(false)}
-                onSelect={onShareToChannel}
-              />
-            </View>
-          </SurfaceCard>
-
-          <EventQuickActions theme={theme} onAction={onQuickAction} />
-
-          {activeAction === 'download' ? (
-            <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Descargar contenido</Text>
-              <Text style={[styles.helper, { color: theme.textSecondary }]}>
-                Prepara un ZIP con fotos y videos del evento.
-              </Text>
-              <AppButton
-                label="Iniciar descarga"
-                onPress={() => setOk('Descarga iniciada (demo).')}
-                backgroundColor={theme.buttonBg}
-                pressedColor={theme.buttonBgPressed}
-                textColor={theme.buttonText}
-              />
-            </SurfaceCard>
-          ) : null}
-
-          {activeAction === 'upload' ? (
-            <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Subir archivos</Text>
-              <Text style={[styles.helper, { color: theme.textSecondary }]}>
-                Arrastra o elige archivos para subir al evento.
-              </Text>
-              <View style={[styles.uploadBox, { borderColor: theme.border, backgroundColor: theme.background }]}>
-                <Text style={{ color: theme.textSecondary }}>Maximo 50 MB por archivo</Text>
-              </View>
-              <AppButton
-                label="Seleccionar archivos"
-                onPress={() => setOk('Selector de archivos pendiente de integracion nativa.')}
-                backgroundColor={theme.buttonBg}
-                pressedColor={theme.buttonBgPressed}
-                textColor={theme.buttonText}
-              />
-            </SurfaceCard>
-          ) : null}
-
-          {activeAction === 'embed' ? (
-            <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Codigo embebido</Text>
-              <View style={[styles.embedBox, { borderColor: theme.border, backgroundColor: theme.background }]}>
-                <Text style={{ color: theme.textSecondary }} numberOfLines={2}>
-                  {`<iframe src=\"https://fotoshare.co/e/${openedEvent?.slug || 'evento'}\" />`}
-                </Text>
-              </View>
-              <AppButton
-                label="Copiar codigo"
-                onPress={() => setOk('Codigo copiado (demo).')}
-                backgroundColor={theme.buttonBg}
-                pressedColor={theme.buttonBgPressed}
-                textColor={theme.buttonText}
-              />
-            </SurfaceCard>
-          ) : null}
-
-          {activeAction === 'analytics' ? (
-            <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Analiticas del evento</Text>
-              <Text style={[styles.helper, { color: theme.textSecondary }]}>Ultimos 30 dias</Text>
-              <View style={styles.metricRow3}>
-                <View style={styles.metricItem}>
-                  <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Vistas</Text>
-                  <Text style={[styles.metricValue, { color: theme.textPrimary }]}>0</Text>
-                </View>
-                <View style={styles.metricItem}>
-                  <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Sesiones</Text>
-                  <Text style={[styles.metricValue, { color: theme.textPrimary }]}>0</Text>
-                </View>
-                <View style={styles.metricItem}>
-                  <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Compartidos</Text>
-                  <Text style={[styles.metricValue, { color: theme.textPrimary }]}>0</Text>
-                </View>
-              </View>
-            </SurfaceCard>
-          ) : null}
-
-          {activeAction === 'shares' ? (
-            <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Compartidos</Text>
-              <View style={styles.row}>
-                <AppButton
-                  label="Descargar CSV"
-                  onPress={() => setOk('Exportacion CSV iniciada (demo).')}
-                  backgroundColor={theme.surface}
-                  pressedColor={theme.background}
-                  textColor={theme.textPrimary}
-                  style={[styles.smallButton, { borderWidth: 1, borderColor: theme.border }]}
-                />
-                <AppButton
-                  label="Descargar PDF"
-                  onPress={() => setOk('Exportacion PDF iniciada (demo).')}
-                  backgroundColor={theme.surface}
-                  pressedColor={theme.background}
-                  textColor={theme.textPrimary}
-                  style={[styles.smallButton, { borderWidth: 1, borderColor: theme.border }]}
-                />
-              </View>
-              <View style={[styles.embedBox, { borderColor: theme.border, backgroundColor: theme.background }]}>
-                <Text style={{ color: theme.textSecondary }}>No se encontraron compartidos para este evento.</Text>
-              </View>
-            </SurfaceCard>
-          ) : null}
-
-          {activeAction === 'slideshow' ? (
-            <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Presentacion</Text>
-              <Text style={[styles.helper, { color: theme.textSecondary }]}>
-                Reproducir galeria automaticamente en pantalla completa.
-              </Text>
-              <AppButton
-                label="Iniciar presentacion"
-                onPress={() => setOk('Presentacion iniciada (demo).')}
-                backgroundColor={theme.buttonBg}
-                pressedColor={theme.buttonBgPressed}
-                textColor={theme.buttonText}
-              />
-            </SurfaceCard>
-          ) : null}
-
-          {activeAction === 'delete' ? (
-            <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-              <Text style={[styles.sectionTitle, { color: theme.alert }]}>Eliminar evento</Text>
-              <Text style={[styles.helper, { color: theme.textSecondary }]}>
-                Esta accion no se puede deshacer. Escribe ELIMINAR para confirmar.
-              </Text>
-              <TextInput
-                value={deleteConfirmText}
-                onChangeText={setDeleteConfirmText}
-                placeholder="ELIMINAR"
-                placeholderTextColor={theme.textSecondary}
-                style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-              />
-              <AppButton
-                label="Eliminar evento"
-                onPress={onDeleteEventLocal}
-                backgroundColor={theme.alert}
-                pressedColor={theme.alert}
-                textColor="#fff"
-              />
-            </SurfaceCard>
-          ) : null}
-        </ScrollView>
-      ) : (
-        <>
       <HorizontalSubMenu items={eventMenu} selectedKey={section} onSelect={setSection} theme={theme} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {showKpi ? (
-          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            <View style={styles.kpiRow}>
-              <View style={styles.kpiItem}>
-                <Text style={[styles.kpiNumber, { color: theme.textPrimary }]}>{eventStats.active}</Text>
-                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Activos</Text>
-              </View>
-              <View style={[styles.kpiDivider, { backgroundColor: theme.border }]} />
-              <View style={styles.kpiItem}>
-                <Text style={[styles.kpiNumber, { color: theme.textPrimary }]}>{eventStats.draft}</Text>
-                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Draft</Text>
-              </View>
-              <View style={[styles.kpiDivider, { backgroundColor: theme.border }]} />
-              <View style={styles.kpiItem}>
-                <Text style={[styles.kpiNumber, { color: theme.textPrimary }]}>{eventStats.archived}</Text>
-                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Archivados</Text>
-              </View>
-            </View>
-          </SurfaceCard>
-        ) : null}
+        <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+          <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Cuenta</Text>
+          <View style={[styles.pickerWrap, { borderColor: theme.border }]}>
+            <Picker selectedValue={accountId} onValueChange={(value) => setAccountId(String(value || ''))} style={{ color: theme.textPrimary }}>
+              {accounts.map((account) => <Picker.Item key={account.id} label={account.name} value={String(account.id)} />)}
+            </Picker>
+          </View>
+          <Text style={[styles.helper, { color: theme.textSecondary }]}>{selectedAccount?.slug || '-'} · {isSuperAdmin ? 'super_admin' : roleSlug || '-'}</Text>
+        </SurfaceCard>
 
-        {error && (section !== 'list' || events.length === 0) ? (
-          <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text>
-        ) : null}
+        {error ? <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text> : null}
         {ok ? <Text style={[styles.feedback, { color: theme.secondary }]}>{ok}</Text> : null}
-        {saving ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('event_020')}</Text> : null}
+        {saving || loading ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('event_020')}</Text> : null}
 
         {section === 'list' ? (
           <View style={styles.sectionWrap}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_000')}</Text>
-            {loadingList ? <Text style={{ color: theme.textSecondary }}>{t('event_021')}</Text> : null}
-            {!loadingList && events.length === 0 ? (
-              <Text style={{ color: theme.textSecondary }}>{t('event_022')}</Text>
-            ) : null}
-            <FlatList
-              key="events-list-1col"
-              data={events}
-              keyExtractor={(item) => String(item.id)}
-              scrollEnabled={false}
-              contentContainerStyle={styles.listContent}
-              numColumns={1}
-              renderItem={renderEventCard}
-            />
+            {showKpi ? <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}><View style={styles.kpiRow}><Text style={[styles.kpiText, { color: theme.textPrimary }]}>Activos {stats.active}</Text><Text style={[styles.kpiText, { color: theme.textPrimary }]}>Draft {stats.draft}</Text><Text style={[styles.kpiText, { color: theme.textPrimary }]}>Archivados {stats.archived}</Text></View></SurfaceCard> : null}
+            {events.length === 0 ? <Text style={{ color: theme.textSecondary }}>{t('event_022')}</Text> : null}
+            <FlatList data={events} keyExtractor={(item) => item.id} scrollEnabled={false} contentContainerStyle={styles.listContent} renderItem={({ item }) => <EventListCard item={item} selected={item.id === selectedEventId} theme={theme} onPress={() => { setSelectedEventId(item.id); setSelectedEvent(item); setSection('detail'); }} />} />
           </View>
         ) : null}
 
-        {section === 'create' ? (
+        {section === 'create' || section === 'detail' ? (
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_001')}</Text>
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_071')}</Text>
-            <TextInput
-              value={eventForm.name}
-              onChangeText={(value) => setEventForm((prev) => ({ ...prev, name: value }))}
-              placeholder={t('event_071')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-            />
-            {renderFieldError('name')}
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_073')}</Text>
-            <TextInput
-              value={eventForm.eventDate}
-              onChangeText={(value) => setEventForm((prev) => ({ ...prev, eventDate: value }))}
-              placeholder={t('event_073')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-            />
-            {renderFieldError('eventDate')}
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Tipo de evento</Text>
-            <Pressable
-              onPress={() => setEventTypeOpen((prev) => !prev)}
-              style={[styles.selectInput, { borderColor: theme.border, backgroundColor: theme.surface }]}
-            >
-              <Text style={{ color: eventForm.eventType ? theme.textPrimary : theme.textSecondary, fontSize: tokens.typography.body }}>
-                {eventForm.eventType || 'Select type'}
-              </Text>
-              <Text style={{ color: theme.textSecondary, fontSize: tokens.typography.body }}>{eventTypeOpen ? '˄' : '˅'}</Text>
-            </Pressable>
-            {eventTypeOpen ? (
-              <View style={[styles.selectDropdown, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-                {EVENT_TYPE_OPTIONS.map((option) => {
-                  const active = eventForm.eventType === option;
-                  return (
-                    <Pressable
-                      key={option}
-                      onPress={() => {
-                        setEventForm((prev) => ({ ...prev, eventType: option }));
-                        setEventTypeOpen(false);
-                      }}
-                      style={[styles.selectOption, active ? { backgroundColor: theme.background } : null]}
-                    >
-                      <Text style={[styles.selectOptionText, active ? styles.selectOptionTextActive : null, { color: theme.textPrimary }]}>
-                        {option}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : null}
-            {renderFieldError('eventType')}
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Imagen del evento (URL opcional)</Text>
-            <TextInput
-              value={eventForm.imageUrl}
-              onChangeText={(value) => setEventForm((prev) => ({ ...prev, imageUrl: value }))}
-              placeholder="https://..."
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-            />
-            {renderFieldError('imageUrl')}
-            <AppButton
-              label={t('event_076')}
-              onPress={onCreateEvent}
-              backgroundColor={theme.buttonBg}
-              pressedColor={theme.buttonBgPressed}
-              textColor={theme.buttonText}
-            />
-          </SurfaceCard>
-        ) : null}
-
-        {section === 'detail' ? (
-          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-              {t('event_002')}: {selectedEventName}
-            </Text>
-            {!selectedEventId ? <Text style={{ color: theme.textSecondary }}>{t('event_023')}</Text> : null}
-            {loadingDetail ? <Text style={{ color: theme.textSecondary }}>{t('event_024')}</Text> : null}
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_071')}</Text>
-            <TextInput
-              value={eventForm.name}
-              onChangeText={(value) => setEventForm((prev) => ({ ...prev, name: value }))}
-              placeholder={t('event_071')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-              editable={canEdit}
-            />
-            {renderFieldError('name')}
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{section === 'create' ? t('event_001') : `${t('event_002')}: ${selectedEvent?.name || ''}`}</Text>
+            {renderInput(t('event_071'), eventForm.name, (name) => setEventForm((prev) => ({ ...prev, name })))}
+            {renderInput(t('event_072'), eventForm.slug, (slug) => setEventForm((prev) => ({ ...prev, slug })))}
+            {renderInput('Fecha inicio (YYYY-MM-DD)', eventForm.startDate, (startDate) => setEventForm((prev) => ({ ...prev, startDate })))}
+            {renderInput('Fecha fin (YYYY-MM-DD)', eventForm.endDate, (endDate) => setEventForm((prev) => ({ ...prev, endDate })))}
+            {renderInput('Timezone', eventForm.timezone, (timezone) => setEventForm((prev) => ({ ...prev, timezone })))}
+            {renderInput(t('event_075'), eventForm.description, (description) => setEventForm((prev) => ({ ...prev, description })), { multiline: true, style: [styles.input, styles.multiline, { color: theme.textPrimary, borderColor: theme.border }] })}
             <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_010')}</Text>
-            <TextInput
-              value={eventForm.status}
-              onChangeText={(value) => setEventForm((prev) => ({ ...prev, status: value }))}
-              placeholder={t('event_010')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-              editable={canEdit}
-            />
-            {renderFieldError('status')}
-            <Text style={[styles.helper, { color: theme.textSecondary }]}>
-              {t('event_025')}: {EVENT_STATUS.join(', ')}
-            </Text>
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_073')}</Text>
-            <TextInput
-              value={eventForm.eventDate}
-              onChangeText={(value) => setEventForm((prev) => ({ ...prev, eventDate: value }))}
-              placeholder={t('event_073')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-              editable={canEdit}
-            />
-            {renderFieldError('eventDate')}
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_074')}</Text>
-            <TextInput
-              value={eventForm.phone}
-              onChangeText={(value) => setEventForm((prev) => ({ ...prev, phone: value }))}
-              placeholder={t('event_074')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-              editable={canEdit}
-            />
-            {renderFieldError('phone')}
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_075')}</Text>
-            <TextInput
-              value={eventForm.description}
-              onChangeText={(value) => setEventForm((prev) => ({ ...prev, description: value }))}
-              placeholder={t('event_075')}
-              placeholderTextColor={theme.textSecondary}
-              multiline
-              style={[styles.input, styles.multiline, { color: theme.textPrimary, borderColor: theme.border }]}
-              editable={canEdit}
-            />
-            <AppButton
-              label={t('event_077')}
-              onPress={onUpdateEvent}
-              backgroundColor={theme.buttonBg}
-              pressedColor={theme.buttonBgPressed}
-              textColor={theme.buttonText}
-            />
+            <View style={[styles.pickerWrap, { borderColor: theme.border }]}>
+              <Picker selectedValue={eventForm.status} onValueChange={(status) => setEventForm((prev) => ({ ...prev, status }))} style={{ color: theme.textPrimary }} enabled={canEdit}>
+                {EVENT_STATUS.map((status) => <Picker.Item key={status} label={status} value={status} />)}
+              </Picker>
+            </View>
+            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Modos</Text>
+            {modes.map((modeItem) => {
+              const active = eventForm.modeSlugs.includes(modeItem.slug);
+              return <Pressable key={modeItem.slug} style={styles.switchRow} onPress={() => setEventForm((prev) => ({ ...prev, modeSlugs: active ? prev.modeSlugs.filter((slug) => slug !== modeItem.slug) : [...prev.modeSlugs, modeItem.slug] }))}><Text style={{ color: theme.textPrimary }}>{modeItem.name}</Text><Switch value={active} disabled={!canEdit || section === 'detail'} /></Pressable>;
+            })}
+            <AppButton label={section === 'create' ? t('event_076') : t('event_077')} onPress={section === 'create' ? onCreateEvent : onUpdateEvent} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
           </SurfaceCard>
         ) : null}
 
         {section === 'branding' ? (
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-              {t('event_003')}: {selectedEventName}
-            </Text>
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_078')}</Text>
-            <TextInput
-              value={brandingForm.logoUrl}
-              onChangeText={(value) => setBrandingForm((prev) => ({ ...prev, logoUrl: value }))}
-              placeholder={t('event_078')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-              editable={canEdit}
-            />
-            {renderFieldError('logoUrl')}
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_079')}</Text>
-            <TextInput
-              value={brandingForm.backgroundUrl}
-              onChangeText={(value) => setBrandingForm((prev) => ({ ...prev, backgroundUrl: value }))}
-              placeholder={t('event_079')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-              editable={canEdit}
-            />
-            {renderFieldError('backgroundUrl')}
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_080')}</Text>
-            <TextInput
-              value={brandingForm.primaryColor}
-              onChangeText={(value) => setBrandingForm((prev) => ({ ...prev, primaryColor: value }))}
-              placeholder={t('event_080')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-              editable={canEdit}
-            />
-            {renderFieldError('primaryColor')}
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_081')}</Text>
-            <TextInput
-              value={brandingForm.secondaryColor}
-              onChangeText={(value) => setBrandingForm((prev) => ({ ...prev, secondaryColor: value }))}
-              placeholder={t('event_081')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-              editable={canEdit}
-            />
-            {renderFieldError('secondaryColor')}
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_082')}</Text>
-            <TextInput
-              value={brandingForm.textColor}
-              onChangeText={(value) => setBrandingForm((prev) => ({ ...prev, textColor: value }))}
-              placeholder={t('event_082')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-              editable={canEdit}
-            />
-            {renderFieldError('textColor')}
-            <AppButton
-              label={t('event_083')}
-              onPress={onSaveBranding}
-              backgroundColor={theme.buttonBg}
-              pressedColor={theme.buttonBgPressed}
-              textColor={theme.buttonText}
-            />
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_003')}: {selectedEvent?.name || '-'}</Text>
+            {renderInput('Logo resource ID', brandingForm.logoResourceId, (logoResourceId) => setBrandingForm((prev) => ({ ...prev, logoResourceId })))}
+            {renderInput('Background resource ID', brandingForm.backgroundResourceId, (backgroundResourceId) => setBrandingForm((prev) => ({ ...prev, backgroundResourceId })))}
+            {renderInput(t('event_074'), brandingForm.phone, (phone) => setBrandingForm((prev) => ({ ...prev, phone })))}
+            {renderInput(t('event_080'), brandingForm.primaryColor, (primaryColor) => setBrandingForm((prev) => ({ ...prev, primaryColor })))}
+            {renderInput('Intervalo', brandingForm.interval, (interval) => setBrandingForm((prev) => ({ ...prev, interval })))}
+            {renderInput('Max eventos', String(brandingForm.maxEvents || ''), (maxEvents) => setBrandingForm((prev) => ({ ...prev, maxEvents })), { keyboardType: 'number-pad' })}
+            {renderInput('Max GB', String(brandingForm.maxStorageGb || ''), (maxStorageGb) => setBrandingForm((prev) => ({ ...prev, maxStorageGb })), { keyboardType: 'number-pad' })}
+            {renderInput('Max dispositivos', String(brandingForm.maxDevices || ''), (maxDevices) => setBrandingForm((prev) => ({ ...prev, maxDevices })), { keyboardType: 'number-pad' })}
+            <AppButton label={t('event_083')} onPress={onSaveBranding} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
           </SurfaceCard>
         ) : null}
 
-        {section === 'overlays' ? (
+        {section === 'resources' ? (
           <View style={styles.sectionWrap}>
             <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-                {t('event_004')}: {selectedEventName}
-              </Text>
-              <TextInput
-                value={overlayForm.name}
-                onChangeText={(value) => setOverlayForm((prev) => ({ ...prev, name: value }))}
-                placeholder={t('event_084')}
-                placeholderTextColor={theme.textSecondary}
-                style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-                editable={canEdit}
-              />
-              {renderFieldError('overlayName')}
-              <TextInput
-                value={overlayForm.fileUrl}
-                onChangeText={(value) => setOverlayForm((prev) => ({ ...prev, fileUrl: value }))}
-                placeholder={t('event_085')}
-                placeholderTextColor={theme.textSecondary}
-                style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-                editable={canEdit}
-              />
-              {renderFieldError('fileUrl')}
-              <TextInput
-                value={overlayForm.type}
-                onChangeText={(value) => setOverlayForm((prev) => ({ ...prev, type: value }))}
-                placeholder={t('event_086')}
-                placeholderTextColor={theme.textSecondary}
-                style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-                editable={canEdit}
-              />
-              {renderFieldError('type')}
-              <Text style={[styles.helper, { color: theme.textSecondary }]}>
-                {t('event_026')}: {OVERLAY_TYPES.join(', ')}
-              </Text>
-              <TextInput
-                value={overlayForm.layerOrder}
-                onChangeText={(value) => setOverlayForm((prev) => ({ ...prev, layerOrder: value }))}
-                placeholder={t('event_087')}
-                placeholderTextColor={theme.textSecondary}
-                keyboardType="numeric"
-                style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-                editable={canEdit}
-              />
-              {renderFieldError('layerOrder')}
-              <View style={styles.switchRow}>
-                <Text style={{ color: theme.textPrimary }}>{t('event_088')}</Text>
-                <Switch
-                  value={overlayForm.isActive}
-                  onValueChange={(value) => setOverlayForm((prev) => ({ ...prev, isActive: value }))}
-                />
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Biblioteca de cuenta</Text>
+              {renderInput('Nombre recurso', libraryForm.name, (name) => setLibraryForm((prev) => ({ ...prev, name })))}
+              <View style={[styles.pickerWrap, { borderColor: theme.border }]}>
+                <Picker selectedValue={libraryForm.purpose} onValueChange={(purpose) => setLibraryForm((prev) => ({ ...prev, purpose }))} style={{ color: theme.textPrimary }}>
+                  {RESOURCE_PURPOSES.map((purpose) => <Picker.Item key={purpose} label={purpose} value={purpose} />)}
+                </Picker>
               </View>
-              <AppButton
-                label={t('event_089')}
-                onPress={onCreateOverlay}
-                backgroundColor={theme.buttonBg}
-                pressedColor={theme.buttonBgPressed}
-                textColor={theme.buttonText}
-              />
+              {renderInput('R2 key', libraryForm.key, (key) => setLibraryForm((prev) => ({ ...prev, key })))}
+              {renderInput('File URL', libraryForm.fileUrl, (fileUrl) => setLibraryForm((prev) => ({ ...prev, fileUrl })))}
+              <AppButton label="Preparar upload R2" onPress={onPrepareLibraryUpload} backgroundColor={theme.primary} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
+              <AppButton label="Crear recurso en biblioteca" onPress={onCreateLibraryAsset} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
             </SurfaceCard>
 
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_090')}</Text>
-            {overlays.length === 0 ? <Text style={{ color: theme.textSecondary }}>{t('event_027')}</Text> : null}
-            {overlays.map((item) => (
-              <SurfaceCard key={String(item.id)} surfaceColor={theme.surface} borderColor={theme.border}>
-                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                  {item.name} ({item.type})
-                </Text>
-                <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>
-                  {t('event_028')}: {item.layerOrder}
-                </Text>
-                <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>
-                  {t('event_029')}: {item.isActive ? t('event_091') : t('event_092')}
-                </Text>
+            <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Asignar recurso al evento</Text>
+              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Recurso</Text>
+              <View style={[styles.pickerWrap, { borderColor: theme.border }]}>
+                <Picker selectedValue={resourceForm.libraryAssetId} onValueChange={(libraryAssetId) => setResourceForm((prev) => ({ ...prev, libraryAssetId }))} style={{ color: theme.textPrimary }}>
+                  {library.map((item) => <Picker.Item key={item.libraryAssetId} label={`${item.name} · ${item.type}`} value={item.libraryAssetId} />)}
+                </Picker>
+              </View>
+              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Propósito</Text>
+              <View style={[styles.pickerWrap, { borderColor: theme.border }]}>
+                <Picker selectedValue={resourceForm.purpose} onValueChange={(purpose) => setResourceForm((prev) => ({ ...prev, purpose }))} style={{ color: theme.textPrimary }}>
+                  {RESOURCE_PURPOSES.map((purpose) => <Picker.Item key={purpose} label={purpose} value={purpose} />)}
+                </Picker>
+              </View>
+              {renderInput('Placement', resourceForm.placement, (placement) => setResourceForm((prev) => ({ ...prev, placement })))}
+              {renderInput('Orden', resourceForm.orderIndex, (orderIndex) => setResourceForm((prev) => ({ ...prev, orderIndex })), { keyboardType: 'number-pad' })}
+              <View style={styles.switchRow}>
+                <Text style={{ color: theme.textPrimary }}>{t('event_088')}</Text>
+                <Switch value={resourceForm.isActive} onValueChange={(isActive) => setResourceForm((prev) => ({ ...prev, isActive }))} />
+              </View>
+              <AppButton label="Asignar recurso" onPress={onCreateResource} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
+            </SurfaceCard>
+
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Biblioteca disponible</Text>
+            {library.map((item) => (
+              <SurfaceCard key={`library-${item.id}`} surfaceColor={theme.surface} borderColor={theme.border}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{item.name} · {item.type}</Text>
+                <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>owner: {item.ownerType}</Text>
+                <Text numberOfLines={1} style={[styles.cardMeta, { color: theme.textSecondary }]}>{item.fileUrl}</Text>
+              </SurfaceCard>
+            ))}
+
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Recursos del evento</Text>
+            {resources.map((item) => (
+              <SurfaceCard key={`resource-${item.id}`} surfaceColor={theme.surface} borderColor={theme.border}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{item.asset?.name || item.libraryAssetId} · {item.purpose}</Text>
+                <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>orden: {item.orderIndex} · activo: {item.isActive ? 'si' : 'no'}</Text>
+                <Text numberOfLines={1} style={[styles.cardMeta, { color: theme.textSecondary }]}>{item.asset?.fileUrl || '-'}</Text>
                 <View style={styles.row}>
-                  <AppButton
-                    label={t('event_093')}
-                    onPress={() => moveOverlay(item, -1)}
-                    backgroundColor={theme.primary}
-                    pressedColor={theme.buttonBgPressed}
-                    textColor={theme.buttonText}
-                    style={styles.smallButton}
-                  />
-                  <AppButton
-                    label={t('event_094')}
-                    onPress={() => moveOverlay(item, 1)}
-                    backgroundColor={theme.primary}
-                    pressedColor={theme.buttonBgPressed}
-                    textColor={theme.buttonText}
-                    style={styles.smallButton}
-                  />
+                  <AppButton label={t('event_093')} onPress={() => moveResource(item, -1)} backgroundColor={theme.primary} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.smallButton} />
+                  <AppButton label={t('event_094')} onPress={() => moveResource(item, 1)} backgroundColor={theme.primary} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.smallButton} />
                 </View>
               </SurfaceCard>
             ))}
           </View>
         ) : null}
       </ScrollView>
-        </>
-      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: tokens.spacing.md,
-    paddingTop: tokens.spacing.sm,
-    paddingBottom: tokens.spacing.lg,
-    gap: tokens.spacing.md,
-  },
-  sectionWrap: {
-    gap: tokens.spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: tokens.typography.heading,
-    fontWeight: '700',
-  },
-  feedback: {
-    fontSize: tokens.typography.caption,
-    fontWeight: '600',
-  },
-  listContent: {
-    gap: tokens.spacing.sm,
-  },
-  gridRow: {
-    gap: tokens.spacing.sm,
-  },
-  kpiRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    justifyContent: 'space-between',
-  },
-  kpiItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: tokens.spacing.xxs,
-  },
-  kpiNumber: {
-    fontSize: tokens.typography.heading,
-    fontWeight: '700',
-  },
-  kpiLabel: {
-    fontSize: tokens.typography.caption,
-    fontWeight: '700',
-  },
-  kpiDivider: {
-    width: 1,
-  },
-  cardMeta: {
-    fontSize: tokens.typography.caption,
-  },
-  fieldLabel: {
-    fontSize: tokens.typography.caption,
-    fontWeight: '700',
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: tokens.radius.md,
-    paddingHorizontal: tokens.spacing.sm,
-    paddingVertical: tokens.spacing.sm,
-    fontSize: tokens.typography.body,
-  },
-  selectInput: {
-    borderWidth: 1,
-    borderRadius: tokens.radius.md,
-    paddingHorizontal: tokens.spacing.sm,
-    paddingVertical: tokens.spacing.sm,
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  selectDropdown: {
-    borderWidth: 1,
-    borderRadius: tokens.radius.md,
-    overflow: 'hidden',
-  },
-  selectOption: {
-    paddingHorizontal: tokens.spacing.sm,
-    paddingVertical: tokens.spacing.sm,
-  },
-  selectOptionText: {
-    fontWeight: '500',
-  },
-  selectOptionTextActive: {
-    fontWeight: '700',
-  },
-  multiline: {
-    minHeight: 84,
-    textAlignVertical: 'top',
-  },
-  helper: {
-    fontSize: tokens.typography.caption,
-  },
-  fieldError: {
-    fontSize: tokens.typography.caption,
-    fontWeight: '600',
-    marginTop: -2,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  row: {
-    flexDirection: 'row',
-    gap: tokens.spacing.xs,
-  },
-  smallButton: {
-    minWidth: 100,
-    paddingVertical: tokens.spacing.xs,
-    paddingHorizontal: tokens.spacing.sm,
-  },
-  uploadBox: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderRadius: tokens.radius.md,
-    minHeight: 88,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: tokens.spacing.sm,
-  },
-  embedBox: {
-    borderWidth: 1,
-    borderRadius: tokens.radius.md,
-    minHeight: 64,
-    padding: tokens.spacing.sm,
-    justifyContent: 'center',
-  },
-  metricRow3: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  metricRow4: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  metricItem: {
-    alignItems: 'center',
-    gap: 2,
-    flex: 1,
-  },
-  metricLabel: {
-    fontSize: tokens.typography.caption,
-    fontWeight: '700',
-  },
-  metricValue: {
-    fontSize: tokens.typography.heading,
-    fontWeight: '700',
-  },
-  metricLink: {
-    marginTop: tokens.spacing.sm,
-    alignSelf: 'flex-end',
-    fontWeight: '700',
-  },
-  metricSubText: {
-    marginTop: tokens.spacing.sm,
-    fontWeight: '600',
-  },
-  linkHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  linkToggleWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: tokens.spacing.xs,
-  },
-  linkStatusText: {
-    fontWeight: '700',
-  },
-  linkActionsRow: {
-    marginTop: tokens.spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: tokens.spacing.xs,
-  },
-  linkRow: {
-    borderWidth: 1,
-    borderRadius: tokens.radius.md,
-    padding: tokens.spacing.sm,
-    flexDirection: 'row',
-    gap: tokens.spacing.xs,
-    alignItems: 'center',
-    flex: 1,
-  },
-  linkText: {
-    fontSize: tokens.typography.caption,
-    flex: 1,
-  },
+  scrollContent: { padding: tokens.spacing.md, gap: tokens.spacing.md },
+  sectionWrap: { gap: tokens.spacing.sm },
+  sectionTitle: { fontSize: tokens.typography.heading, fontWeight: '700' },
+  fieldLabel: { fontSize: tokens.typography.caption, fontWeight: '700' },
+  input: { borderWidth: 1, borderRadius: tokens.radius.sm, padding: tokens.spacing.xs, fontSize: tokens.typography.body },
+  multiline: { minHeight: 84, textAlignVertical: 'top' },
+  pickerWrap: { borderWidth: 1, borderRadius: tokens.radius.sm, overflow: 'hidden' },
+  helper: { fontSize: tokens.typography.caption },
+  feedback: { fontSize: tokens.typography.caption, fontWeight: '700' },
+  listContent: { gap: tokens.spacing.sm },
+  kpiRow: { flexDirection: 'row', justifyContent: 'space-between', gap: tokens.spacing.xs },
+  kpiText: { fontSize: tokens.typography.caption, fontWeight: '700' },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
+  cardTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
+  cardMeta: { fontSize: tokens.typography.caption },
+  row: { flexDirection: 'row', gap: tokens.spacing.xs },
+  smallButton: { flex: 1 },
 });

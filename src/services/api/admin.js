@@ -44,3 +44,21 @@ export function deactivateUserApi(userId) {
     { method: 'PATCH' }
   );
 }
+
+export function updateUserStatusApi(userId, statusSlug) {
+  return apiRequest(`/api/admin/users/${userId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ statusSlug }),
+  });
+}
+
+export function createAccountApi(input) {
+  return apiRequest('/api/admin/accounts', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateAccountStatusApi(accountId, status) {
+  return apiRequest(`/api/admin/accounts/${accountId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}

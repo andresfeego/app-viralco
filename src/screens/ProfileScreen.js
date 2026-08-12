@@ -5,6 +5,7 @@ import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { AppButton } from '../design-system/components/AppButton';
+import { t } from '../i18n';
 
 export function ProfileScreen() {
   const { user, reloadMe, updateThemeMode } = useAuth();
@@ -13,7 +14,7 @@ export function ProfileScreen() {
   const [loadingMode, setLoadingMode] = useState(false);
   const [loadingReload, setLoadingReload] = useState(false);
   const [error, setError] = useState('');
-  const roleNames = (user?.roles || []).map((r) => r.slug).filter(Boolean);
+  const roleNames = (user?.globalRoles || []).map((r) => r.slug).filter(Boolean);
 
   const onToggleTheme = async () => {
     const nextMode = mode === 'dark' ? 'light' : 'dark';
@@ -48,6 +49,10 @@ export function ProfileScreen() {
         <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Informacion de cuenta</Text>
         <View style={styles.infoGrid}>
           <View style={styles.infoItem}>
+            <Text style={[styles.label, { color: theme.textSecondary }]}>{t('profile_000')}</Text>
+            <Text style={[styles.value, { color: theme.textPrimary }]}>{user?.name || '-'}</Text>
+          </View>
+          <View style={styles.infoItem}>
             <Text style={[styles.label, { color: theme.textSecondary }]}>Email</Text>
             <Text numberOfLines={1} style={[styles.value, { color: theme.textPrimary }]}>
               {user?.email || '-'}
@@ -55,7 +60,11 @@ export function ProfileScreen() {
           </View>
           <View style={styles.infoItem}>
             <Text style={[styles.label, { color: theme.textSecondary }]}>Estado</Text>
-            <Text style={[styles.value, { color: theme.textPrimary }]}>{user?.estado || '-'}</Text>
+            <Text style={[styles.value, { color: theme.textPrimary }]}>{user?.status?.name || '-'}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={[styles.label, { color: theme.textSecondary }]}>{t('profile_001')}</Text>
+            <Text style={[styles.value, { color: theme.textPrimary }]}>{user?.phone || '-'}</Text>
           </View>
           <View style={styles.infoItem}>
             <Text style={[styles.label, { color: theme.textSecondary }]}>Tema</Text>

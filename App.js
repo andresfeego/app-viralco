@@ -10,6 +10,7 @@ import { ForgotPasswordScreen } from './src/screens/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { PendingApprovalScreen } from './src/screens/PendingApprovalScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
+import { AccountsScreen } from './src/screens/AccountsScreen';
 import { SuperAdminUsersScreen } from './src/screens/SuperAdminUsersScreen';
 import { EventsScreen } from './src/screens/EventsScreen';
 import { SectionHeader } from './src/components/SectionHeader';
@@ -50,7 +51,7 @@ function MainFlow() {
   const theme = useMemo(() => getTheme(mode), [mode]);
 
   const isSuperAdmin = useMemo(
-    () => (user?.roles || []).some((role) => role.slug === 'super_admin'),
+    () => (user?.globalRoles || []).some((role) => role.slug === 'super_admin'),
     [user]
   );
 
@@ -66,7 +67,7 @@ function MainFlow() {
     return <AuthFlow />;
   }
 
-  if (!user || user.estado !== 'active') {
+  if (!user || user.status?.slug !== 'active') {
     return <PendingApprovalScreen />;
   }
 
@@ -103,7 +104,7 @@ function MainFlow() {
         {selectedKey === 'superadmin' ? <SuperAdminUsersScreen /> : null}
         {selectedKey === 'cuenta' ? (
           <View style={styles.placeholderWrap}>
-            <ProfileScreen />
+            {isSuperAdmin ? <AccountsScreen /> : <ProfileScreen />}
             <Pressable style={[styles.dangerButton, { backgroundColor: theme.alert }]} onPress={logout}>
               <Text style={styles.primaryText}>Cerrar sesion</Text>
             </Pressable>

@@ -11,7 +11,7 @@ export function PermissionProvider({ children }) {
 
   useEffect(() => {
     (async () => {
-      if (!isAuthenticated || !user || user.estado !== 'active') {
+      if (!isAuthenticated || !user || user.status?.slug !== 'active') {
         setPermissions([]);
         return;
       }
