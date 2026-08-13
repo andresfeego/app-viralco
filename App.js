@@ -1,22 +1,23 @@
-import React, { useMemo, useState } from 'react';
-import { StatusBar, StyleSheet, Text, View, Pressable } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/providers/AuthProvider';
 import { PermissionProvider } from './src/providers/PermissionProvider';
+import { ToastProvider } from './src/providers/ToastProvider';
 import { useAuth } from './src/hooks/useAuth';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { RegisterScreen } from './src/screens/RegisterScreen';
 import { ForgotPasswordScreen } from './src/screens/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { PendingApprovalScreen } from './src/screens/PendingApprovalScreen';
-import { ProfileScreen } from './src/screens/ProfileScreen';
 import { AccountsScreen } from './src/screens/AccountsScreen';
+import { AccountDetailScreen } from './src/screens/AccountDetailScreen';
+import { ConfigurationScreen } from './src/screens/ConfigurationScreen';
 import { SuperAdminUsersScreen } from './src/screens/SuperAdminUsersScreen';
 import { EventsScreen } from './src/screens/EventsScreen';
 import { SectionHeader } from './src/components/SectionHeader';
 import { BottomMainMenu } from './src/components/BottomMainMenu';
 import { getTheme } from './src/design-system/theme';
-import { tokens } from './src/design-system/tokens';
 import { t } from './src/i18n';
 
 function AuthFlow() {
@@ -38,9 +39,10 @@ function AuthFlow() {
 }
 
 function MainFlow() {
-  const { initializing, isAuthenticated, user, logout } = useAuth();
+  const { initializing, isAuthenticated, user } = useAuth();
   const mode = user?.themeMode || 'dark';
   const [screen, setScreen] = useState('eventos');
+  const [accountRoute, setAccountRoute] = useState({ name: 'list', account: null });
   const [eventsHeaderConfig, setEventsHeaderConfig] = useState({
     title: t('menu_002'),
     subtitle: '',
@@ -49,6 +51,8 @@ function MainFlow() {
     backLabel: 'Volver',
   });
   const theme = useMemo(() => getTheme(mode), [mode]);
+  const openAccountDetail = useCallback((account) => setAccountRoute({ name: 'detail', account }), []);
+  const closeAccountDetail = useCallback(() => setAccountRoute({ name: 'list', account: null }), []);
 
   const isSuperAdmin = useMemo(
     () => (user?.globalRoles || []).some((role) => role.slug === 'super_admin'),
@@ -57,7 +61,7 @@ function MainFlow() {
 
   if (initializing) {
     return (
-      <View style={[styles.centered, { backgroundColor: theme.background }]}> 
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
         <Text style={{ color: theme.textPrimary }}>Cargando sesion...</Text>
       </View>
     );
@@ -75,7 +79,7 @@ function MainFlow() {
     ...(isSuperAdmin
       ? [{ key: 'superadmin', label: t('menu_000'), iconName: 'shield-halved', headerTitle: t('menu_000') }]
       : []),
-    { key: 'cuenta', label: t('menu_001'), iconName: 'user', headerTitle: t('menu_001') },
+    { key: 'cuenta', label: t('menu_001'), iconName: 'building', headerTitle: t('menu_001') },
     { key: 'eventos', label: t('menu_002'), iconName: 'champagne-glasses', headerTitle: t('menu_002') },
     { key: 'configuracion', label: t('config_000'), iconName: 'gear', headerTitle: t('config_000') },
   ];
@@ -84,11 +88,19 @@ function MainFlow() {
   const selectedKey = menuItems.some((item) => item.key === screen) ? screen : defaultKey;
   const selectedItem = menuItems.find((item) => item.key === selectedKey) || menuItems[0];
 
-  const headerTitle = selectedKey === 'eventos' ? eventsHeaderConfig.title : selectedItem.headerTitle;
-  const headerSubtitle = selectedKey === 'eventos' ? eventsHeaderConfig.subtitle : '';
-  const headerIconName = selectedKey === 'eventos' ? eventsHeaderConfig.iconName : selectedItem.iconName;
-  const headerOnBack = selectedKey === 'eventos' ? eventsHeaderConfig.onBack : null;
-  const headerBackLabel = selectedKey === 'eventos' ? eventsHeaderConfig.backLabel : 'Volver';
+  const isAccountDetail = selectedKey === 'cuenta' && accountRoute.name === 'detail';
+  const headerTitle = isAccountDetail ? t('account_054') : selectedKey === 'eventos' ? eventsHeaderConfig.title : selectedItem.headerTitle;
+  const headerSubtitle = isAccountDetail ? accountRoute.account?.name || '' : selectedKey === 'eventos' ? eventsHeaderConfig.subtitle : '';
+  const headerIconName = isAccountDetail ? 'building' : selectedKey === 'eventos' ? eventsHeaderConfig.iconName : selectedItem.iconName;
+  const headerOnBack = isAccountDetail ? closeAccountDetail : selectedKey === 'eventos' ? eventsHeaderConfig.onBack : null;
+  const headerBackLabel = isAccountDetail ? t('account_055') : selectedKey === 'eventos' ? eventsHeaderConfig.backLabel : 'Volver';
+
+  const selectMenuItem = (key) => {
+    if (key === 'cuenta') {
+      setAccountRoute({ name: 'list', account: null });
+    }
+    setScreen(key);
+  };
 
   return (
     <View style={[styles.page, { backgroundColor: theme.background }]}>
@@ -102,13 +114,17 @@ function MainFlow() {
       />
       <View style={styles.panelBody}>
         {selectedKey === 'superadmin' ? <SuperAdminUsersScreen /> : null}
-        {selectedKey === 'cuenta' ? (
-          <View style={styles.placeholderWrap}>
-            {isSuperAdmin ? <AccountsScreen /> : <ProfileScreen />}
-            <Pressable style={[styles.dangerButton, { backgroundColor: theme.alert }]} onPress={logout}>
-              <Text style={styles.primaryText}>Cerrar sesion</Text>
-            </Pressable>
-          </View>
+        {selectedKey === 'cuenta' && accountRoute.name === 'list' ? (
+          <AccountsScreen
+            onOpenAccount={openAccountDetail}
+          />
+        ) : null}
+        {selectedKey === 'cuenta' && accountRoute.name === 'detail' ? (
+          <AccountDetailScreen
+            accountId={accountRoute.account?.id}
+            initialAccount={accountRoute.account}
+            onAccountUpdated={openAccountDetail}
+          />
         ) : null}
         {selectedKey === 'eventos' ? (
           <EventsScreen
@@ -116,11 +132,9 @@ function MainFlow() {
             onHeaderChange={setEventsHeaderConfig}
           />
         ) : null}
-        {selectedKey === 'configuracion' ? (
-          <EventsScreen initialSection="branding" allowedSections={['branding']} showKpi={false} />
-        ) : null}
+        {selectedKey === 'configuracion' ? <ConfigurationScreen /> : null}
       </View>
-      <BottomMainMenu items={menuItems} selectedKey={selectedKey} onSelect={setScreen} theme={theme} />
+      <BottomMainMenu items={menuItems} selectedKey={selectedKey} onSelect={selectMenuItem} theme={theme} />
     </View>
   );
 }
@@ -146,9 +160,11 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <PermissionProvider>
-          <AppContainer />
-        </PermissionProvider>
+        <ToastProvider>
+          <PermissionProvider>
+            <AppContainer />
+          </PermissionProvider>
+        </ToastProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
@@ -158,20 +174,5 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   page: { flex: 1 },
   panelBody: { flex: 1 },
-  placeholderWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: tokens.spacing.lg,
-    gap: tokens.spacing.xs,
-  },
-  placeholderTitle: { fontSize: tokens.typography.heading, fontWeight: '700' },
-  placeholderText: { fontSize: tokens.typography.body },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { color: '#fff', fontWeight: '700' },
-  dangerButton: {
-    borderRadius: tokens.radius.md,
-    padding: tokens.spacing.sm,
-    alignItems: 'center',
-  },
 });

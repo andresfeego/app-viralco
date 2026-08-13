@@ -48,8 +48,9 @@ async function tryRefresh() {
 
 export async function apiRequest(path, options = {}, meta = {}) {
   const { auth = true, retry = true, superAdminConfirmationToken = null } = meta;
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers || {}),
   };
 

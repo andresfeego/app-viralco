@@ -1,29 +1,56 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Picker } from '@react-native-picker/picker';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccountLogoPicker } from '../components/AccountLogoPicker';
+import { AccountLogoPreview } from '../components/AccountLogoPreview';
+import { PaperFormInput } from '../components/PaperFormInput';
+import { AppButton } from '../design-system/components/AppButton';
+import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { useAuth } from '../hooks/useAuth';
 import { t } from '../i18n';
-import { createAccountApi } from '../services/api/admin';
-import {
-  addAccountMemberApi,
-  getAccountMembersApi,
-  listAccountsApi,
-  removeAccountMemberApi,
-  updateAccountMemberApi,
-} from '../services/api/accounts';
+import { createAccountApi as createAdminAccountApi } from '../services/api/admin';
+import { createAccountApi, createAccountLogoAssetApi, listAccountsApi, updateAccountApi } from '../services/api/accounts';
+import { pickLogoImage } from '../services/media/imagePicker';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
+import { ToastViewport, useToast } from '../providers/ToastProvider';
 
-export function AccountsScreen() {
+const PLAN_CARDS = [
+  { slug: 'starter', name: 'Starter', priceKey: 'account_030', limitKey: 'account_033', descriptionKey: 'account_036' },
+  { slug: 'pro', name: 'Pro', priceKey: 'account_031', limitKey: 'account_034', descriptionKey: 'account_037' },
+  { slug: 'business', name: 'Business', priceKey: 'account_031', limitKey: 'account_035', descriptionKey: 'account_038' },
+];
+const MODAL_TOAST_TOP_OFFSET = tokens.spacing.xl * 3;
+const EMPTY_STATE_MIN_HEIGHT = tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.lg + tokens.spacing.lg;
+
+function logoPreviewUrl(account) {
+  return account?.logoAsset?.variants?.thumb?.fileUrl || account?.logoAsset?.previewUrl || account?.logoAsset?.fileUrl || '';
+}
+
+function isValidEmail(value) {
+  const text = String(value || '').trim();
+  return !text || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text);
+}
+
+function isValidSlug(value) {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(value || '').trim());
+}
+
+function isNumericId(value) {
+  const text = String(value || '').trim();
+  return !text || /^\d+$/.test(text);
+}
+
+export function AccountsScreen({ onOpenAccount = () => {} }) {
   const { user, reloadMe } = useAuth();
+  const { showToast } = useToast();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
   const [accounts, setAccounts] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [members, setMembers] = useState([]);
   const [error, setError] = useState('');
-  const [accountForm, setAccountForm] = useState({ slug: '', name: '', ownerUserId: '' });
-  const [memberForm, setMemberForm] = useState({ userId: '', roleSlug: 'cliente' });
+  const [isCreateModalVisible, setCreateModalVisible] = useState(false);
+  const [accountForm, setAccountForm] = useState({ slug: '', name: '', phone: '', email: '', planSlug: 'starter', ownerUserId: '' });
+  const [formErrors, setFormErrors] = useState({});
+  const [selectedLogo, setSelectedLogo] = useState(null);
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -34,128 +61,212 @@ export function AccountsScreen() {
 
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
 
-  const openAccount = async (account) => {
-    setSelected(account);
-    try {
-      const payload = await getAccountMembersApi(account.id);
-      setMembers(Array.isArray(payload?.members) ? payload.members : []);
-    } catch (err) { setError(err?.message || t('account_007')); }
+  const closeCreateModal = () => {
+    setSelectedLogo(null);
+    setFormErrors({});
+    setCreateModalVisible(false);
+  };
+
+  const clearFormError = (field) => {
+    setFormErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const updateFormField = (field, value) => {
+    clearFormError(field);
+    setAccountForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const validateCreateForm = () => {
+    const nextErrors = {};
+    if (!accountForm.name.trim()) nextErrors.name = t('account_064');
+    if (!accountForm.slug.trim()) nextErrors.slug = t('account_065');
+    else if (!isValidSlug(accountForm.slug)) nextErrors.slug = t('account_066');
+    if (!isValidEmail(accountForm.email)) nextErrors.email = t('account_067');
+    if (!isNumericId(accountForm.ownerUserId)) nextErrors.ownerUserId = t('account_069');
+    setFormErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const createAccount = async () => {
+    setError('');
+    if (!validateCreateForm()) {
+      showToast({ message: t('account_070'), type: 'error' });
+      return;
+    }
     try {
-      await createAccountApi(accountForm);
-      setAccountForm({ slug: '', name: '', ownerUserId: '' });
+      let created;
+      if (isSuperAdmin && accountForm.ownerUserId) {
+        created = await createAdminAccountApi(accountForm);
+      } else {
+        created = await createAccountApi({ name: accountForm.name, slug: accountForm.slug, phone: accountForm.phone || undefined, email: accountForm.email || undefined, planSlug: accountForm.planSlug || 'starter' });
+      }
+      const accountId = created?.account?.id;
+      if (accountId && selectedLogo) {
+        try {
+          const logoAsset = await createAccountLogoAssetApi(accountId, selectedLogo);
+          if (logoAsset?.id) await updateAccountApi(accountId, { logoAssetId: logoAsset.id });
+        } catch (err) {
+          showToast({ message: `${t('account_059')}: ${err?.message || '-'}`, type: 'error' });
+        }
+      }
+      setAccountForm({ slug: '', name: '', phone: '', email: '', planSlug: 'starter', ownerUserId: '' });
+      setSelectedLogo(null);
+      setCreateModalVisible(false);
       await loadAccounts();
       await reloadMe();
     } catch (err) { setError(err?.message || t('account_008')); }
   };
 
-  const addMember = async () => {
-    if (!selected) return;
+  const selectLogo = async () => {
     try {
-      const payload = await addAccountMemberApi(selected.id, memberForm);
-      setMembers(Array.isArray(payload?.members) ? payload.members : []);
-      setMemberForm({ userId: '', roleSlug: 'cliente' });
-      await reloadMe();
-    } catch (err) { setError(err?.message || t('account_009')); }
+      const image = await pickLogoImage();
+      if (image) setSelectedLogo(image);
+    } catch (err) {
+      showToast({ message: err?.message || t('account_058'), type: 'error' });
+    }
   };
 
-  const updateMember = async (membershipId, input) => {
-    if (!selected) return;
-    try {
-      const payload = await updateAccountMemberApi(selected.id, membershipId, input);
-      setMembers(Array.isArray(payload?.members) ? payload.members : []);
-      await reloadMe();
-    } catch (err) { setError(err?.message || t('account_015')); }
+  const copyUserPhone = () => {
+    clearFormError('phone');
+    setAccountForm((value) => ({ ...value, phone: user?.phone || '' }));
   };
 
-  const removeMember = async (membershipId) => {
-    if (!selected) return;
-    try {
-      const payload = await removeAccountMemberApi(selected.id, membershipId);
-      setMembers(Array.isArray(payload?.members) ? payload.members : []);
-      await reloadMe();
-    } catch (err) { setError(err?.message || t('account_016')); }
+  const copyUserEmail = () => {
+    clearFormError('email');
+    setAccountForm((value) => ({ ...value, email: user?.email || '' }));
   };
+
+  const renderFormInput = ({ testID, label, value, onChangeText, keyboardType = 'default', autoCapitalize = 'sentences', helperAction = null, errorText = '' }) => (
+    <PaperFormInput
+      testID={testID}
+      theme={theme}
+      label={label}
+      value={value}
+      onChangeText={onChangeText}
+      errorText={errorText}
+      helperAction={helperAction}
+      keyboardType={keyboardType}
+      autoCapitalize={autoCapitalize}
+    />
+  );
+
+  const renderPlanCards = () => (
+    <View style={styles.planGrid}>
+      {PLAN_CARDS.map((plan) => {
+        const selectedPlan = accountForm.planSlug === plan.slug;
+        return (
+          <Pressable key={plan.slug} onPress={() => setAccountForm((v) => ({ ...v, planSlug: plan.slug }))} style={styles.pressableCard}>
+            <SurfaceCard surfaceColor={theme.surface} borderColor={selectedPlan ? theme.primary : theme.border}>
+              <View style={styles.planHeader}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{plan.name}</Text>
+                <Text style={[styles.planPrice, { color: selectedPlan ? theme.primary : theme.textSecondary }]}>{t(plan.priceKey)}</Text>
+              </View>
+              <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t(plan.limitKey)}</Text>
+              <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t(plan.descriptionKey)}</Text>
+            </SurfaceCard>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={[styles.title, { color: theme.textPrimary }]}>{t('account_000')}</Text>
-      {error ? <Text style={{ color: theme.alert }}>{error}</Text> : null}
-      {accounts.length === 0 ? <Text style={{ color: theme.textSecondary }}>{t('account_001')}</Text> : null}
-      {accounts.map((account) => (
-        <Pressable key={account.id} onPress={() => openAccount(account)} style={[styles.card, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{account.name}</Text>
-          <Text style={{ color: theme.textSecondary }}>{account.slug} · {account.status}</Text>
-        </Pressable>
-      ))}
-
-      {isSuperAdmin ? (
-        <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('account_010')}</Text>
-          <TextInput style={[styles.input, { borderColor: theme.border, color: theme.textPrimary }]} placeholder={t('account_011')} placeholderTextColor={theme.textSecondary} value={accountForm.name} onChangeText={(name) => setAccountForm((v) => ({ ...v, name }))} />
-          <TextInput style={[styles.input, { borderColor: theme.border, color: theme.textPrimary }]} placeholder="slug" placeholderTextColor={theme.textSecondary} value={accountForm.slug} autoCapitalize="none" onChangeText={(slug) => setAccountForm((v) => ({ ...v, slug }))} />
-          <TextInput style={[styles.input, { borderColor: theme.border, color: theme.textPrimary }]} placeholder={t('account_012')} placeholderTextColor={theme.textSecondary} value={accountForm.ownerUserId} keyboardType="number-pad" onChangeText={(ownerUserId) => setAccountForm((v) => ({ ...v, ownerUserId }))} />
-          <Pressable style={[styles.button, { backgroundColor: theme.primary }]} onPress={createAccount}><Text style={styles.buttonText}>{t('account_013')}</Text></Pressable>
+    <View style={styles.screen}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.headerRow}>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>{t('account_000')}</Text>
+          <AppButton testID="account-create-open" label={t('account_024')} onPress={() => setCreateModalVisible(true)} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.headerButton} />
         </View>
-      ) : null}
+        {error ? <Text style={[styles.errorText, { color: theme.alert }]}>{error}</Text> : null}
 
-      {selected ? (
-        <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.surface }]}> 
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('account_002')}: {selected.name}</Text>
-          {members.map((member) => (
-            <View key={member.id} style={[styles.member, { borderColor: theme.border }]}> 
-              <Text style={{ color: theme.textPrimary }}>{member.user.name} · {member.status}</Text>
-              {member.role.slug === 'owner' ? (
-                <Text style={{ color: theme.textSecondary }}>{member.role.name}</Text>
-              ) : (
-                <>
-                  <Picker
-                    selectedValue={member.role.slug}
-                    onValueChange={(roleSlug) => updateMember(member.id, { roleSlug })}
-                    style={{ color: theme.textPrimary }}
-                  >
-                    <Picker.Item label={t('account_017')} value="admin" />
-                    <Picker.Item label={t('account_018')} value="operario" />
-                    <Picker.Item label={t('account_019')} value="cliente" />
-                  </Picker>
-                  <View style={styles.actions}>
-                    <Pressable style={[styles.smallButton, { backgroundColor: theme.primary }]} onPress={() => updateMember(member.id, { status: member.status === 'active' ? 'suspended' : 'active' })}>
-                      <Text style={styles.buttonText}>{member.status === 'active' ? t('account_020') : t('account_021')}</Text>
-                    </Pressable>
-                    <Pressable style={[styles.smallButton, { backgroundColor: theme.alert }]} onPress={() => removeMember(member.id)}>
-                      <Text style={styles.buttonText}>{t('account_022')}</Text>
-                    </Pressable>
-                  </View>
-                </>
-              )}
-            </View>
-          ))}
-          <TextInput style={[styles.input, { borderColor: theme.border, color: theme.textPrimary }]} placeholder={t('account_004')} placeholderTextColor={theme.textSecondary} value={memberForm.userId} keyboardType="number-pad" onChangeText={(userId) => setMemberForm((v) => ({ ...v, userId }))} />
-          <Text style={{ color: theme.textSecondary }}>{t('account_005')}</Text>
-          <View style={[styles.picker, { borderColor: theme.border }]}> 
-            <Picker selectedValue={memberForm.roleSlug} onValueChange={(roleSlug) => setMemberForm((v) => ({ ...v, roleSlug }))} style={{ color: theme.textPrimary }}>
-              <Picker.Item label={t('account_017')} value="admin" />
-              <Picker.Item label={t('account_018')} value="operario" />
-              <Picker.Item label={t('account_019')} value="cliente" />
-            </Picker>
+        {accounts.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+              <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>{t('account_023')}</Text>
+              <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('account_032')}</Text>
+              <AppButton testID="account-empty-create-open" label={t('account_024')} onPress={() => setCreateModalVisible(true)} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.fullButton} />
+            </SurfaceCard>
           </View>
-          <Pressable style={[styles.button, { backgroundColor: theme.primary }]} onPress={addMember}><Text style={styles.buttonText}>{t('account_003')}</Text></Pressable>
+        ) : null}
+
+        {accounts.map((account) => (
+          <Pressable key={account.id} testID={`account-card-${account.id}`} onPress={() => onOpenAccount(account)} style={styles.pressableCard}>
+            <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+              <View style={styles.accountCardRow}>
+                <View style={styles.accountCardData}>
+                  <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{account.name}</Text>
+                  <Text style={[styles.helperText, { color: theme.textSecondary }]}>{account.slug} - {account.status}</Text>
+                  <Text style={[styles.helperText, { color: theme.textSecondary }]}>Plan: {account.subscription?.plan?.name || '-'} - {account.subscription?.statusLabel || account.subscription?.status || t('account_039')}</Text>
+                </View>
+                <AccountLogoPreview theme={theme} imageUri={logoPreviewUrl(account)} size="md" />
+              </View>
+            </SurfaceCard>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      <Modal visible={isCreateModalVisible} animationType="slide" transparent onRequestClose={closeCreateModal}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+            <ScrollView contentContainerStyle={styles.modalContent}>
+              <Text style={[styles.title, { color: theme.textPrimary }]}>{isSuperAdmin ? t('account_010') : t('account_024')}</Text>
+              <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('account_026')}</Text>
+              {renderFormInput({ testID: 'account-create-name-input', label: t('account_011'), value: accountForm.name, errorText: formErrors.name, onChangeText: (name) => updateFormField('name', name) })}
+              {renderFormInput({ testID: 'account-create-slug-input', label: t('account_029'), value: accountForm.slug, errorText: formErrors.slug, autoCapitalize: 'none', onChangeText: (slug) => updateFormField('slug', slug) })}
+              {renderFormInput({ label: t('account_041'), value: accountForm.phone, keyboardType: 'phone-pad', onChangeText: (phone) => updateFormField('phone', phone), helperAction: { label: t('account_043'), onPress: copyUserPhone } })}
+              {renderFormInput({ testID: 'account-create-email-input', label: t('account_042'), value: accountForm.email, errorText: formErrors.email, keyboardType: 'email-address', autoCapitalize: 'none', onChangeText: (email) => updateFormField('email', email), helperAction: { label: t('account_043'), onPress: copyUserEmail } })}
+              <AccountLogoPicker
+                testID="account-create-logo-picker"
+                theme={theme}
+                title={t('account_056')}
+                imageUri={selectedLogo?.uri || ''}
+                buttonLabel={selectedLogo ? t('account_057') : t('account_060')}
+                onPress={selectLogo}
+              />
+              {isSuperAdmin ? renderFormInput({ testID: 'account-create-owner-input', label: t('account_012'), value: accountForm.ownerUserId, errorText: formErrors.ownerUserId, keyboardType: 'number-pad', onChangeText: (ownerUserId) => updateFormField('ownerUserId', ownerUserId) }) : null}
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('account_025')}</Text>
+              {renderPlanCards()}
+              <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('account_027')}</Text>
+              <View style={styles.actions}>
+                <AppButton label={t('account_028')} onPress={closeCreateModal} backgroundColor={theme.surface} pressedColor={theme.surface} textColor={theme.textPrimary} style={styles.smallButton} />
+                <AppButton testID="account-create-save" label={t('account_013')} onPress={createAccount} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.smallButton} />
+              </View>
+            </ScrollView>
+          </View>
+          <ToastViewport theme={theme} topOffset={MODAL_TOAST_TOP_OFFSET} />
         </View>
-      ) : null}
-    </ScrollView>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { width: '100%', maxHeight: 520 }, content: { gap: tokens.spacing.sm, padding: tokens.spacing.sm },
+  screen: { flex: 1, width: '100%' },
+  container: { flex: 1, width: '100%' },
+  content: { flexGrow: 1, gap: tokens.spacing.sm, padding: tokens.spacing.sm, paddingBottom: tokens.spacing.xl },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
+  headerButton: { minWidth: 0 },
   title: { fontSize: tokens.typography.heading, fontWeight: '700' },
-  card: { borderWidth: 1, borderRadius: tokens.radius.md, padding: tokens.spacing.sm, gap: tokens.spacing.xs },
-  member: { borderTopWidth: 1, paddingVertical: tokens.spacing.xs, gap: tokens.spacing.xs },
+  pressableCard: { width: '100%' },
+  accountCardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
+  accountCardData: { flex: 1, minWidth: 0, gap: tokens.spacing.xxs },
+  emptyWrap: { justifyContent: 'center', minHeight: EMPTY_STATE_MIN_HEIGHT },
+  emptyTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
+  planGrid: { gap: tokens.spacing.sm },
+  planHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
+  planPrice: { fontSize: tokens.typography.caption, fontWeight: '700' },
+  helperText: { fontSize: tokens.typography.caption, fontWeight: '600' },
+  errorText: { fontSize: tokens.typography.caption, fontWeight: '700' },
   actions: { flexDirection: 'row', gap: tokens.spacing.xs },
-  smallButton: { flex: 1, borderRadius: tokens.radius.sm, padding: tokens.spacing.xs, alignItems: 'center' },
-  picker: { borderWidth: 1, borderRadius: tokens.radius.sm, overflow: 'hidden' },
-  cardTitle: { fontWeight: '700' }, input: { borderWidth: 1, borderRadius: tokens.radius.sm, padding: tokens.spacing.xs },
-  button: { borderRadius: tokens.radius.sm, padding: tokens.spacing.sm, alignItems: 'center' }, buttonText: { color: '#fff', fontWeight: '700' },
+  smallButton: { flex: 1, minWidth: 0 },
+  fullButton: { width: '100%' },
+  cardTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalCard: { maxHeight: '86%', borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg },
+  modalContent: { gap: tokens.spacing.sm, padding: tokens.spacing.md, paddingBottom: tokens.spacing.lg },
 });

@@ -96,7 +96,9 @@ For `APP/mobile` UI work:
 5. Do not create custom `Pressable` buttons when `AppButton` or an existing action component fits.
 6. Do not create custom card containers when `SurfaceCard` fits.
 7. Do not duplicate badges, status pills, menus, event cards, media previews, share buttons, or permission wrappers.
-8. Preserve safe-area behavior, bottom-menu clearance, and scroll bottom padding so content is not hidden by navigation.
+8. For mobile forms improved from now on, keep fields visually consistent by using the shared Paper TextInput pattern already introduced in account creation; do not mix native `TextInput` and Paper inputs in the same form unless preserving legacy UI outside the touched form.
+9. Place helper actions such as copying user data outside the input, aligned to the lower right of the field, with clear text; do not hide these actions behind unexplained icons.
+10. Preserve safe-area behavior, bottom-menu clearance, and scroll bottom padding so content is not hidden by navigation.
 9. Keep screen horizontal padding consistent with the current screen family; prefer token scale changes over isolated numeric offsets.
 10. Avoid changing global density or component spacing unless the task explicitly asks for a broader redesign.
 
@@ -111,6 +113,7 @@ Before changing existing UI:
 5. Do not replace working components with new one-off UI for purely visual changes.
 6. If changing a shared component, validate each impacted screen at least by static inspection and tests/lint when available.
 7. Keep existing event, account, authentication, and permission behavior intact unless the task explicitly changes it.
+8. If a change can affect backend responses, API contracts, authentication, database shape, mobile API calls, app startup, or Metro bundling, verify both local backend and Metro still respond before finishing.
 
 ## Workflow
 
@@ -136,6 +139,11 @@ Run a search on touched UI files for hardcoded values such as:
 - ad hoc box-shadow/elevation
 - ad hoc border radius
 - arbitrary margins, padding, gaps, or positioning values outside the token scale
+
+When backend/mobile runtime can be affected, also verify:
+- backend health endpoint responds, for ViralCo local default: `curl http://127.0.0.1:4000/health`
+- Metro status responds, for ViralCo local default: `curl -I http://127.0.0.1:8081/status`
+- for mobile UI text or routing changes, the served iOS bundle contains the changed screen/text when practical
 
 If found:
 - replace with tokens, theme values, or semantic variables, or
@@ -168,3 +176,4 @@ When completing UI work, explicitly state:
 - which screens or pages were impacted
 - whether light/dark mode was verified
 - which tests, lint checks, or visual checks were run
+- whether backend and Metro were checked when the change could affect local runtime

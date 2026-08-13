@@ -16,6 +16,13 @@ jest.mock('@react-native-vector-icons/fontawesome6', () => {
     return <MockText>{props?.name || 'icon'}</MockText>;
   };
 });
+jest.mock('../src/services/media/imagePicker', () => ({ pickLogoImage: jest.fn() }));
+jest.mock('react-native-toast-message', () => {
+  const MockToast = () => null;
+  MockToast.show = jest.fn();
+  MockToast.hide = jest.fn();
+  return { __esModule: true, default: MockToast };
+});
 
 import App from '../App';
 

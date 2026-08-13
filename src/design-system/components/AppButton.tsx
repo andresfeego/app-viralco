@@ -8,6 +8,7 @@ interface AppButtonProps {
   backgroundColor: string;
   pressedColor: string;
   textColor: string;
+  testID?: string;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -17,10 +18,12 @@ export function AppButton({
   backgroundColor,
   pressedColor,
   textColor,
+  testID,
   style,
 }: AppButtonProps) {
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,

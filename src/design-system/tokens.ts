@@ -100,6 +100,7 @@ export const tokens = {
     actionPrimaryText: '#ffffff',
   },
   spacing: {
+    none: 0,
     xxs: 4,
     xs: 8,
     sm: 12,

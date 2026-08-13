@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { AppButton } from '../design-system/components/AppButton';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
@@ -7,8 +7,12 @@ import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
 import { useAuth } from '../hooks/useAuth';
 import { t } from '../i18n';
+import { AccountLogoPreview } from '../components/AccountLogoPreview';
 import { EventListCard } from '../components/EventListCard';
+import { IconTextButton } from '../components/IconTextButton';
+import { PaperFormInput } from '../components/PaperFormInput';
 import { HorizontalSubMenu } from '../components/HorizontalSubMenu';
+import { useToast } from '../providers/ToastProvider';
 import { listAccountsApi } from '../services/api/accounts';
 import {
   createAccountLibraryAssetApi,
@@ -27,6 +31,8 @@ import {
 
 const EVENT_STATUS = ['draft', 'active', 'archived'];
 const RESOURCE_PURPOSES = ['frame', 'overlay', 'intro', 'outro', 'music', 'logo', 'background', 'template', 'branding', 'other'];
+const MENU_BAR_HEIGHT = tokens.spacing.xl + tokens.spacing.xs + tokens.spacing.xxs / 2;
+const EMPTY_EVENT_FORM = { name: '', slug: '', startDate: '', endDate: '', status: 'draft', timezone: 'America/Bogota', description: '', modeSlugs: [] };
 
 function normalizeEvent(item) {
   if (!item) return null;
@@ -80,8 +86,16 @@ function normalizeResource(item) {
   };
 }
 
+function accountLogoPreviewUrl(account) {
+  return account?.logoAsset?.variants?.thumb?.fileUrl || account?.logoAsset?.previewUrl || account?.logoAsset?.fileUrl || '';
+}
+
 function isValidDateYmd(value) {
   return !value || /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());
+}
+
+function isValidTimezone(value) {
+  return /^[A-Za-z_]+\/[A-Za-z0-9_+-]+(?:\/[A-Za-z0-9_+-]+)?$|^UTC$/.test(String(value || '').trim());
 }
 
 function activeAccountRole(user, accountId) {
@@ -96,12 +110,14 @@ export function EventsScreen({
   onHeaderChange = null,
 }) {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
   const normalizedSections = allowedSections.filter((key) => ['list', 'create', 'detail', 'branding', 'resources', 'overlays'].includes(key)).map((key) => (key === 'overlays' ? 'resources' : key));
   const [section, setSection] = useState(normalizedSections.includes(initialSection) ? initialSection : normalizedSections[0] || 'list');
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState('');
+  const [isAccountModalVisible, setAccountModalVisible] = useState(false);
   const [modes, setModes] = useState([]);
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState('');
@@ -112,7 +128,8 @@ export function EventsScreen({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
-  const [eventForm, setEventForm] = useState({ name: '', slug: '', startDate: '', endDate: '', status: 'draft', timezone: 'America/Bogota', description: '', modeSlugs: ['foto'] });
+  const [eventForm, setEventForm] = useState(EMPTY_EVENT_FORM);
+  const [eventFormErrors, setEventFormErrors] = useState({});
   const [brandingForm, setBrandingForm] = useState({ logoResourceId: '', backgroundResourceId: '', phone: '', primaryColor: '', interval: '', maxEvents: '', maxStorageGb: '', maxDevices: '' });
   const [libraryForm, setLibraryForm] = useState({ name: '', purpose: 'overlay', key: '', fileUrl: '', mimeType: 'image/png', sizeBytes: '1' });
   const [resourceForm, setResourceForm] = useState({ libraryAssetId: '', purpose: 'overlay', placement: '', orderIndex: '0', isActive: true });
@@ -140,7 +157,10 @@ export function EventsScreen({
       const payload = await listAccountsApi();
       const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
       setAccounts(rows);
-      setAccountId((current) => current || String(rows[0]?.id || ''));
+      setAccountId((current) => {
+        if (rows.some((account) => String(account.id) === String(current))) return current;
+        return String(rows[0]?.id || '');
+      });
     } catch (err) { setError(err?.message || t('account_006')); }
   }, []);
 
@@ -175,7 +195,7 @@ export function EventsScreen({
       setEventForm({
         name: event?.name || '', slug: event?.slug || '', startDate: event?.startDate || '', endDate: event?.endDate || '',
         status: event?.status || 'draft', timezone: event?.timezone || 'America/Bogota', description: event?.description || '',
-        modeSlugs: event?.modes?.map((item) => item.mode?.slug).filter(Boolean) || ['foto'],
+        modeSlugs: event?.modes?.map((item) => item.mode?.slug).filter(Boolean) || [],
       });
       setBrandingForm(event?.branding || brandingForm);
     } catch (err) { setError(err?.message || t('event_041')); }
@@ -207,33 +227,64 @@ export function EventsScreen({
     onHeaderChange({ title: selectedEvent?.name || t('menu_002'), subtitle: selectedEvent?.startDate || '', iconName: selectedEvent ? 'calendar-check' : 'champagne-glasses', onBack: null, backLabel: 'Volver al listado' });
   }, [onHeaderChange, selectedEvent]);
 
-  const validateEvent = () => {
-    if (!accountId) return 'Selecciona una cuenta';
-    if (!String(eventForm.name || '').trim()) return t('event_050');
-    if (!isValidDateYmd(eventForm.startDate) || !isValidDateYmd(eventForm.endDate)) return 'Las fechas deben usar YYYY-MM-DD';
-    if (!EVENT_STATUS.includes(eventForm.status)) return `Estado invalido: ${EVENT_STATUS.join(', ')}`;
-    return '';
+  const clearEventFormError = (field) => {
+    setEventFormErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const updateEventFormField = (field, value) => {
+    clearEventFormError(field);
+    setEventForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const validateEvent = ({ includeStatus = true } = {}) => {
+    const nextErrors = {};
+    if (!accountId) nextErrors.accountId = t('event_097');
+    if (!String(eventForm.name || '').trim()) nextErrors.name = t('event_050');
+    if (!isValidDateYmd(eventForm.startDate)) nextErrors.startDate = t('event_098');
+    if (!isValidDateYmd(eventForm.endDate)) nextErrors.endDate = t('event_098');
+    if (!String(eventForm.timezone || '').trim()) nextErrors.timezone = t('event_099');
+    else if (!isValidTimezone(eventForm.timezone)) nextErrors.timezone = t('event_100');
+    if (includeStatus && !EVENT_STATUS.includes(eventForm.status)) nextErrors.status = `Estado invalido: ${EVENT_STATUS.join(', ')}`;
+    setEventFormErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const onCreateEvent = async () => {
-    const validation = validateEvent();
-    if (validation) { setError(validation); return; }
-    if (!canEdit) { setError(t('event_060')); return; }
+    if (!validateEvent({ includeStatus: false })) {
+      setError(t('account_070'));
+      showToast({ message: t('account_070'), type: 'error' });
+      return;
+    }
+    if (!canEdit) { setError(t('event_060')); showToast({ message: t('event_060'), type: 'error' }); return; }
     setSaving(true); clearMessages();
     try {
-      const payload = await createEventApi(accountId, eventForm);
+      const payload = await createEventApi(accountId, { ...eventForm, status: 'draft' });
       const event = normalizeEvent(payload?.event || payload);
       setOk(t('event_061'));
+      setEventForm(EMPTY_EVENT_FORM);
+      setEventFormErrors({});
       await loadEvents();
       if (event?.id) { setSelectedEventId(event.id); setSection('detail'); }
-    } catch (err) { setError(err?.message || t('event_062')); }
+    } catch (err) {
+      const message = err?.message || t('event_062');
+      setError(message);
+      showToast({ message, type: 'error' });
+    }
     finally { setSaving(false); }
   };
 
   const onUpdateEvent = async () => {
-    const validation = validateEvent();
-    if (validation) { setError(validation); return; }
-    if (!selectedEventId || !canEdit) { setError(t('event_060')); return; }
+    if (!validateEvent()) {
+      setError(t('account_070'));
+      showToast({ message: t('account_070'), type: 'error' });
+      return;
+    }
+    if (!selectedEventId || !canEdit) { setError(t('event_060')); showToast({ message: t('event_060'), type: 'error' }); return; }
     setSaving(true); clearMessages();
     try { await updateEventApi(selectedEventId, eventForm); setOk(t('event_063')); await loadEvents(); await loadEventDetail(selectedEventId); }
     catch (err) { setError(err?.message || t('event_064')); }
@@ -299,27 +350,114 @@ export function EventsScreen({
 
   const selectedAccount = accounts.find((account) => String(account.id) === String(accountId));
 
+  const selectAccount = (nextAccountId) => {
+    setAccountId(String(nextAccountId || ''));
+    setSelectedEventId('');
+    setSelectedEvent(null);
+    setEvents([]);
+    setAccountModalVisible(false);
+    setSection('list');
+  };
+
   const renderInput = (label, value, onChangeText, props = {}) => (
-    <>
-      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{label}</Text>
-      <TextInput value={value} onChangeText={onChangeText} placeholder={label} placeholderTextColor={theme.textSecondary} style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]} editable={props.editable ?? canEdit} {...props} />
-    </>
+    <PaperFormInput
+      theme={theme}
+      label={label}
+      value={value}
+      onChangeText={onChangeText}
+      editable={props.editable ?? canEdit}
+      multiline={Boolean(props.multiline)}
+      keyboardType={props.keyboardType || 'default'}
+      inputStyle={props.inputStyle || null}
+    />
+  );
+
+  const renderEventInput = ({ testID, label, field, value, multiline = false, keyboardType = 'default', autoCapitalize = 'sentences' }) => (
+    <PaperFormInput
+      testID={testID}
+      theme={theme}
+      label={label}
+      value={value}
+      onChangeText={(text) => updateEventFormField(field, text)}
+      errorText={eventFormErrors[field]}
+      keyboardType={keyboardType}
+      autoCapitalize={autoCapitalize}
+      multiline={multiline}
+      editable={canEdit}
+    />
+  );
+
+  const renderAccountSelector = () => {
+    if (accounts.length <= 1) return null;
+    return (
+      <View style={[styles.accountSelectorRow, { borderBottomColor: theme.border }]}>
+        <AccountLogoPreview theme={theme} imageUri={accountLogoPreviewUrl(selectedAccount)} size="bar" borderless />
+        <View style={styles.accountSelectorData}>
+          <Text numberOfLines={1} style={[styles.accountSelectorName, { color: theme.textPrimary }]}>
+            {selectedAccount?.name || '-'}
+          </Text>
+          <Text numberOfLines={1} style={[styles.helper, { color: theme.textSecondary }]}>
+            {selectedAccount?.slug || '-'} - {isSuperAdmin ? 'super_admin' : roleSlug || '-'}
+          </Text>
+        </View>
+        <IconTextButton
+          theme={theme}
+          label={t('event_095')}
+          icon="shuffle"
+          order="text-first"
+          variant="ghost"
+          onPress={() => setAccountModalVisible(true)}
+          style={styles.changeAccountButton}
+        />
+      </View>
+    );
+  };
+
+  const renderAccountModal = () => (
+    <Modal visible={isAccountModalVisible} animationType="slide" transparent onRequestClose={() => setAccountModalVisible(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_096')}</Text>
+          <ScrollView contentContainerStyle={styles.modalList}>
+            {accounts.map((account) => {
+              const isSelected = String(account.id) === String(accountId);
+              return (
+                <Pressable key={account.id} onPress={() => selectAccount(account.id)} style={styles.pressableCard}>
+                  <SurfaceCard surfaceColor={theme.surface} borderColor={isSelected ? theme.primary : theme.border}>
+                    <View style={styles.accountOptionRow}>
+                      <View style={styles.accountSelectorData}>
+                        <Text numberOfLines={1} style={[styles.accountSelectorName, { color: theme.textPrimary }]}>
+                          {account.name || '-'}
+                        </Text>
+                        <Text numberOfLines={1} style={[styles.helper, { color: theme.textSecondary }]}>
+                          {account.slug || '-'}
+                        </Text>
+                      </View>
+                      <AccountLogoPreview theme={theme} imageUri={accountLogoPreviewUrl(account)} size="md" />
+                    </View>
+                  </SurfaceCard>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <AppButton
+            label={t('account_028')}
+            onPress={() => setAccountModalVisible(false)}
+            backgroundColor={theme.surface}
+            pressedColor={theme.surface}
+            textColor={theme.textPrimary}
+          />
+        </View>
+      </View>
+    </Modal>
   );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <HorizontalSubMenu items={eventMenu} selectedKey={section} onSelect={setSection} theme={theme} />
+      {renderAccountSelector()}
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-          <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Cuenta</Text>
-          <View style={[styles.pickerWrap, { borderColor: theme.border }]}>
-            <Picker selectedValue={accountId} onValueChange={(value) => setAccountId(String(value || ''))} style={{ color: theme.textPrimary }}>
-              {accounts.map((account) => <Picker.Item key={account.id} label={account.name} value={String(account.id)} />)}
-            </Picker>
-          </View>
-          <Text style={[styles.helper, { color: theme.textSecondary }]}>{selectedAccount?.slug || '-'} · {isSuperAdmin ? 'super_admin' : roleSlug || '-'}</Text>
-        </SurfaceCard>
-
+        {accounts.length === 0 ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>Aun no tienes cuentas. Crea una cuenta desde la seccion Cuenta para activar eventos.</Text> : null}
         {error ? <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text> : null}
         {ok ? <Text style={[styles.feedback, { color: theme.secondary }]}>{ok}</Text> : null}
         {saving || loading ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('event_020')}</Text> : null}
@@ -335,24 +473,31 @@ export function EventsScreen({
         {section === 'create' || section === 'detail' ? (
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{section === 'create' ? t('event_001') : `${t('event_002')}: ${selectedEvent?.name || ''}`}</Text>
-            {renderInput(t('event_071'), eventForm.name, (name) => setEventForm((prev) => ({ ...prev, name })))}
-            {renderInput(t('event_072'), eventForm.slug, (slug) => setEventForm((prev) => ({ ...prev, slug })))}
-            {renderInput('Fecha inicio (YYYY-MM-DD)', eventForm.startDate, (startDate) => setEventForm((prev) => ({ ...prev, startDate })))}
-            {renderInput('Fecha fin (YYYY-MM-DD)', eventForm.endDate, (endDate) => setEventForm((prev) => ({ ...prev, endDate })))}
-            {renderInput('Timezone', eventForm.timezone, (timezone) => setEventForm((prev) => ({ ...prev, timezone })))}
-            {renderInput(t('event_075'), eventForm.description, (description) => setEventForm((prev) => ({ ...prev, description })), { multiline: true, style: [styles.input, styles.multiline, { color: theme.textPrimary, borderColor: theme.border }] })}
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_010')}</Text>
-            <View style={[styles.pickerWrap, { borderColor: theme.border }]}>
-              <Picker selectedValue={eventForm.status} onValueChange={(status) => setEventForm((prev) => ({ ...prev, status }))} style={{ color: theme.textPrimary }} enabled={canEdit}>
-                {EVENT_STATUS.map((status) => <Picker.Item key={status} label={status} value={status} />)}
-              </Picker>
-            </View>
+            {eventFormErrors.accountId ? <Text style={[styles.feedback, { color: theme.alert }]}>{eventFormErrors.accountId}</Text> : null}
+            {renderEventInput({ testID: 'event-name-input', label: t('event_071'), field: 'name', value: eventForm.name })}
+            {renderEventInput({ testID: 'event-slug-input', label: t('event_072'), field: 'slug', value: eventForm.slug, autoCapitalize: 'none' })}
+            {renderEventInput({ testID: 'event-start-date-input', label: t('event_101'), field: 'startDate', value: eventForm.startDate, autoCapitalize: 'none' })}
+            {renderEventInput({ testID: 'event-end-date-input', label: t('event_102'), field: 'endDate', value: eventForm.endDate, autoCapitalize: 'none' })}
+            {renderEventInput({ testID: 'event-timezone-input', label: t('event_103'), field: 'timezone', value: eventForm.timezone, autoCapitalize: 'none' })}
+            {renderEventInput({ testID: 'event-description-input', label: t('event_075'), field: 'description', value: eventForm.description, multiline: true })}
+            {section === 'detail' ? (
+              <>
+                <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_010')}</Text>
+                <View style={[styles.pickerWrap, { borderColor: eventFormErrors.status ? theme.alert : theme.border }]}>
+                  <Picker selectedValue={eventForm.status} onValueChange={(status) => updateEventFormField('status', status)} style={{ color: theme.textPrimary }} enabled={canEdit}>
+                    {EVENT_STATUS.map((status) => <Picker.Item key={status} label={status} value={status} />)}
+                  </Picker>
+                </View>
+                {eventFormErrors.status ? <Text style={[styles.feedback, { color: theme.alert }]}>{eventFormErrors.status}</Text> : null}
+              </>
+            ) : null}
             <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Modos</Text>
             {modes.map((modeItem) => {
               const active = eventForm.modeSlugs.includes(modeItem.slug);
-              return <Pressable key={modeItem.slug} style={styles.switchRow} onPress={() => setEventForm((prev) => ({ ...prev, modeSlugs: active ? prev.modeSlugs.filter((slug) => slug !== modeItem.slug) : [...prev.modeSlugs, modeItem.slug] }))}><Text style={{ color: theme.textPrimary }}>{modeItem.name}</Text><Switch value={active} disabled={!canEdit || section === 'detail'} /></Pressable>;
+              const disabled = !canEdit || section === 'detail';
+              return <Pressable key={modeItem.slug} style={styles.switchRow} disabled={disabled} onPress={() => setEventForm((prev) => ({ ...prev, modeSlugs: active ? prev.modeSlugs.filter((slug) => slug !== modeItem.slug) : [...prev.modeSlugs, modeItem.slug] }))}><Text style={{ color: theme.textPrimary }}>{modeItem.name}</Text><Switch value={active} disabled={disabled} /></Pressable>;
             })}
-            <AppButton label={section === 'create' ? t('event_076') : t('event_077')} onPress={section === 'create' ? onCreateEvent : onUpdateEvent} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
+            {accounts.length > 0 ? <AppButton testID={section === 'create' ? 'event-create-save' : 'event-update-save'} label={section === 'create' ? t('event_076') : t('event_077')} onPress={section === 'create' ? onCreateEvent : onUpdateEvent} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} /> : null}
           </SurfaceCard>
         ) : null}
 
@@ -434,6 +579,7 @@ export function EventsScreen({
           </View>
         ) : null}
       </ScrollView>
+      {renderAccountModal()}
     </View>
   );
 }
@@ -443,9 +589,13 @@ const styles = StyleSheet.create({
   scrollContent: { padding: tokens.spacing.md, gap: tokens.spacing.md },
   sectionWrap: { gap: tokens.spacing.sm },
   sectionTitle: { fontSize: tokens.typography.heading, fontWeight: '700' },
+  accountSelectorRow: { height: MENU_BAR_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, borderBottomWidth: 1 },
+  accountOptionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
+  accountSelectorData: { flex: 1, minWidth: 0 },
+  accountSelectorName: { fontSize: tokens.typography.caption, fontWeight: '700' },
+  changeAccountButton: { minWidth: 0, paddingRight: tokens.spacing.md },
+  pressableCard: { width: '100%' },
   fieldLabel: { fontSize: tokens.typography.caption, fontWeight: '700' },
-  input: { borderWidth: 1, borderRadius: tokens.radius.sm, padding: tokens.spacing.xs, fontSize: tokens.typography.body },
-  multiline: { minHeight: 84, textAlignVertical: 'top' },
   pickerWrap: { borderWidth: 1, borderRadius: tokens.radius.sm, overflow: 'hidden' },
   helper: { fontSize: tokens.typography.caption },
   feedback: { fontSize: tokens.typography.caption, fontWeight: '700' },
@@ -457,4 +607,7 @@ const styles = StyleSheet.create({
   cardMeta: { fontSize: tokens.typography.caption },
   row: { flexDirection: 'row', gap: tokens.spacing.xs },
   smallButton: { flex: 1 },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalCard: { flex: 1, marginTop: tokens.spacing.xl, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg, padding: tokens.spacing.md, gap: tokens.spacing.sm },
+  modalList: { gap: tokens.spacing.sm, paddingBottom: tokens.spacing.md },
 });
