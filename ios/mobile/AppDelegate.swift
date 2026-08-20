@@ -43,7 +43,11 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
     if let url = RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index") {
       return url
     }
+#if targetEnvironment(simulator)
     return URL(string: "http://127.0.0.1:8081/index.bundle?platform=ios&dev=true&minify=false")
+#else
+    return URL(string: "http://192.168.20.188:8081/index.bundle?platform=ios&dev=true&minify=false")
+#endif
 #else
     Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif

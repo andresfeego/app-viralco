@@ -5,6 +5,10 @@ export function listEventsApi(accountId) {
 }
 
 export function listEventTypesApi() {
+  return apiRequest('/api/events/types', { method: 'GET' });
+}
+
+export function listEventModesApi() {
   return apiRequest('/api/events/modes', { method: 'GET' });
 }
 

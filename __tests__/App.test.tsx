@@ -16,6 +16,7 @@ jest.mock('@react-native-vector-icons/fontawesome6', () => {
     return <MockText>{props?.name || 'icon'}</MockText>;
   };
 });
+jest.mock('@react-native-community/datetimepicker', () => 'DateTimePicker');
 jest.mock('../src/services/media/imagePicker', () => ({ pickLogoImage: jest.fn() }));
 jest.mock('react-native-toast-message', () => {
   const MockToast = () => null;

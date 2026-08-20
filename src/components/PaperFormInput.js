@@ -18,6 +18,10 @@ export function PaperFormInput({
   multiline = false,
   editable = true,
   inputStyle = null,
+  right = null,
+  onPressIn = null,
+  showSoftInputOnFocus = true,
+  caretHidden = false,
 }) {
   return (
     <View style={styles.inputGroup}>
@@ -32,6 +36,10 @@ export function PaperFormInput({
         autoCapitalize={autoCapitalize}
         multiline={multiline}
         editable={editable}
+        right={right}
+        onPressIn={onPressIn}
+        showSoftInputOnFocus={showSoftInputOnFocus}
+        caretHidden={caretHidden}
         textColor={theme.textPrimary}
         outlineColor={theme.border}
         activeOutlineColor={theme.primary}

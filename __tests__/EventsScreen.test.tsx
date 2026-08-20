@@ -2,6 +2,7 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
+jest.mock('@react-native-community/datetimepicker', () => 'DateTimePicker');
 jest.mock('@react-native-picker/picker', () => {
   const { View } = require('react-native');
   const Picker = (props: any) => <View {...props}>{props.children}</View>;
@@ -17,6 +18,7 @@ jest.mock('../src/services/api/events', () => ({
   createEventResourceApi: jest.fn(),
   getEventDetailApi: jest.fn(),
   listAccountLibraryApi: jest.fn(),
+  listEventModesApi: jest.fn(),
   listEventResourcesApi: jest.fn(),
   listEventsApi: jest.fn(),
   listEventTypesApi: jest.fn(),
@@ -29,7 +31,7 @@ jest.mock('../src/services/api/events', () => ({
 import { useAuth } from '../src/hooks/useAuth';
 import { useToast } from '../src/providers/ToastProvider';
 import { listAccountsApi } from '../src/services/api/accounts';
-import { createEventApi, listEventsApi, listEventTypesApi } from '../src/services/api/events';
+import { createEventApi, listEventModesApi, listEventsApi, listEventTypesApi } from '../src/services/api/events';
 import { EventsScreen } from '../src/screens/EventsScreen';
 
 const mockedUseAuth = useAuth as jest.Mock;
@@ -37,7 +39,8 @@ const mockedUseToast = useToast as jest.Mock;
 const mockedListAccounts = listAccountsApi as jest.Mock;
 const mockedCreateEvent = createEventApi as jest.Mock;
 const mockedListEvents = listEventsApi as jest.Mock;
-const mockedListModes = listEventTypesApi as jest.Mock;
+const mockedListEventTypes = listEventTypesApi as jest.Mock;
+const mockedListModes = listEventModesApi as jest.Mock;
 
 function hasText(root: ReactTestRenderer.ReactTestInstance, text: string) {
   return root.findAll((node) => node.children.includes(text)).length > 0;
@@ -50,7 +53,8 @@ beforeEach(() => {
     user: { themeMode: 'dark', globalRoles: [], accounts: [{ account: { id: '1' }, status: 'active', role: { slug: 'owner' } }] },
   });
   mockedUseToast.mockReturnValue({ showToast: jest.fn(), hideToast: jest.fn() });
-  mockedCreateEvent.mockResolvedValue({ event: { id: '10', accountId: '1', name: 'Evento Demo', slug: 'evento-demo', startDate: null, endDate: null, status: 'draft', timezone: 'America/Bogota', modes: [] } });
+  mockedCreateEvent.mockResolvedValue({ event: { id: '10', accountId: '1', name: 'Evento Demo', slug: 'boda-evento-demo-2026-08-19', eventType: { slug: 'boda', name: 'Boda' }, startDate: null, endDate: null, status: 'draft', timezone: 'America/Bogota', modes: [] } });
+  mockedListEventTypes.mockResolvedValue({ types: [{ id: '1', slug: 'boda', name: 'Boda', isActive: true }] });
   mockedListModes.mockResolvedValue({ modes: [] });
   mockedListEvents.mockResolvedValue({ events: [] });
 });
@@ -104,7 +108,13 @@ test('event creation uses the selected account even when selector is hidden', as
   });
 
   await ReactTestRenderer.act(async () => {
+    renderer!.root.findByProps({ testID: 'event-type-picker' }).props.onValueChange('boda');
     renderer!.root.findByProps({ testID: 'event-name-input' }).props.onChangeText('Evento Demo');
+    renderer!.root.findByProps({ testID: 'event-date-input-pressable' }).props.onPress();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    renderer!.root.findByProps({ testID: 'event-date-input-picker' }).props.onChange({}, new Date(2026, 7, 19));
     renderer!.root.findByProps({ testID: 'event-timezone-input' }).props.onChangeText('America/Bogota');
   });
 
@@ -112,7 +122,7 @@ test('event creation uses the selected account even when selector is hidden', as
     renderer!.root.findByProps({ testID: 'event-create-save' }).props.onPress();
   });
 
-  expect(mockedCreateEvent).toHaveBeenCalledWith('1', expect.objectContaining({ name: 'Evento Demo', status: 'draft' }));
+  expect(mockedCreateEvent).toHaveBeenCalledWith('1', expect.objectContaining({ eventTypeSlug: 'boda', name: 'Evento Demo', startDate: '2026-08-19', endDate: null, status: 'draft' }));
   expect(hasText(renderer!.root, 'Cambiar de cuenta')).toBe(false);
   ReactTestRenderer.act(() => {
     renderer!.unmount();

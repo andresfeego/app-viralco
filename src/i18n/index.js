@@ -2,6 +2,7 @@ export const dictionary = {
   menu_000: { es: 'Superadmin', en: 'Superadmin' },
   menu_001: { es: 'Cuentas', en: 'Accounts' },
   menu_002: { es: 'Eventos', en: 'Events' },
+  menu_004: { es: 'Recursos', en: 'Resources' },
   config_000: { es: 'Configuracion', en: 'Settings' },
   submenu_000: { es: 'Usuarios administradores', en: 'Admin users' },
   submenu_001: { es: 'Crear usuario admin', en: 'Create admin user' },
@@ -170,6 +171,12 @@ export const dictionary = {
   event_101: { es: 'Fecha inicio (YYYY-MM-DD)', en: 'Start date (YYYY-MM-DD)' },
   event_102: { es: 'Fecha fin (YYYY-MM-DD)', en: 'End date (YYYY-MM-DD)' },
   event_103: { es: 'Timezone', en: 'Timezone' },
+  event_104: { es: 'Seleccionar fecha', en: 'Select date' },
+  event_105: { es: 'Tipo de evento', en: 'Event type' },
+  event_106: { es: 'Tipo de evento es obligatorio', en: 'Event type is required' },
+  event_107: { es: 'Selecciona un tipo', en: 'Select a type' },
+  event_108: { es: 'Datos del evento', en: 'Event details' },
+  event_109: { es: 'Volver al listado', en: 'Back to list' },
 };
 
 let activeLocale = 'es';

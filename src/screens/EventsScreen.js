@@ -8,8 +8,10 @@ import { tokens } from '../design-system/tokens';
 import { useAuth } from '../hooks/useAuth';
 import { t } from '../i18n';
 import { AccountLogoPreview } from '../components/AccountLogoPreview';
+import { EventHeroHeader } from '../components/EventHeroHeader';
 import { EventListCard } from '../components/EventListCard';
 import { IconTextButton } from '../components/IconTextButton';
+import { PaperDateInput } from '../components/PaperDateInput';
 import { PaperFormInput } from '../components/PaperFormInput';
 import { HorizontalSubMenu } from '../components/HorizontalSubMenu';
 import { useToast } from '../providers/ToastProvider';
@@ -22,17 +24,16 @@ import {
   listAccountLibraryApi,
   listEventResourcesApi,
   listEventsApi,
+  listEventModesApi,
   listEventTypesApi,
   prepareAccountLibraryUploadApi,
-  updateEventApi,
   updateEventBrandingApi,
   updateEventResourceApi,
 } from '../services/api/events';
 
-const EVENT_STATUS = ['draft', 'active', 'archived'];
 const RESOURCE_PURPOSES = ['frame', 'overlay', 'intro', 'outro', 'music', 'logo', 'background', 'template', 'branding', 'other'];
 const MENU_BAR_HEIGHT = tokens.spacing.xl + tokens.spacing.xs + tokens.spacing.xxs / 2;
-const EMPTY_EVENT_FORM = { name: '', slug: '', startDate: '', endDate: '', status: 'draft', timezone: 'America/Bogota', description: '', modeSlugs: [] };
+const EMPTY_EVENT_FORM = { name: '', eventTypeSlug: '', startDate: '', status: 'draft', timezone: 'America/Bogota', description: '', modeSlugs: [] };
 
 function normalizeEvent(item) {
   if (!item) return null;
@@ -41,6 +42,9 @@ function normalizeEvent(item) {
     accountId: String(item.accountId || ''),
     name: String(item.name || ''),
     slug: String(item.slug || ''),
+    eventTypeId: String(item.eventTypeId || ''),
+    eventType: item.eventType || null,
+    eventTypeSlug: String(item.eventType?.slug || ''),
     eventDate: String(item.startDate || item.eventDate || ''),
     startDate: String(item.startDate || item.eventDate || ''),
     endDate: String(item.endDate || ''),
@@ -90,6 +94,11 @@ function accountLogoPreviewUrl(account) {
   return account?.logoAsset?.variants?.thumb?.fileUrl || account?.logoAsset?.previewUrl || account?.logoAsset?.fileUrl || '';
 }
 
+function resourcePreviewUrl(resource) {
+  const asset = resource?.asset;
+  return asset?.variants?.card?.fileUrl || asset?.variants?.full?.fileUrl || asset?.fileUrl || '';
+}
+
 function isValidDateYmd(value) {
   return !value || /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());
 }
@@ -118,6 +127,7 @@ export function EventsScreen({
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState('');
   const [isAccountModalVisible, setAccountModalVisible] = useState(false);
+  const [eventTypes, setEventTypes] = useState([]);
   const [modes, setModes] = useState([]);
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState('');
@@ -139,9 +149,7 @@ export function EventsScreen({
   const eventMenu = [
     { key: 'list', label: t('event_000') },
     { key: 'create', label: t('event_001') },
-    { key: 'detail', label: t('event_002') },
     { key: 'branding', label: t('event_003') },
-    { key: 'resources', label: 'Recursos' },
   ].filter((item) => normalizedSections.includes(item.key));
 
   const stats = useMemo(() => ({
@@ -164,10 +172,18 @@ export function EventsScreen({
     } catch (err) { setError(err?.message || t('account_006')); }
   }, []);
 
-  const loadModes = useCallback(async () => {
+  const loadEventTypes = useCallback(async () => {
     try {
       const payload = await listEventTypesApi();
-      const rows = Array.isArray(payload?.modes) ? payload.modes : Array.isArray(payload?.types) ? payload.types : [];
+      const rows = Array.isArray(payload?.types) ? payload.types : [];
+      setEventTypes(rows.filter((item) => item.isActive !== false));
+    } catch (err) { setError(err?.message || t('event_105')); }
+  }, []);
+
+  const loadModes = useCallback(async () => {
+    try {
+      const payload = await listEventModesApi();
+      const rows = Array.isArray(payload?.modes) ? payload.modes : [];
       setModes(rows);
       const defaults = rows.filter((mode) => mode.isDefault).map((mode) => mode.slug);
       if (defaults.length) setEventForm((prev) => ({ ...prev, modeSlugs: defaults }));
@@ -193,7 +209,7 @@ export function EventsScreen({
       const event = normalizeEvent(payload?.event || payload);
       setSelectedEvent(event);
       setEventForm({
-        name: event?.name || '', slug: event?.slug || '', startDate: event?.startDate || '', endDate: event?.endDate || '',
+        name: event?.name || '', eventTypeSlug: event?.eventTypeSlug || '', startDate: event?.startDate || '',
         status: event?.status || 'draft', timezone: event?.timezone || 'America/Bogota', description: event?.description || '',
         modeSlugs: event?.modes?.map((item) => item.mode?.slug).filter(Boolean) || [],
       });
@@ -215,7 +231,7 @@ export function EventsScreen({
     } catch (err) { setError(err?.message || t('event_042')); }
   }, [accountId, resourceForm.libraryAssetId]);
 
-  useEffect(() => { loadAccounts(); loadModes(); }, [loadAccounts, loadModes]);
+  useEffect(() => { loadAccounts(); loadEventTypes(); loadModes(); }, [loadAccounts, loadEventTypes, loadModes]);
   useEffect(() => { loadEvents(); }, [loadEvents]);
   useEffect(() => {
     if (selectedEventId && ['detail', 'branding', 'resources'].includes(section)) loadEventDetail(selectedEventId);
@@ -224,8 +240,16 @@ export function EventsScreen({
 
   useEffect(() => {
     if (!onHeaderChange) return;
-    onHeaderChange({ title: selectedEvent?.name || t('menu_002'), subtitle: selectedEvent?.startDate || '', iconName: selectedEvent ? 'calendar-check' : 'champagne-glasses', onBack: null, backLabel: 'Volver al listado' });
-  }, [onHeaderChange, selectedEvent]);
+    if (section === 'resources') {
+      onHeaderChange({ title: t('menu_004'), subtitle: selectedEvent?.name || '', iconName: 'images', onBack: null, backLabel: 'Volver' });
+      return;
+    }
+    if (section === 'detail') {
+      onHeaderChange({ title: t('event_002'), subtitle: selectedEvent?.name || '', iconName: 'calendar-check', onBack: () => setSection('list'), backLabel: t('event_109') });
+      return;
+    }
+    onHeaderChange({ title: t('menu_002'), subtitle: '', iconName: 'champagne-glasses', onBack: null, backLabel: 'Volver' });
+  }, [onHeaderChange, section, selectedEvent]);
 
   const clearEventFormError = (field) => {
     setEventFormErrors((current) => {
@@ -241,21 +265,21 @@ export function EventsScreen({
     setEventForm((current) => ({ ...current, [field]: value }));
   };
 
-  const validateEvent = ({ includeStatus = true } = {}) => {
+  const validateEvent = () => {
     const nextErrors = {};
     if (!accountId) nextErrors.accountId = t('event_097');
+    if (!String(eventForm.eventTypeSlug || '').trim()) nextErrors.eventTypeSlug = t('event_106');
     if (!String(eventForm.name || '').trim()) nextErrors.name = t('event_050');
-    if (!isValidDateYmd(eventForm.startDate)) nextErrors.startDate = t('event_098');
-    if (!isValidDateYmd(eventForm.endDate)) nextErrors.endDate = t('event_098');
+    if (!String(eventForm.startDate || '').trim()) nextErrors.startDate = t('event_051');
+    else if (!isValidDateYmd(eventForm.startDate)) nextErrors.startDate = t('event_098');
     if (!String(eventForm.timezone || '').trim()) nextErrors.timezone = t('event_099');
     else if (!isValidTimezone(eventForm.timezone)) nextErrors.timezone = t('event_100');
-    if (includeStatus && !EVENT_STATUS.includes(eventForm.status)) nextErrors.status = `Estado invalido: ${EVENT_STATUS.join(', ')}`;
     setEventFormErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
 
   const onCreateEvent = async () => {
-    if (!validateEvent({ includeStatus: false })) {
+    if (!validateEvent()) {
       setError(t('account_070'));
       showToast({ message: t('account_070'), type: 'error' });
       return;
@@ -263,7 +287,7 @@ export function EventsScreen({
     if (!canEdit) { setError(t('event_060')); showToast({ message: t('event_060'), type: 'error' }); return; }
     setSaving(true); clearMessages();
     try {
-      const payload = await createEventApi(accountId, { ...eventForm, status: 'draft' });
+      const payload = await createEventApi(accountId, { ...eventForm, status: 'draft', endDate: null });
       const event = normalizeEvent(payload?.event || payload);
       setOk(t('event_061'));
       setEventForm(EMPTY_EVENT_FORM);
@@ -275,19 +299,6 @@ export function EventsScreen({
       setError(message);
       showToast({ message, type: 'error' });
     }
-    finally { setSaving(false); }
-  };
-
-  const onUpdateEvent = async () => {
-    if (!validateEvent()) {
-      setError(t('account_070'));
-      showToast({ message: t('account_070'), type: 'error' });
-      return;
-    }
-    if (!selectedEventId || !canEdit) { setError(t('event_060')); showToast({ message: t('event_060'), type: 'error' }); return; }
-    setSaving(true); clearMessages();
-    try { await updateEventApi(selectedEventId, eventForm); setOk(t('event_063')); await loadEvents(); await loadEventDetail(selectedEventId); }
-    catch (err) { setError(err?.message || t('event_064')); }
     finally { setSaving(false); }
   };
 
@@ -452,9 +463,66 @@ export function EventsScreen({
     </Modal>
   );
 
+  const renderEventTypePicker = () => (
+    <>
+      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_105')}</Text>
+      <View style={[styles.pickerWrap, { borderColor: eventFormErrors.eventTypeSlug ? theme.alert : theme.border }]}>
+        <Picker
+          testID="event-type-picker"
+          selectedValue={eventForm.eventTypeSlug}
+          onValueChange={(eventTypeSlug) => updateEventFormField('eventTypeSlug', eventTypeSlug)}
+          style={{ color: theme.textPrimary }}
+          enabled={canEdit}
+        >
+          <Picker.Item label={t('event_107')} value="" />
+          {eventTypes.map((type) => <Picker.Item key={type.slug} label={type.name} value={type.slug} />)}
+        </Picker>
+      </View>
+      {eventFormErrors.eventTypeSlug ? <Text style={[styles.feedback, { color: theme.alert }]}>{eventFormErrors.eventTypeSlug}</Text> : null}
+    </>
+  );
+
+  const renderEventDetail = () => {
+    const event = selectedEvent;
+    const branding = event?.branding || {};
+    const logoUrl = resourcePreviewUrl(branding.logoResource);
+    const backgroundUrl = resourcePreviewUrl(branding.backgroundResource);
+    return (
+      <View style={styles.sectionWrap}>
+        <EventHeroHeader
+          theme={theme}
+          title={event?.name || t('event_002')}
+          subtitle={event?.eventType?.name || event?.eventDate || ''}
+          backgroundImageUrl={backgroundUrl}
+          logoImageUrl={logoUrl}
+        />
+        <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_108')}</Text>
+          <View style={styles.detailRows}>
+            <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_105')}: {event?.eventType?.name || '-'}</Text>
+            <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_073')}: {event?.eventDate || '-'}</Text>
+            <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_010')}: {event?.status || '-'}</Text>
+            <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_103')}: {event?.timezone || '-'}</Text>
+            <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>Slug: {event?.slug || '-'}</Text>
+            {event?.description ? <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{event.description}</Text> : null}
+          </View>
+        </SurfaceCard>
+        <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Modos</Text>
+          {event?.modes?.length ? event.modes.map((item) => (
+            <Text key={item.id || item.mode?.slug} style={[styles.cardMeta, { color: theme.textSecondary }]}>
+              {item.mode?.name || item.mode?.slug || '-'}
+            </Text>
+          )) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
+        </SurfaceCard>
+        {canEdit ? <AppButton label={t('event_003')} onPress={() => setSection('branding')} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} /> : null}
+      </View>
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <HorizontalSubMenu items={eventMenu} selectedKey={section} onSelect={setSection} theme={theme} />
+      {eventMenu.length > 1 ? <HorizontalSubMenu items={eventMenu} selectedKey={section} onSelect={setSection} theme={theme} /> : null}
       {renderAccountSelector()}
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {accounts.length === 0 ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>Aun no tienes cuentas. Crea una cuenta desde la seccion Cuenta para activar eventos.</Text> : null}
@@ -470,36 +538,35 @@ export function EventsScreen({
           </View>
         ) : null}
 
-        {section === 'create' || section === 'detail' ? (
+        {section === 'create' ? (
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{section === 'create' ? t('event_001') : `${t('event_002')}: ${selectedEvent?.name || ''}`}</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_001')}</Text>
             {eventFormErrors.accountId ? <Text style={[styles.feedback, { color: theme.alert }]}>{eventFormErrors.accountId}</Text> : null}
+            {renderEventTypePicker()}
             {renderEventInput({ testID: 'event-name-input', label: t('event_071'), field: 'name', value: eventForm.name })}
-            {renderEventInput({ testID: 'event-slug-input', label: t('event_072'), field: 'slug', value: eventForm.slug, autoCapitalize: 'none' })}
-            {renderEventInput({ testID: 'event-start-date-input', label: t('event_101'), field: 'startDate', value: eventForm.startDate, autoCapitalize: 'none' })}
-            {renderEventInput({ testID: 'event-end-date-input', label: t('event_102'), field: 'endDate', value: eventForm.endDate, autoCapitalize: 'none' })}
+            <PaperDateInput
+              testID="event-date-input"
+              theme={theme}
+              label={t('event_073')}
+              value={eventForm.startDate}
+              errorText={eventFormErrors.startDate}
+              disabled={!canEdit}
+              helperLabel={t('event_104')}
+              onChangeDate={(startDate) => updateEventFormField('startDate', startDate)}
+            />
             {renderEventInput({ testID: 'event-timezone-input', label: t('event_103'), field: 'timezone', value: eventForm.timezone, autoCapitalize: 'none' })}
             {renderEventInput({ testID: 'event-description-input', label: t('event_075'), field: 'description', value: eventForm.description, multiline: true })}
-            {section === 'detail' ? (
-              <>
-                <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_010')}</Text>
-                <View style={[styles.pickerWrap, { borderColor: eventFormErrors.status ? theme.alert : theme.border }]}>
-                  <Picker selectedValue={eventForm.status} onValueChange={(status) => updateEventFormField('status', status)} style={{ color: theme.textPrimary }} enabled={canEdit}>
-                    {EVENT_STATUS.map((status) => <Picker.Item key={status} label={status} value={status} />)}
-                  </Picker>
-                </View>
-                {eventFormErrors.status ? <Text style={[styles.feedback, { color: theme.alert }]}>{eventFormErrors.status}</Text> : null}
-              </>
-            ) : null}
             <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Modos</Text>
             {modes.map((modeItem) => {
               const active = eventForm.modeSlugs.includes(modeItem.slug);
-              const disabled = !canEdit || section === 'detail';
+              const disabled = !canEdit;
               return <Pressable key={modeItem.slug} style={styles.switchRow} disabled={disabled} onPress={() => setEventForm((prev) => ({ ...prev, modeSlugs: active ? prev.modeSlugs.filter((slug) => slug !== modeItem.slug) : [...prev.modeSlugs, modeItem.slug] }))}><Text style={{ color: theme.textPrimary }}>{modeItem.name}</Text><Switch value={active} disabled={disabled} /></Pressable>;
             })}
-            {accounts.length > 0 ? <AppButton testID={section === 'create' ? 'event-create-save' : 'event-update-save'} label={section === 'create' ? t('event_076') : t('event_077')} onPress={section === 'create' ? onCreateEvent : onUpdateEvent} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} /> : null}
+            {accounts.length > 0 ? <AppButton testID="event-create-save" label={t('event_076')} onPress={onCreateEvent} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} /> : null}
           </SurfaceCard>
         ) : null}
+
+        {section === 'detail' ? renderEventDetail() : null}
 
         {section === 'branding' ? (
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>

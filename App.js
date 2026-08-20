@@ -81,6 +81,7 @@ function MainFlow() {
       : []),
     { key: 'cuenta', label: t('menu_001'), iconName: 'building', headerTitle: t('menu_001') },
     { key: 'eventos', label: t('menu_002'), iconName: 'champagne-glasses', headerTitle: t('menu_002') },
+    { key: 'recursos', label: t('menu_004'), iconName: 'images', headerTitle: t('menu_004') },
     { key: 'configuracion', label: t('config_000'), iconName: 'gear', headerTitle: t('config_000') },
   ];
 
@@ -89,11 +90,12 @@ function MainFlow() {
   const selectedItem = menuItems.find((item) => item.key === selectedKey) || menuItems[0];
 
   const isAccountDetail = selectedKey === 'cuenta' && accountRoute.name === 'detail';
-  const headerTitle = isAccountDetail ? t('account_054') : selectedKey === 'eventos' ? eventsHeaderConfig.title : selectedItem.headerTitle;
-  const headerSubtitle = isAccountDetail ? accountRoute.account?.name || '' : selectedKey === 'eventos' ? eventsHeaderConfig.subtitle : '';
-  const headerIconName = isAccountDetail ? 'building' : selectedKey === 'eventos' ? eventsHeaderConfig.iconName : selectedItem.iconName;
-  const headerOnBack = isAccountDetail ? closeAccountDetail : selectedKey === 'eventos' ? eventsHeaderConfig.onBack : null;
-  const headerBackLabel = isAccountDetail ? t('account_055') : selectedKey === 'eventos' ? eventsHeaderConfig.backLabel : 'Volver';
+  const usesEventsHeader = selectedKey === 'eventos' || selectedKey === 'recursos';
+  const headerTitle = isAccountDetail ? t('account_054') : usesEventsHeader ? eventsHeaderConfig.title : selectedItem.headerTitle;
+  const headerSubtitle = isAccountDetail ? accountRoute.account?.name || '' : usesEventsHeader ? eventsHeaderConfig.subtitle : '';
+  const headerIconName = isAccountDetail ? 'building' : usesEventsHeader ? eventsHeaderConfig.iconName : selectedItem.iconName;
+  const headerOnBack = isAccountDetail ? closeAccountDetail : usesEventsHeader ? eventsHeaderConfig.onBack : null;
+  const headerBackLabel = isAccountDetail ? t('account_055') : usesEventsHeader ? eventsHeaderConfig.backLabel : 'Volver';
 
   const selectMenuItem = (key) => {
     if (key === 'cuenta') {
@@ -128,7 +130,15 @@ function MainFlow() {
         ) : null}
         {selectedKey === 'eventos' ? (
           <EventsScreen
-            allowedSections={['list', 'create', 'overlays']}
+            allowedSections={['list', 'create']}
+            onHeaderChange={setEventsHeaderConfig}
+          />
+        ) : null}
+        {selectedKey === 'recursos' ? (
+          <EventsScreen
+            initialSection="resources"
+            allowedSections={['resources']}
+            showKpi={false}
             onHeaderChange={setEventsHeaderConfig}
           />
         ) : null}
