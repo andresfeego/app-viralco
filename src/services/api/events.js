@@ -33,8 +33,17 @@ export function listLibraryAssetsApi(accountId) {
   return apiRequest(`/api/library/assets${query}`, { method: 'GET' });
 }
 
-export function listAccountLibraryApi(accountId) {
-  return apiRequest(`/api/accounts/${accountId}/library`, { method: 'GET' });
+export function listAccountLibraryApi(accountId, filters = {}) {
+  const query = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
+  });
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return apiRequest(`/api/accounts/${accountId}/library${suffix}`, { method: 'GET' });
+}
+
+export function updateAccountLibraryFavoriteApi(accountId, libraryAssetId, isFavorite) {
+  return apiRequest(`/api/accounts/${accountId}/library/${libraryAssetId}/favorite`, { method: 'PATCH', body: JSON.stringify({ isFavorite }) });
 }
 
 export function prepareAccountLibraryUploadApi(accountId, input) {
@@ -87,6 +96,47 @@ export function deleteEventResourceApi(eventId, resourceId) {
 }
 
 export async function uploadFileToPreparedUrl(uploadUrl, file) {
-  const response = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file.blob || file });
+  const body = file.blob || (file.uri ? await fetch(file.uri).then((response) => response.blob()) : file);
+  const response = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body });
   if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+}
+
+export async function uploadAccountLibraryFileApi(accountId, file, purpose) {
+  if (String(file.type || '').startsWith('image/') && file.type !== 'image/gif') {
+    return createProcessedAccountImageAssetApi(accountId, file, purpose);
+  }
+  const prepared = await prepareAccountLibraryUploadApi(accountId, {
+    purpose,
+    fileName: file.fileName,
+    contentType: file.type,
+    sizeBytes: file.fileSize,
+  });
+  await uploadFileToPreparedUrl(prepared.uploadUrl, file);
+  const payload = await createAccountLibraryAssetApi(accountId, {
+    name: file.fileName,
+    purpose,
+    type: purpose,
+    key: prepared.key,
+    fileUrl: prepared.fileUrl,
+    mimeType: file.type,
+    sizeBytes: file.fileSize,
+    metadata: { mirrorCompatible: true },
+  });
+  return payload?.asset || null;
+}
+
+export function getMagicMirrorConfigApi(eventId, eventModeId) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/config`, { method: 'GET' });
+}
+
+export function saveMagicMirrorConfigApi(eventId, eventModeId, input) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/config`, { method: 'PUT', body: JSON.stringify(input) });
+}
+
+export function validateMagicMirrorConfigApi(eventId, eventModeId, input) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/config/validate`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function publishMagicMirrorConfigApi(eventId, eventModeId, expectedRevision) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/config/publish`, { method: 'POST', body: JSON.stringify({ expectedRevision }) });
 }

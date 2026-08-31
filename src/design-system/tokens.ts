@@ -120,6 +120,9 @@ export const tokens = {
     body: 16,
     caption: 14,
   },
+  opacity: {
+    disabled: 0.6,
+  },
 } as const;
 
 export type ThemeMode = 'light' | 'dark';

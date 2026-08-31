@@ -9,6 +9,7 @@ interface AppButtonProps {
   pressedColor: string;
   textColor: string;
   testID?: string;
+  disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -19,16 +20,19 @@ export function AppButton({
   pressedColor,
   textColor,
   testID,
+  disabled = false,
   style,
 }: AppButtonProps) {
   return (
     <Pressable
       testID={testID}
+      disabled={disabled}
+      accessibilityState={{ disabled }}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
         style,
-        { backgroundColor: pressed ? pressedColor : backgroundColor },
+        { backgroundColor: pressed ? pressedColor : backgroundColor, opacity: disabled ? tokens.opacity.disabled : 1 },
       ]}
     >
       <Text style={[styles.label, { color: textColor }]}>{label}</Text>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import Video from 'react-native-video';
+import { t } from '../../i18n';
 import { tokens } from '../tokens';
 
 interface MediaPreviewProps {
@@ -43,7 +44,7 @@ export function MediaPreview({ uri, mediaType, borderColor, textColor }: MediaPr
 
   return (
     <View style={[styles.fallback, { borderColor }]}> 
-      <Text style={[styles.fallbackText, { color: textColor }]}>Tipo no soportado: {mediaType}</Text>
+      <Text style={[styles.fallbackText, { color: textColor }]}>{t('resource_041')}: {mediaType}</Text>
     </View>
   );
 }
