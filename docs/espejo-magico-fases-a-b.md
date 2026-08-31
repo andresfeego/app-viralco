@@ -1,5 +1,20 @@
 # Espejo magico: integracion mobile de fases A y B
 
+> El plan maestro y el estado oficial de las fases A–H se mantienen en `WEB/backend/docs/modes/espejo-magico-plan-maestro.md`. Este documento conserva el detalle mobile de A y B.
+
+## Estado transversal
+
+| Fase | Estado | Participacion mobile |
+| --- | --- | --- |
+| A — Contrato y sesiones backend | `COMPLETADA` | Contratos API disponibles; UI completa se construye en C y D |
+| B — Pool, favoritos y recursos | `COMPLETADA` | Biblioteca y selector integrados |
+| C — Configurador visual | `PENDIENTE` | Siguiente fase de implementación |
+| D — Lanzamiento operativo | `EN_PROGRESO` | Backend listo; preflight y control mobile pendientes |
+| E — Runtime de captura | `PENDIENTE` | Cámara y secuencia pendientes |
+| F — Composición y entregable | `PENDIENTE` | Render y pipeline pendientes |
+| G — Entrega al invitado | `PENDIENTE` | QR, compartir y descarga operativa pendientes |
+| H — Capacidades avanzadas | `FUERA_DE_ALCANCE_ACTUAL` | GIF, fondo e impresión pendientes |
+
 ## Objetivo
 
 La app administra el pool de recursos de la cuenta y consume el contrato versionado del modo `espejo`. En estas fases no se implementa aun la camara: se prepara la configuracion publicada y el lanzamiento local para el runtime posterior.
