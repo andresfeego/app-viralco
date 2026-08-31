@@ -175,6 +175,10 @@ Foto, video 360, videoblog, QR y portal dependen directamente del pipeline de me
 
 ## 9. Fase 5. Shell operativo del dispositivo y home de modos
 
+### Plan detallado de Espejo Magico
+
+Las fases iniciales de configuracion, publicacion, lanzamiento local y biblioteca de recursos para Espejo Magico estan definidas en [`docs/espejo-magico-fases-a-b.md`](../docs/espejo-magico-fases-a-b.md). El contrato backend correspondiente vive en `WEB/backend/docs/modes/espejo-magico-fases-a-b.md` dentro del repositorio backend.
+
 ### Objetivo
 
 Construir la experiencia principal del dispositivo sin entrar todavía en toda la complejidad interna de cada módulo.
