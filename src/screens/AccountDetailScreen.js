@@ -34,8 +34,11 @@ const NOOP = () => {};
 const MODAL_TOAST_TOP_OFFSET = tokens.spacing.xl * 3;
 
 function logoDetailUrl(account) {
-  return account?.logoAsset?.variants?.card?.fileUrl
+  return account?.logoAsset?.variants?.card?.signedUrl
+    || account?.logoAsset?.variants?.card?.fileUrl
+    || account?.logoAsset?.variants?.full?.signedUrl
     || account?.logoAsset?.variants?.full?.fileUrl
+    || account?.logoAsset?.fileSignedUrl
     || account?.logoAsset?.fileUrl
     || '';
 }
@@ -303,7 +306,8 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
           <DetailRow label={t('account_029')} value={account?.slug} theme={theme} />
           <DetailRow label={t('account_041')} value={account?.phone} theme={theme} />
           <DetailRow label={t('account_042')} value={account?.email} theme={theme} />
-          <DetailRow label={t('account_025')} value={account?.subscription?.plan?.name} theme={theme} />
+          <DetailRow label={t('account_025')} value={(account?.subscription?.modes || []).map((item) => item.mode?.name).filter(Boolean).join(', ')} theme={theme} />
+          <DetailRow label={t('account_073')} value={account?.subscription ? `${account.subscription.totalAmount ?? '-'} ${account.subscription.currency || ''}` : t('account_039')} theme={theme} />
           <DetailRow label={t('event_010')} value={account?.subscription?.statusLabel || account?.subscription?.status || t('account_039')} theme={theme} />
         </SurfaceCard>
 

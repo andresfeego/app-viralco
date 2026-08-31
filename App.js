@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PaperProvider } from 'react-native-paper';
 import { AuthProvider } from './src/providers/AuthProvider';
 import { PermissionProvider } from './src/providers/PermissionProvider';
 import { ToastProvider } from './src/providers/ToastProvider';
@@ -169,13 +170,15 @@ function AppContainer() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <ToastProvider>
-          <PermissionProvider>
-            <AppContainer />
-          </PermissionProvider>
-        </ToastProvider>
-      </AuthProvider>
+      <PaperProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <PermissionProvider>
+              <AppContainer />
+            </PermissionProvider>
+          </ToastProvider>
+        </AuthProvider>
+      </PaperProvider>
     </SafeAreaProvider>
   );
 }

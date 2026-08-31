@@ -30,35 +30,36 @@ function normalizeLocalUri(value) {
   return `file://${uri}`;
 }
 
-export async function pickLogoImage() {
+async function pickImage({ source = 'gallery', square = true, title = t('account_061') } = {}) {
   let image;
+  const options = {
+    mediaType: 'photo',
+    cropping: square,
+    width: square ? LOGO_CROP_SIZE : undefined,
+    height: square ? LOGO_CROP_SIZE : undefined,
+    forceJpg: true,
+    writeTempFile: true,
+    includeExif: false,
+    waitAnimationEnd: false,
+    cropperToolbarTitle: title,
+    cropperChooseText: t('account_062'),
+    cropperCancelText: t('account_028'),
+    cropperCircleOverlay: false,
+    cropperRotateButtonsHidden: false,
+    freeStyleCropEnabled: !square,
+    showCropFrame: true,
+    showCropGuidelines: true,
+    avoidEmptySpaceAroundImage: true,
+    compressImageMaxWidth: square ? LOGO_CROP_SIZE : LOGO_CROP_SIZE * 2,
+    compressImageMaxHeight: square ? LOGO_CROP_SIZE : LOGO_CROP_SIZE * 2,
+    compressImageQuality: 0.9,
+    cropperChooseColor: tokens.colors.primary,
+    cropperCancelColor: tokens.colors.primary,
+    cropperToolbarColor: tokens.colors.primary,
+    cropperToolbarWidgetColor: tokens.colors.actionPrimaryText,
+  };
   try {
-    image = await ImagePicker.openPicker({
-      mediaType: 'photo',
-      cropping: true,
-      width: LOGO_CROP_SIZE,
-      height: LOGO_CROP_SIZE,
-      forceJpg: true,
-      writeTempFile: true,
-      includeExif: false,
-      waitAnimationEnd: false,
-      cropperToolbarTitle: t('account_061'),
-      cropperChooseText: t('account_062'),
-      cropperCancelText: t('account_028'),
-      cropperCircleOverlay: false,
-      cropperRotateButtonsHidden: false,
-      freeStyleCropEnabled: false,
-      showCropFrame: true,
-      showCropGuidelines: true,
-      avoidEmptySpaceAroundImage: true,
-      compressImageMaxWidth: LOGO_CROP_SIZE,
-      compressImageMaxHeight: LOGO_CROP_SIZE,
-      compressImageQuality: 0.9,
-      cropperChooseColor: tokens.colors.primary,
-      cropperCancelColor: tokens.colors.primary,
-      cropperToolbarColor: tokens.colors.primary,
-      cropperToolbarWidgetColor: tokens.colors.actionPrimaryText,
-    });
+    image = source === 'camera' ? await ImagePicker.openCamera(options) : await ImagePicker.openPicker(options);
   } catch (err) {
     if (err?.code === 'E_PICKER_CANCELLED') return null;
     throw err;
@@ -69,7 +70,7 @@ export async function pickLogoImage() {
   if (!ALLOWED_LOGO_TYPES.has(contentType)) {
     throw new Error('El logo debe ser una imagen JPG, PNG, WebP, HEIC o AVIF');
   }
-  if (image.width && image.height && image.width !== image.height) {
+  if (square && image.width && image.height && image.width !== image.height) {
     throw new Error(t('account_063'));
   }
   return {
@@ -80,4 +81,12 @@ export async function pickLogoImage() {
     width: image.width,
     height: image.height,
   };
+}
+
+export async function pickLogoImage() {
+  return pickImage({ source: 'gallery', square: true, title: t('account_061') });
+}
+
+export async function pickEventResourceImage({ source = 'gallery', purpose = 'background' } = {}) {
+  return pickImage({ source, square: purpose === 'logo', title: purpose === 'logo' ? t('event_112') : t('event_113') });
 }

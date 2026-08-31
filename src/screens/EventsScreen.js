@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { Menu } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton } from '../design-system/components/AppButton';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { getTheme } from '../design-system/theme';
@@ -13,6 +15,7 @@ import { EventListCard } from '../components/EventListCard';
 import { IconTextButton } from '../components/IconTextButton';
 import { PaperDateInput } from '../components/PaperDateInput';
 import { PaperFormInput } from '../components/PaperFormInput';
+import { SelectableChipGroup } from '../components/SelectableChipGroup';
 import { HorizontalSubMenu } from '../components/HorizontalSubMenu';
 import { useToast } from '../providers/ToastProvider';
 import { listAccountsApi } from '../services/api/accounts';
@@ -20,6 +23,7 @@ import {
   createAccountLibraryAssetApi,
   createEventApi,
   createEventResourceApi,
+  createProcessedAccountImageAssetApi,
   getEventDetailApi,
   listAccountLibraryApi,
   listEventResourcesApi,
@@ -27,9 +31,11 @@ import {
   listEventModesApi,
   listEventTypesApi,
   prepareAccountLibraryUploadApi,
+  updateEventApi,
   updateEventBrandingApi,
   updateEventResourceApi,
 } from '../services/api/events';
+import { pickEventResourceImage } from '../services/media/imagePicker';
 
 const RESOURCE_PURPOSES = ['frame', 'overlay', 'intro', 'outro', 'music', 'logo', 'background', 'template', 'branding', 'other'];
 const MENU_BAR_HEIGHT = tokens.spacing.xl + tokens.spacing.xs + tokens.spacing.xxs / 2;
@@ -54,12 +60,9 @@ function normalizeEvent(item) {
     branding: {
       logoResourceId: String(item.branding?.logoResourceId || ''),
       backgroundResourceId: String(item.branding?.backgroundResourceId || ''),
-      phone: String(item.branding?.phone || ''),
-      primaryColor: String(item.branding?.primaryColor || ''),
-      interval: String(item.branding?.interval || ''),
-      maxEvents: item.branding?.maxEvents == null ? '' : String(item.branding.maxEvents),
-      maxStorageGb: item.branding?.maxStorageGb == null ? '' : String(item.branding.maxStorageGb),
-      maxDevices: item.branding?.maxDevices == null ? '' : String(item.branding.maxDevices),
+      logoResource: item.branding?.logoResource || null,
+      backgroundResource: item.branding?.backgroundResource || null,
+      isActive: item.branding?.isActive === undefined ? true : Boolean(item.branding.isActive),
     },
     modes: Array.isArray(item.modes) ? item.modes : [],
   };
@@ -91,25 +94,33 @@ function normalizeResource(item) {
 }
 
 function accountLogoPreviewUrl(account) {
-  return account?.logoAsset?.variants?.thumb?.fileUrl || account?.logoAsset?.previewUrl || account?.logoAsset?.fileUrl || '';
+  return account?.logoAsset?.variants?.thumb?.signedUrl
+    || account?.logoAsset?.variants?.thumb?.fileUrl
+    || account?.logoAsset?.previewSignedUrl
+    || account?.logoAsset?.previewUrl
+    || account?.logoAsset?.fileSignedUrl
+    || account?.logoAsset?.fileUrl
+    || '';
 }
 
 function resourcePreviewUrl(resource) {
   const asset = resource?.asset;
-  return asset?.variants?.card?.fileUrl || asset?.variants?.full?.fileUrl || asset?.fileUrl || '';
-}
-
-function isValidDateYmd(value) {
-  return !value || /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());
-}
-
-function isValidTimezone(value) {
-  return /^[A-Za-z_]+\/[A-Za-z0-9_+-]+(?:\/[A-Za-z0-9_+-]+)?$|^UTC$/.test(String(value || '').trim());
+  return asset?.variants?.card?.signedUrl
+    || asset?.variants?.card?.fileUrl
+    || asset?.variants?.full?.signedUrl
+    || asset?.variants?.full?.fileUrl
+    || asset?.fileSignedUrl
+    || asset?.fileUrl
+    || '';
 }
 
 function activeAccountRole(user, accountId) {
   const membership = (user?.accounts || []).find((item) => String(item.account?.id) === String(accountId));
   return membership?.status === 'active' ? membership?.role?.slug : null;
+}
+
+function accountContractedModeSlugs(account) {
+  return (account?.subscription?.modes || []).map((item) => item.mode?.slug).filter(Boolean);
 }
 
 export function EventsScreen({
@@ -122,7 +133,7 @@ export function EventsScreen({
   const { showToast } = useToast();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
-  const normalizedSections = allowedSections.filter((key) => ['list', 'create', 'detail', 'branding', 'resources', 'overlays'].includes(key)).map((key) => (key === 'overlays' ? 'resources' : key));
+  const normalizedSections = allowedSections.filter((key) => ['list', 'create', 'detail', 'resources', 'overlays'].includes(key)).map((key) => (key === 'overlays' ? 'resources' : key));
   const [section, setSection] = useState(normalizedSections.includes(initialSection) ? initialSection : normalizedSections[0] || 'list');
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState('');
@@ -140,16 +151,23 @@ export function EventsScreen({
   const [ok, setOk] = useState('');
   const [eventForm, setEventForm] = useState(EMPTY_EVENT_FORM);
   const [eventFormErrors, setEventFormErrors] = useState({});
-  const [brandingForm, setBrandingForm] = useState({ logoResourceId: '', backgroundResourceId: '', phone: '', primaryColor: '', interval: '', maxEvents: '', maxStorageGb: '', maxDevices: '' });
+  const [editEventVisible, setEditEventVisible] = useState(false);
+  const [editModesVisible, setEditModesVisible] = useState(false);
+  const [visualMenuPurpose, setVisualMenuPurpose] = useState('');
   const [libraryForm, setLibraryForm] = useState({ name: '', purpose: 'overlay', key: '', fileUrl: '', mimeType: 'image/png', sizeBytes: '1' });
   const [resourceForm, setResourceForm] = useState({ libraryAssetId: '', purpose: 'overlay', placement: '', orderIndex: '0', isActive: true });
 
   const roleSlug = activeAccountRole(user, accountId);
   const canEdit = isSuperAdmin || ['owner', 'admin'].includes(roleSlug);
+  const activeAccount = accounts.find((account) => String(account.id) === String(accountId)) || null;
+  const contractedModeSlugs = useMemo(() => accountContractedModeSlugs(activeAccount), [activeAccount]);
+  const availableModes = useMemo(
+    () => (contractedModeSlugs.length ? modes.filter((mode) => contractedModeSlugs.includes(mode.slug)) : modes),
+    [contractedModeSlugs, modes]
+  );
   const eventMenu = [
     { key: 'list', label: t('event_000') },
     { key: 'create', label: t('event_001') },
-    { key: 'branding', label: t('event_003') },
   ].filter((item) => normalizedSections.includes(item.key));
 
   const stats = useMemo(() => ({
@@ -213,9 +231,8 @@ export function EventsScreen({
         status: event?.status || 'draft', timezone: event?.timezone || 'America/Bogota', description: event?.description || '',
         modeSlugs: event?.modes?.map((item) => item.mode?.slug).filter(Boolean) || [],
       });
-      setBrandingForm(event?.branding || brandingForm);
     } catch (err) { setError(err?.message || t('event_041')); }
-  }, [brandingForm]);
+  }, []);
 
   const loadLibraryAndResources = useCallback(async (eventId) => {
     if (!accountId) return;
@@ -233,9 +250,19 @@ export function EventsScreen({
 
   useEffect(() => { loadAccounts(); loadEventTypes(); loadModes(); }, [loadAccounts, loadEventTypes, loadModes]);
   useEffect(() => { loadEvents(); }, [loadEvents]);
+
   useEffect(() => {
-    if (selectedEventId && ['detail', 'branding', 'resources'].includes(section)) loadEventDetail(selectedEventId);
-    if (['branding', 'resources'].includes(section)) loadLibraryAndResources(selectedEventId);
+    if (!availableModes.length) return;
+    setEventForm((prev) => {
+      const allowed = new Set(availableModes.map((mode) => mode.slug));
+      const nextModeSlugs = prev.modeSlugs.filter((slug) => allowed.has(slug));
+      if (nextModeSlugs.length) return nextModeSlugs.length === prev.modeSlugs.length ? prev : { ...prev, modeSlugs: nextModeSlugs };
+      return { ...prev, modeSlugs: [availableModes[0].slug] };
+    });
+  }, [accountId, availableModes]);
+  useEffect(() => {
+    if (selectedEventId && ['detail', 'resources'].includes(section)) loadEventDetail(selectedEventId);
+    if (section === 'resources') loadLibraryAndResources(selectedEventId);
   }, [loadEventDetail, loadLibraryAndResources, section, selectedEventId]);
 
   useEffect(() => {
@@ -270,10 +297,7 @@ export function EventsScreen({
     if (!accountId) nextErrors.accountId = t('event_097');
     if (!String(eventForm.eventTypeSlug || '').trim()) nextErrors.eventTypeSlug = t('event_106');
     if (!String(eventForm.name || '').trim()) nextErrors.name = t('event_050');
-    if (!String(eventForm.startDate || '').trim()) nextErrors.startDate = t('event_051');
-    else if (!isValidDateYmd(eventForm.startDate)) nextErrors.startDate = t('event_098');
-    if (!String(eventForm.timezone || '').trim()) nextErrors.timezone = t('event_099');
-    else if (!isValidTimezone(eventForm.timezone)) nextErrors.timezone = t('event_100');
+    if (!eventForm.modeSlugs.length) nextErrors.modeSlugs = t('event_110');
     setEventFormErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -287,7 +311,12 @@ export function EventsScreen({
     if (!canEdit) { setError(t('event_060')); showToast({ message: t('event_060'), type: 'error' }); return; }
     setSaving(true); clearMessages();
     try {
-      const payload = await createEventApi(accountId, { ...eventForm, status: 'draft', endDate: null });
+      const payload = await createEventApi(accountId, {
+        eventTypeSlug: eventForm.eventTypeSlug,
+        name: eventForm.name,
+        modeSlugs: eventForm.modeSlugs,
+        status: 'draft',
+      });
       const event = normalizeEvent(payload?.event || payload);
       setOk(t('event_061'));
       setEventForm(EMPTY_EVENT_FORM);
@@ -337,12 +366,70 @@ export function EventsScreen({
     finally { setSaving(false); }
   };
 
-  const onSaveBranding = async () => {
+  const onSaveEventDetails = async () => {
     if (!selectedEventId || !canEdit) { setError(t('event_060')); return; }
     setSaving(true); clearMessages();
-    try { await updateEventBrandingApi(selectedEventId, brandingForm); setOk(t('event_065')); await loadEventDetail(selectedEventId); }
-    catch (err) { setError(err?.message || t('event_066')); }
-    finally { setSaving(false); }
+    try {
+      await updateEventApi(selectedEventId, {
+        eventTypeSlug: eventForm.eventTypeSlug,
+        name: eventForm.name,
+        startDate: eventForm.startDate || null,
+        endDate: eventForm.endDate || null,
+        timezone: eventForm.timezone || 'America/Bogota',
+        description: eventForm.description || null,
+        status: eventForm.status || 'draft',
+      });
+      setEditEventVisible(false);
+      setOk(t('event_065'));
+      await loadEventDetail(selectedEventId);
+      await loadEvents();
+    } catch (err) {
+      const message = err?.message || t('event_066');
+      setError(message);
+      showToast({ message, type: 'error' });
+    } finally { setSaving(false); }
+  };
+
+  const onSaveEventModes = async () => {
+    if (!selectedEventId || !canEdit) { setError(t('event_060')); return; }
+    if (!eventForm.modeSlugs.length) {
+      showToast({ message: t('event_110'), type: 'error' });
+      return;
+    }
+    setSaving(true); clearMessages();
+    try {
+      await updateEventApi(selectedEventId, { modeSlugs: eventForm.modeSlugs });
+      setEditModesVisible(false);
+      setOk(t('event_065'));
+      await loadEventDetail(selectedEventId);
+    } catch (err) {
+      const message = err?.message || t('event_066');
+      setError(message);
+      showToast({ message, type: 'error' });
+    } finally { setSaving(false); }
+  };
+
+  const onPickEventVisualResource = async (purpose, source) => {
+    if (!selectedEventId || !accountId || !canEdit) { setError(t('event_060')); return; }
+    setVisualMenuPurpose('');
+    setSaving(true); clearMessages();
+    try {
+      const image = await pickEventResourceImage({ source, purpose });
+      if (!image) return;
+      const asset = await createProcessedAccountImageAssetApi(accountId, image, purpose);
+      if (!asset?.id) throw new Error(t('event_114'));
+      const payload = await createEventResourceApi(selectedEventId, { libraryAssetId: asset.id, purpose, orderIndex: 0, isActive: true });
+      const resourceId = payload?.resource?.id;
+      if (!resourceId) throw new Error(t('event_114'));
+      await updateEventBrandingApi(selectedEventId, purpose === 'logo' ? { logoResourceId: resourceId } : { backgroundResourceId: resourceId });
+      setOk(t('event_065'));
+      await loadEventDetail(selectedEventId);
+      await loadLibraryAndResources(selectedEventId);
+    } catch (err) {
+      const message = err?.message || t('event_114');
+      setError(message);
+      showToast({ message, type: 'error' });
+    } finally { setSaving(false); }
   };
 
   const moveResource = async (item, direction) => {
@@ -429,7 +516,7 @@ export function EventsScreen({
       <View style={styles.modalOverlay}>
         <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
           <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_096')}</Text>
-          <ScrollView contentContainerStyle={styles.modalList}>
+          <ScrollView contentContainerStyle={[styles.modalList, styles.editModalList]}>
             {accounts.map((account) => {
               const isSelected = String(account.id) === String(accountId);
               return (
@@ -464,22 +551,91 @@ export function EventsScreen({
   );
 
   const renderEventTypePicker = () => (
-    <>
-      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{t('event_105')}</Text>
-      <View style={[styles.pickerWrap, { borderColor: eventFormErrors.eventTypeSlug ? theme.alert : theme.border }]}>
-        <Picker
-          testID="event-type-picker"
-          selectedValue={eventForm.eventTypeSlug}
-          onValueChange={(eventTypeSlug) => updateEventFormField('eventTypeSlug', eventTypeSlug)}
-          style={{ color: theme.textPrimary }}
-          enabled={canEdit}
-        >
-          <Picker.Item label={t('event_107')} value="" />
-          {eventTypes.map((type) => <Picker.Item key={type.slug} label={type.name} value={type.slug} />)}
-        </Picker>
-      </View>
-      {eventFormErrors.eventTypeSlug ? <Text style={[styles.feedback, { color: theme.alert }]}>{eventFormErrors.eventTypeSlug}</Text> : null}
-    </>
+    <SelectableChipGroup
+      testID="event-type-selector"
+      theme={theme}
+      label={t('event_105')}
+      options={eventTypes.map((type) => ({ label: type.name, value: type.slug }))}
+      value={eventForm.eventTypeSlug}
+      disabled={!canEdit}
+      errorText={eventFormErrors.eventTypeSlug}
+      onChange={(eventTypeSlug) => updateEventFormField('eventTypeSlug', eventTypeSlug)}
+    />
+  );
+
+  const renderVisualResourceMenu = (purpose) => (
+    <Menu
+      visible={visualMenuPurpose === purpose}
+      onDismiss={() => setVisualMenuPurpose('')}
+      anchor={(
+        <IconTextButton
+          theme={theme}
+          icon="pencil"
+          variant="ghost"
+          onPress={() => setVisualMenuPurpose(purpose)}
+          testID={`event-${purpose}-edit`}
+        />
+      )}
+    >
+      <Menu.Item onPress={() => onPickEventVisualResource(purpose, 'camera')} title={t('event_115')} />
+      <Menu.Item onPress={() => onPickEventVisualResource(purpose, 'gallery')} title={t('event_116')} />
+    </Menu>
+  );
+
+  const renderEditEventModal = () => (
+    <Modal visible={editEventVisible} animationType="slide" transparent onRequestClose={() => setEditEventVisible(false)}>
+      <SafeAreaView edges={['top']} style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+          <ScrollView contentContainerStyle={[styles.modalList, styles.editModalList]}>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_117')}</Text>
+            {renderEventTypePicker()}
+            {renderEventInput({ testID: 'event-edit-name-input', label: t('event_071'), field: 'name', value: eventForm.name })}
+            <PaperDateInput
+              testID="event-edit-date-input"
+              theme={theme}
+              label={t('event_073')}
+              value={eventForm.startDate}
+              disabled={!canEdit}
+              helperLabel={t('event_104')}
+              onChangeDate={(startDate) => updateEventFormField('startDate', startDate)}
+            />
+            {renderEventInput({ testID: 'event-edit-timezone-input', label: t('event_103'), field: 'timezone', value: eventForm.timezone, autoCapitalize: 'none' })}
+            {renderEventInput({ testID: 'event-edit-description-input', label: t('event_075'), field: 'description', value: eventForm.description, multiline: true })}
+            <View style={styles.row}>
+              <AppButton label={t('account_028')} onPress={() => setEditEventVisible(false)} backgroundColor={theme.surface} pressedColor={theme.surface} textColor={theme.textPrimary} style={styles.smallButton} />
+              <AppButton label={t('event_119')} onPress={onSaveEventDetails} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.smallButton} />
+            </View>
+          </ScrollView>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+
+  const renderEditModesModal = () => (
+    <Modal visible={editModesVisible} animationType="slide" transparent onRequestClose={() => setEditModesVisible(false)}>
+      <SafeAreaView edges={['top']} style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+          <ScrollView contentContainerStyle={styles.modalList}>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_118')}</Text>
+            <SelectableChipGroup
+              testID="event-edit-mode-selector"
+              theme={theme}
+              label={t('event_111')}
+              options={availableModes.map((mode) => ({ label: mode.name, value: mode.slug }))}
+              values={eventForm.modeSlugs}
+              multiple
+              disabled={!canEdit}
+              errorText={eventFormErrors.modeSlugs}
+              onChange={(modeSlugs) => updateEventFormField('modeSlugs', modeSlugs)}
+            />
+            <View style={styles.row}>
+              <AppButton label={t('account_028')} onPress={() => setEditModesVisible(false)} backgroundColor={theme.surface} pressedColor={theme.surface} textColor={theme.textPrimary} style={styles.smallButton} />
+              <AppButton label={t('event_119')} onPress={onSaveEventModes} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.smallButton} />
+            </View>
+          </ScrollView>
+        </View>
+      </SafeAreaView>
+    </Modal>
   );
 
   const renderEventDetail = () => {
@@ -495,9 +651,14 @@ export function EventsScreen({
           subtitle={event?.eventType?.name || event?.eventDate || ''}
           backgroundImageUrl={backgroundUrl}
           logoImageUrl={logoUrl}
+          backgroundAction={canEdit ? renderVisualResourceMenu('background') : null}
+          logoAction={canEdit ? renderVisualResourceMenu('logo') : null}
         />
         <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_108')}</Text>
+          <View style={styles.cardHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_108')}</Text>
+            {canEdit ? <IconTextButton theme={theme} icon="pencil" variant="ghost" onPress={() => setEditEventVisible(true)} testID="event-details-edit" /> : null}
+          </View>
           <View style={styles.detailRows}>
             <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_105')}: {event?.eventType?.name || '-'}</Text>
             <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_073')}: {event?.eventDate || '-'}</Text>
@@ -508,14 +669,16 @@ export function EventsScreen({
           </View>
         </SurfaceCard>
         <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Modos</Text>
+          <View style={styles.cardHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_111')}</Text>
+            {canEdit ? <IconTextButton theme={theme} icon="pencil" variant="ghost" onPress={() => setEditModesVisible(true)} testID="event-modes-edit" /> : null}
+          </View>
           {event?.modes?.length ? event.modes.map((item) => (
             <Text key={item.id || item.mode?.slug} style={[styles.cardMeta, { color: theme.textSecondary }]}>
               {item.mode?.name || item.mode?.slug || '-'}
             </Text>
           )) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
         </SurfaceCard>
-        {canEdit ? <AppButton label={t('event_003')} onPress={() => setSection('branding')} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} /> : null}
       </View>
     );
   };
@@ -544,44 +707,22 @@ export function EventsScreen({
             {eventFormErrors.accountId ? <Text style={[styles.feedback, { color: theme.alert }]}>{eventFormErrors.accountId}</Text> : null}
             {renderEventTypePicker()}
             {renderEventInput({ testID: 'event-name-input', label: t('event_071'), field: 'name', value: eventForm.name })}
-            <PaperDateInput
-              testID="event-date-input"
+            <SelectableChipGroup
+              testID="event-mode-selector"
               theme={theme}
-              label={t('event_073')}
-              value={eventForm.startDate}
-              errorText={eventFormErrors.startDate}
+              label={t('event_111')}
+              options={availableModes.map((mode) => ({ label: mode.name, value: mode.slug }))}
+              values={eventForm.modeSlugs}
+              multiple
               disabled={!canEdit}
-              helperLabel={t('event_104')}
-              onChangeDate={(startDate) => updateEventFormField('startDate', startDate)}
+              errorText={eventFormErrors.modeSlugs}
+              onChange={(modeSlugs) => updateEventFormField('modeSlugs', modeSlugs)}
             />
-            {renderEventInput({ testID: 'event-timezone-input', label: t('event_103'), field: 'timezone', value: eventForm.timezone, autoCapitalize: 'none' })}
-            {renderEventInput({ testID: 'event-description-input', label: t('event_075'), field: 'description', value: eventForm.description, multiline: true })}
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Modos</Text>
-            {modes.map((modeItem) => {
-              const active = eventForm.modeSlugs.includes(modeItem.slug);
-              const disabled = !canEdit;
-              return <Pressable key={modeItem.slug} style={styles.switchRow} disabled={disabled} onPress={() => setEventForm((prev) => ({ ...prev, modeSlugs: active ? prev.modeSlugs.filter((slug) => slug !== modeItem.slug) : [...prev.modeSlugs, modeItem.slug] }))}><Text style={{ color: theme.textPrimary }}>{modeItem.name}</Text><Switch value={active} disabled={disabled} /></Pressable>;
-            })}
             {accounts.length > 0 ? <AppButton testID="event-create-save" label={t('event_076')} onPress={onCreateEvent} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} /> : null}
           </SurfaceCard>
         ) : null}
 
         {section === 'detail' ? renderEventDetail() : null}
-
-        {section === 'branding' ? (
-          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_003')}: {selectedEvent?.name || '-'}</Text>
-            {renderInput('Logo resource ID', brandingForm.logoResourceId, (logoResourceId) => setBrandingForm((prev) => ({ ...prev, logoResourceId })))}
-            {renderInput('Background resource ID', brandingForm.backgroundResourceId, (backgroundResourceId) => setBrandingForm((prev) => ({ ...prev, backgroundResourceId })))}
-            {renderInput(t('event_074'), brandingForm.phone, (phone) => setBrandingForm((prev) => ({ ...prev, phone })))}
-            {renderInput(t('event_080'), brandingForm.primaryColor, (primaryColor) => setBrandingForm((prev) => ({ ...prev, primaryColor })))}
-            {renderInput('Intervalo', brandingForm.interval, (interval) => setBrandingForm((prev) => ({ ...prev, interval })))}
-            {renderInput('Max eventos', String(brandingForm.maxEvents || ''), (maxEvents) => setBrandingForm((prev) => ({ ...prev, maxEvents })), { keyboardType: 'number-pad' })}
-            {renderInput('Max GB', String(brandingForm.maxStorageGb || ''), (maxStorageGb) => setBrandingForm((prev) => ({ ...prev, maxStorageGb })), { keyboardType: 'number-pad' })}
-            {renderInput('Max dispositivos', String(brandingForm.maxDevices || ''), (maxDevices) => setBrandingForm((prev) => ({ ...prev, maxDevices })), { keyboardType: 'number-pad' })}
-            <AppButton label={t('event_083')} onPress={onSaveBranding} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
-          </SurfaceCard>
-        ) : null}
 
         {section === 'resources' ? (
           <View style={styles.sectionWrap}>
@@ -647,6 +788,8 @@ export function EventsScreen({
         ) : null}
       </ScrollView>
       {renderAccountModal()}
+      {renderEditEventModal()}
+      {renderEditModesModal()}
     </View>
   );
 }
@@ -673,8 +816,10 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
   cardMeta: { fontSize: tokens.typography.caption },
   row: { flexDirection: 'row', gap: tokens.spacing.xs },
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   smallButton: { flex: 1 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalCard: { flex: 1, marginTop: tokens.spacing.xl, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg, padding: tokens.spacing.md, gap: tokens.spacing.sm },
   modalList: { gap: tokens.spacing.sm, paddingBottom: tokens.spacing.md },
+  editModalList: { paddingTop: tokens.spacing.lg },
 });

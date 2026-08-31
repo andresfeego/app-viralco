@@ -2,7 +2,14 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
-jest.mock('@react-native-community/datetimepicker', () => 'DateTimePicker');
+jest.mock('react-native-paper', () => {
+  const ReactModule = require('react');
+  const { View } = require('react-native');
+  const actual = jest.requireActual('react-native-paper');
+  const Menu = (props: any) => ReactModule.createElement(View, null, props.anchor, props.visible ? props.children : null);
+  Menu.Item = (props: any) => <View {...props} />;
+  return { ...actual, Menu };
+});
 jest.mock('@react-native-picker/picker', () => {
   const { View } = require('react-native');
   const Picker = (props: any) => <View {...props}>{props.children}</View>;
@@ -26,6 +33,9 @@ jest.mock('../src/services/api/events', () => ({
   updateEventApi: jest.fn(),
   updateEventBrandingApi: jest.fn(),
   updateEventResourceApi: jest.fn(),
+}));
+jest.mock('../src/services/media/imagePicker', () => ({
+  pickEventResourceImage: jest.fn(),
 }));
 
 import { useAuth } from '../src/hooks/useAuth';
@@ -55,7 +65,7 @@ beforeEach(() => {
   mockedUseToast.mockReturnValue({ showToast: jest.fn(), hideToast: jest.fn() });
   mockedCreateEvent.mockResolvedValue({ event: { id: '10', accountId: '1', name: 'Evento Demo', slug: 'boda-evento-demo-2026-08-19', eventType: { slug: 'boda', name: 'Boda' }, startDate: null, endDate: null, status: 'draft', timezone: 'America/Bogota', modes: [] } });
   mockedListEventTypes.mockResolvedValue({ types: [{ id: '1', slug: 'boda', name: 'Boda', isActive: true }] });
-  mockedListModes.mockResolvedValue({ modes: [] });
+  mockedListModes.mockResolvedValue({ modes: [{ id: '1', slug: 'espejo', name: 'Espejo', isDefault: true }] });
   mockedListEvents.mockResolvedValue({ events: [] });
 });
 
@@ -108,21 +118,17 @@ test('event creation uses the selected account even when selector is hidden', as
   });
 
   await ReactTestRenderer.act(async () => {
-    renderer!.root.findByProps({ testID: 'event-type-picker' }).props.onValueChange('boda');
+    renderer!.root.findByProps({ testID: 'event-type-selector-boda' }).props.onPress();
     renderer!.root.findByProps({ testID: 'event-name-input' }).props.onChangeText('Evento Demo');
-    renderer!.root.findByProps({ testID: 'event-date-input-pressable' }).props.onPress();
-  });
-
-  await ReactTestRenderer.act(async () => {
-    renderer!.root.findByProps({ testID: 'event-date-input-picker' }).props.onChange({}, new Date(2026, 7, 19));
-    renderer!.root.findByProps({ testID: 'event-timezone-input' }).props.onChangeText('America/Bogota');
   });
 
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'event-create-save' }).props.onPress();
   });
 
-  expect(mockedCreateEvent).toHaveBeenCalledWith('1', expect.objectContaining({ eventTypeSlug: 'boda', name: 'Evento Demo', startDate: '2026-08-19', endDate: null, status: 'draft' }));
+  expect(mockedCreateEvent).toHaveBeenCalledWith('1', expect.objectContaining({ eventTypeSlug: 'boda', name: 'Evento Demo', modeSlugs: ['espejo'], status: 'draft' }));
+  expect(mockedCreateEvent.mock.calls[0][1].startDate).toBeUndefined();
+  expect(mockedCreateEvent.mock.calls[0][1].timezone).toBeUndefined();
   expect(hasText(renderer!.root, 'Cambiar de cuenta')).toBe(false);
   ReactTestRenderer.act(() => {
     renderer!.unmount();

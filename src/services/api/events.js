@@ -45,6 +45,23 @@ export function createAccountLibraryAssetApi(accountId, input) {
   return apiRequest(`/api/accounts/${accountId}/library/assets`, { method: 'POST', body: JSON.stringify(input) });
 }
 
+function normalizeUploadUri(value) {
+  const uri = String(value || '');
+  if (!uri) return '';
+  if (/^[a-z]+:\/\//i.test(uri)) return uri;
+  return `file://${uri}`;
+}
+
+export async function createProcessedAccountImageAssetApi(accountId, image, purpose) {
+  const fileName = image.fileName || image.name || `${purpose}.jpg`;
+  const body = new FormData();
+  body.append('purpose', purpose);
+  body.append('name', fileName);
+  body.append('file', { uri: normalizeUploadUri(image.uri), type: image.type || image.contentType || 'image/jpeg', name: fileName });
+  const payload = await apiRequest(`/api/accounts/${accountId}/library/image-upload`, { method: 'POST', body });
+  return payload?.asset || null;
+}
+
 export function addAccountLibraryAssetApi(accountId, input) {
   return apiRequest(`/api/accounts/${accountId}/library`, { method: 'POST', body: JSON.stringify(input) });
 }

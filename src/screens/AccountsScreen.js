@@ -9,21 +9,23 @@ import { useAuth } from '../hooks/useAuth';
 import { t } from '../i18n';
 import { createAccountApi as createAdminAccountApi } from '../services/api/admin';
 import { createAccountApi, createAccountLogoAssetApi, listAccountsApi, updateAccountApi } from '../services/api/accounts';
+import { listEventModesApi } from '../services/api/events';
 import { pickLogoImage } from '../services/media/imagePicker';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
 import { ToastViewport, useToast } from '../providers/ToastProvider';
 
-const PLAN_CARDS = [
-  { slug: 'starter', name: 'Starter', priceKey: 'account_030', limitKey: 'account_033', descriptionKey: 'account_036' },
-  { slug: 'pro', name: 'Pro', priceKey: 'account_031', limitKey: 'account_034', descriptionKey: 'account_037' },
-  { slug: 'business', name: 'Business', priceKey: 'account_031', limitKey: 'account_035', descriptionKey: 'account_038' },
-];
 const MODAL_TOAST_TOP_OFFSET = tokens.spacing.xl * 3;
 const EMPTY_STATE_MIN_HEIGHT = tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.lg + tokens.spacing.lg;
 
 function logoPreviewUrl(account) {
-  return account?.logoAsset?.variants?.thumb?.fileUrl || account?.logoAsset?.previewUrl || account?.logoAsset?.fileUrl || '';
+  return account?.logoAsset?.variants?.thumb?.signedUrl
+    || account?.logoAsset?.variants?.thumb?.fileUrl
+    || account?.logoAsset?.previewSignedUrl
+    || account?.logoAsset?.previewUrl
+    || account?.logoAsset?.fileSignedUrl
+    || account?.logoAsset?.fileUrl
+    || '';
 }
 
 function isValidEmail(value) {
@@ -32,7 +34,18 @@ function isValidEmail(value) {
 }
 
 function isValidSlug(value) {
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(value || '').trim());
+  return /^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(String(value || '').trim());
+}
+
+function buildSuggestedSlug(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
 }
 
 function isNumericId(value) {
@@ -46,9 +59,10 @@ export function AccountsScreen({ onOpenAccount = () => {} }) {
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
   const [accounts, setAccounts] = useState([]);
+  const [subscriptionModes, setSubscriptionModes] = useState([]);
   const [error, setError] = useState('');
   const [isCreateModalVisible, setCreateModalVisible] = useState(false);
-  const [accountForm, setAccountForm] = useState({ slug: '', name: '', phone: '', email: '', planSlug: 'starter', ownerUserId: '' });
+  const [accountForm, setAccountForm] = useState({ slug: '', name: '', phone: '', email: '', modeSlugs: [], ownerUserId: '' });
   const [formErrors, setFormErrors] = useState({});
   const [selectedLogo, setSelectedLogo] = useState(null);
 
@@ -60,6 +74,20 @@ export function AccountsScreen({ onOpenAccount = () => {} }) {
   }, []);
 
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
+
+  const loadSubscriptionModes = useCallback(async () => {
+    try {
+      const payload = await listEventModesApi();
+      const rows = Array.isArray(payload?.modes) ? payload.modes : [];
+      setSubscriptionModes(rows);
+      const defaults = rows.filter((mode) => mode.isDefault).map((mode) => mode.slug);
+      if (defaults.length) setAccountForm((current) => ({ ...current, modeSlugs: current.modeSlugs.length ? current.modeSlugs : defaults }));
+    } catch (err) {
+      setError(err?.message || t('account_071'));
+    }
+  }, []);
+
+  useEffect(() => { loadSubscriptionModes(); }, [loadSubscriptionModes]);
 
   const closeCreateModal = () => {
     setSelectedLogo(null);
@@ -78,7 +106,12 @@ export function AccountsScreen({ onOpenAccount = () => {} }) {
 
   const updateFormField = (field, value) => {
     clearFormError(field);
-    setAccountForm((current) => ({ ...current, [field]: value }));
+    setAccountForm((current) => {
+      if (field !== 'name') return { ...current, [field]: value };
+      const previousSuggestion = buildSuggestedSlug(current.name);
+      const shouldSuggestSlug = !current.slug || current.slug === previousSuggestion;
+      return { ...current, name: value, slug: shouldSuggestSlug ? buildSuggestedSlug(value) : current.slug };
+    });
   };
 
   const validateCreateForm = () => {
@@ -88,6 +121,7 @@ export function AccountsScreen({ onOpenAccount = () => {} }) {
     else if (!isValidSlug(accountForm.slug)) nextErrors.slug = t('account_066');
     if (!isValidEmail(accountForm.email)) nextErrors.email = t('account_067');
     if (!isNumericId(accountForm.ownerUserId)) nextErrors.ownerUserId = t('account_069');
+    if (!accountForm.modeSlugs.length) nextErrors.modeSlugs = t('account_072');
     setFormErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -103,7 +137,7 @@ export function AccountsScreen({ onOpenAccount = () => {} }) {
       if (isSuperAdmin && accountForm.ownerUserId) {
         created = await createAdminAccountApi(accountForm);
       } else {
-        created = await createAccountApi({ name: accountForm.name, slug: accountForm.slug, phone: accountForm.phone || undefined, email: accountForm.email || undefined, planSlug: accountForm.planSlug || 'starter' });
+        created = await createAccountApi({ name: accountForm.name, slug: accountForm.slug, phone: accountForm.phone || undefined, email: accountForm.email || undefined, modeSlugs: accountForm.modeSlugs });
       }
       const accountId = created?.account?.id;
       if (accountId && selectedLogo) {
@@ -114,7 +148,7 @@ export function AccountsScreen({ onOpenAccount = () => {} }) {
           showToast({ message: `${t('account_059')}: ${err?.message || '-'}`, type: 'error' });
         }
       }
-      setAccountForm({ slug: '', name: '', phone: '', email: '', planSlug: 'starter', ownerUserId: '' });
+      setAccountForm({ slug: '', name: '', phone: '', email: '', modeSlugs: subscriptionModes.filter((mode) => mode.isDefault).map((mode) => mode.slug), ownerUserId: '' });
       setSelectedLogo(null);
       setCreateModalVisible(false);
       await loadAccounts();
@@ -155,23 +189,35 @@ export function AccountsScreen({ onOpenAccount = () => {} }) {
     />
   );
 
-  const renderPlanCards = () => (
+  const formatModePrice = (mode) => `${mode.priceCurrency || 'USD'} ${mode.priceAmount || 0}`;
+  const selectedSubscriptionTotal = useMemo(
+    () => subscriptionModes
+      .filter((mode) => accountForm.modeSlugs.includes(mode.slug))
+      .reduce((sum, mode) => sum + Number(mode.priceAmount || 0), 0),
+    [accountForm.modeSlugs, subscriptionModes]
+  );
+  const selectedSubscriptionCurrency = subscriptionModes.find((mode) => accountForm.modeSlugs.includes(mode.slug))?.priceCurrency || 'USD';
+
+  const renderServiceCards = () => (
     <View style={styles.planGrid}>
-      {PLAN_CARDS.map((plan) => {
-        const selectedPlan = accountForm.planSlug === plan.slug;
+      {subscriptionModes.map((mode) => {
+        const selectedMode = accountForm.modeSlugs.includes(mode.slug);
         return (
-          <Pressable key={plan.slug} onPress={() => setAccountForm((v) => ({ ...v, planSlug: plan.slug }))} style={styles.pressableCard}>
-            <SurfaceCard surfaceColor={theme.surface} borderColor={selectedPlan ? theme.primary : theme.border}>
+          <Pressable key={mode.slug} onPress={() => updateFormField('modeSlugs', selectedMode ? accountForm.modeSlugs.filter((slug) => slug !== mode.slug) : [...accountForm.modeSlugs, mode.slug])} style={styles.pressableCard}>
+            <SurfaceCard surfaceColor={theme.surface} borderColor={selectedMode ? theme.primary : theme.border}>
               <View style={styles.planHeader}>
-                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{plan.name}</Text>
-                <Text style={[styles.planPrice, { color: selectedPlan ? theme.primary : theme.textSecondary }]}>{t(plan.priceKey)}</Text>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{mode.name}</Text>
+                <Text style={[styles.planPrice, { color: selectedMode ? theme.primary : theme.textSecondary }]}>{formatModePrice(mode)}</Text>
               </View>
-              <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t(plan.limitKey)}</Text>
-              <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t(plan.descriptionKey)}</Text>
+              <Text style={[styles.helperText, { color: theme.textSecondary }]}>{mode.description || '-'}</Text>
             </SurfaceCard>
           </Pressable>
         );
       })}
+      {formErrors.modeSlugs ? <Text style={[styles.errorText, { color: theme.alert }]}>{formErrors.modeSlugs}</Text> : null}
+      <Text style={[styles.planTotal, { color: theme.textPrimary }]}>
+        {t('account_074')} ${selectedSubscriptionTotal} {selectedSubscriptionCurrency}
+      </Text>
     </View>
   );
 
@@ -201,7 +247,7 @@ export function AccountsScreen({ onOpenAccount = () => {} }) {
                 <View style={styles.accountCardData}>
                   <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{account.name}</Text>
                   <Text style={[styles.helperText, { color: theme.textSecondary }]}>{account.slug} - {account.status}</Text>
-                  <Text style={[styles.helperText, { color: theme.textSecondary }]}>Plan: {account.subscription?.plan?.name || '-'} - {account.subscription?.statusLabel || account.subscription?.status || t('account_039')}</Text>
+                  <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('account_073')}: {account.subscription?.totalAmount ?? '-'} {account.subscription?.currency || ''} - {account.subscription?.statusLabel || account.subscription?.status || t('account_039')}</Text>
                 </View>
                 <AccountLogoPreview theme={theme} imageUri={logoPreviewUrl(account)} size="md" />
               </View>
@@ -230,7 +276,7 @@ export function AccountsScreen({ onOpenAccount = () => {} }) {
               />
               {isSuperAdmin ? renderFormInput({ testID: 'account-create-owner-input', label: t('account_012'), value: accountForm.ownerUserId, errorText: formErrors.ownerUserId, keyboardType: 'number-pad', onChangeText: (ownerUserId) => updateFormField('ownerUserId', ownerUserId) }) : null}
               <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('account_025')}</Text>
-              {renderPlanCards()}
+              {renderServiceCards()}
               <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('account_027')}</Text>
               <View style={styles.actions}>
                 <AppButton label={t('account_028')} onPress={closeCreateModal} backgroundColor={theme.surface} pressedColor={theme.surface} textColor={theme.textPrimary} style={styles.smallButton} />
@@ -260,6 +306,7 @@ const styles = StyleSheet.create({
   planGrid: { gap: tokens.spacing.sm },
   planHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   planPrice: { fontSize: tokens.typography.caption, fontWeight: '700' },
+  planTotal: { fontSize: tokens.typography.body, fontWeight: '700', textAlign: 'center' },
   helperText: { fontSize: tokens.typography.caption, fontWeight: '600' },
   errorText: { fontSize: tokens.typography.caption, fontWeight: '700' },
   actions: { flexDirection: 'row', gap: tokens.spacing.xs },

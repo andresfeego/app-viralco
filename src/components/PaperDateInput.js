@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { AppButton } from '../design-system/components/AppButton';
+import { tokens } from '../design-system/tokens';
 import { PaperFormInput } from './PaperFormInput';
 
 function padDatePart(value) {
@@ -25,20 +27,38 @@ export function PaperDateInput({
   onChangeDate,
   errorText = '',
   disabled = false,
-  helperLabel = 'Seleccionar fecha',
 }) {
   const [visible, setVisible] = useState(false);
+  const [draftDate, setDraftDate] = useState(parseDateYmd(value));
+  const draftDateRef = useRef(parseDateYmd(value));
   const openPicker = () => {
-    if (!disabled) setVisible(true);
+    if (!disabled) {
+      const parsedDate = parseDateYmd(value);
+      draftDateRef.current = parsedDate;
+      setDraftDate(parsedDate);
+      setVisible(true);
+    }
   };
 
   const onDateChange = (event, selectedDate) => {
-    if (Platform.OS !== 'ios') setVisible(false);
-    if (event?.type === 'dismissed') return;
-    if (selectedDate) {
-      onChangeDate(formatDateYmd(selectedDate));
-      if (Platform.OS === 'ios') setVisible(false);
+    if (event?.type === 'dismissed') {
+      setVisible(false);
+      return;
     }
+    if (selectedDate) {
+      if (Platform.OS === 'android') {
+        onChangeDate(formatDateYmd(selectedDate));
+        setVisible(false);
+      } else {
+        draftDateRef.current = selectedDate;
+        setDraftDate(selectedDate);
+      }
+    }
+  };
+
+  const onConfirm = () => {
+    onChangeDate(formatDateYmd(draftDateRef.current));
+    setVisible(false);
   };
 
   return (
@@ -56,18 +76,49 @@ export function PaperDateInput({
           onPressIn={openPicker}
           showSoftInputOnFocus={false}
           caretHidden
-          helperAction={{ label: helperLabel, onPress: openPicker }}
         />
       </Pressable>
-      {visible ? (
-        <DateTimePicker
-          testID={`${testID}-picker`}
-          value={parseDateYmd(value)}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'compact' : 'default'}
-          onChange={onDateChange}
-        />
-      ) : null}
+      <Modal transparent visible={visible} animationType="slide" onRequestClose={() => setVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+            <DateTimePicker
+              testID={`${testID}-picker`}
+              value={draftDate}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={onDateChange}
+            />
+            {Platform.OS === 'ios' ? (
+              <View style={styles.actionsRow}>
+                <AppButton label="Cancelar" onPress={() => setVisible(false)} backgroundColor={theme.surface} pressedColor={theme.surface} textColor={theme.textPrimary} style={styles.actionButton} />
+                <AppButton testID={`${testID}-confirm`} label="Guardar" onPress={onConfirm} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.actionButton} />
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    borderTopWidth: 1,
+    borderTopLeftRadius: tokens.radius.lg,
+    borderTopRightRadius: tokens.radius.lg,
+    padding: tokens.spacing.md,
+    gap: tokens.spacing.md,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: tokens.spacing.xs,
+  },
+  actionButton: {
+    flex: 1,
+    minWidth: tokens.spacing.none,
+  },
+});

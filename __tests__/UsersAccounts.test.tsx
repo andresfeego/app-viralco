@@ -15,6 +15,7 @@ jest.mock('../src/hooks/useAuth', () => ({ useAuth: jest.fn() }));
 jest.mock('../src/providers/ToastProvider', () => ({ ToastViewport: () => null, useToast: () => ({ showToast: jest.fn(), hideToast: jest.fn() }) }));
 jest.mock('../src/services/media/imagePicker', () => ({ pickLogoImage: jest.fn() }));
 jest.mock('../src/services/api/admin', () => ({ createAccountApi: jest.fn() }));
+jest.mock('../src/services/api/events', () => ({ listEventModesApi: jest.fn() }));
 jest.mock('../src/services/api/accounts', () => ({
   addAccountMemberApi: jest.fn(),
   createAccountApi: jest.fn(),
@@ -42,6 +43,7 @@ import {
   updateAccountMemberApi,
 } from '../src/services/api/accounts';
 import { pickLogoImage } from '../src/services/media/imagePicker';
+import { listEventModesApi } from '../src/services/api/events';
 
 const mockedUseAuth = useAuth as jest.Mock;
 const mockedListAccounts = listAccountsApi as jest.Mock;
@@ -53,9 +55,17 @@ const mockedCreateLogoAsset = createAccountLogoAssetApi as jest.Mock;
 const mockedUpdateAccount = updateAccountApi as jest.Mock;
 const mockedUpdateMember = updateAccountMemberApi as jest.Mock;
 const mockedPickLogoImage = pickLogoImage as jest.Mock;
+const mockedListEventModes = listEventModesApi as jest.Mock;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockedListEventModes.mockResolvedValue({
+    modes: [
+      { id: '1', slug: 'espejo', name: 'Espejo', description: 'Experiencia tipo espejo', priceAmount: 50, priceCurrency: 'USD', isDefault: true },
+      { id: '2', slug: 'cabina', name: 'Cabina', description: 'Experiencia tipo cabina', priceAmount: 60, priceCurrency: 'USD', isDefault: false },
+      { id: '3', slug: 'video-360', name: 'Video 360', description: 'Video 360', priceAmount: 80, priceCurrency: 'USD', isDefault: false },
+    ],
+  });
 });
 
 test('registration sends name and optional phone with credentials', async () => {
@@ -128,6 +138,37 @@ test('account creation blocks invalid required fields before api call', async ()
   });
 
   expect(mockedCreateAccount).not.toHaveBeenCalled();
+});
+
+test('account creation sends contracted service modes instead of a plan slug', async () => {
+  mockedUseAuth.mockReturnValue({
+    user: { themeMode: 'dark', globalRoles: [] },
+    reloadMe: jest.fn().mockResolvedValue(undefined),
+  });
+  mockedListAccounts.mockResolvedValue({ accounts: [] });
+  mockedCreateAccount.mockResolvedValue({ account: { id: '10', name: 'ViralCo', slug: 'viralco', subscription: { modes: [] } } });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<AccountsScreen />);
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer!.root.findByProps({ testID: 'account-empty-create-open' }).props.onPress();
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer!.root.findByProps({ testID: 'account-create-name-input' }).props.onChangeText('ViralCo');
+    renderer!.root.findByProps({ testID: 'account-create-slug-input' }).props.onChangeText('viralco');
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer!.root.findByProps({ testID: 'account-create-save' }).props.onPress();
+  });
+
+  expect(mockedCreateAccount).toHaveBeenCalledWith(expect.objectContaining({
+    name: 'ViralCo',
+    slug: 'viralco',
+    modeSlugs: ['espejo'],
+  }));
+  expect(mockedCreateAccount.mock.calls[0][0].planSlug).toBeUndefined();
 });
 
 test('account detail membership role changes use the constrained role control', async () => {
