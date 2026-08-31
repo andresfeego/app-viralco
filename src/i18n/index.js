@@ -232,6 +232,9 @@ export const dictionary = {
   resource_039: { es: 'No hay eventos con Espejo', en: 'No Mirror events' },
   resource_040: { es: 'Incompatible con Espejo', en: 'Not compatible with Mirror' },
   resource_041: { es: 'Tipo no soportado', en: 'Unsupported type' },
+  resource_042: { es: 'Subiendo recurso', en: 'Uploading resource' },
+  resource_043: { es: 'El archivo supera el limite permitido', en: 'The file exceeds the allowed limit' },
+  resource_044: { es: 'Pantalla inicial', en: 'Start screen' },
 };
 
 let activeLocale = 'es';

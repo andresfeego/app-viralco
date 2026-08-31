@@ -28,3 +28,13 @@ El selector recibe `accountId`, `eventId`, `eventModeId`, proposito y restriccio
 ## Fuera de alcance
 
 Camara, composicion final, GIF real, eliminacion de fondo e impresion fisica se implementan despues de validar A y B.
+
+## Estado implementado
+
+- La entrada principal `Recursos` usa `ResourceLibraryScreen` y ya no muestra campos de key o URL.
+- `ResourcePicker`, `ResourceCard`, `ResourceFilters`, `ResourceUploadAction` y `ResourceSelectionSummary` son reutilizables por el configurador posterior.
+- El pool admite busqueda, tipo, favoritos, paginacion, previews, reemplazo de seleccion y estados de carga, vacio, error e incompatibilidad.
+- Los roles owner/admin administran; el operador conserva consulta de solo lectura.
+- Las cargas validan MIME y tamano, muestran progreso y se integran con el selector nativo de documentos.
+- La asignacion crea el `event_resource`, actualiza `MirrorConfigV1` con revision optimista y revierte la asociacion si ocurre un conflicto.
+- La seleccion no se guarda localmente: al reiniciar, la fuente de verdad sigue siendo el borrador versionado del backend.

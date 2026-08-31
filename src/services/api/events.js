@@ -95,15 +95,29 @@ export function deleteEventResourceApi(eventId, resourceId) {
   return apiRequest(`/api/events/${eventId}/resources/${resourceId}`, { method: 'DELETE' });
 }
 
-export async function uploadFileToPreparedUrl(uploadUrl, file) {
+export async function uploadFileToPreparedUrl(uploadUrl, file, onProgress = null) {
   const body = file.blob || (file.uri ? await fetch(file.uri).then((response) => response.blob()) : file);
-  const response = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body });
-  if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+  await new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open('PUT', uploadUrl);
+    request.setRequestHeader('Content-Type', file.type);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onerror = () => reject(new Error('Upload failed'));
+    request.onload = () => request.status >= 200 && request.status < 300
+      ? resolve()
+      : reject(new Error(`Upload failed (${request.status})`));
+    request.send(body);
+  });
 }
 
-export async function uploadAccountLibraryFileApi(accountId, file, purpose) {
+export async function uploadAccountLibraryFileApi(accountId, file, purpose, onProgress = null) {
   if (String(file.type || '').startsWith('image/') && file.type !== 'image/gif') {
-    return createProcessedAccountImageAssetApi(accountId, file, purpose);
+    onProgress?.(5);
+    const asset = await createProcessedAccountImageAssetApi(accountId, file, purpose);
+    onProgress?.(100);
+    return asset;
   }
   const prepared = await prepareAccountLibraryUploadApi(accountId, {
     purpose,
@@ -111,7 +125,7 @@ export async function uploadAccountLibraryFileApi(accountId, file, purpose) {
     contentType: file.type,
     sizeBytes: file.fileSize,
   });
-  await uploadFileToPreparedUrl(prepared.uploadUrl, file);
+  await uploadFileToPreparedUrl(prepared.uploadUrl, file, onProgress);
   const payload = await createAccountLibraryAssetApi(accountId, {
     name: file.fileName,
     purpose,

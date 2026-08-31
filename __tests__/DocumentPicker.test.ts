@@ -21,3 +21,8 @@ test('returns null when selection is cancelled', async () => {
   mockedPick.mockRejectedValue({ code: 'OPERATION_CANCELED' });
   await expect(pickLibraryResourceFile()).resolves.toBeNull();
 });
+
+test('infers a font MIME type when the platform omits it', async () => {
+  mockedPick.mockResolvedValue([{ uri: 'file:///brand.woff2', name: 'brand.woff2', type: null, size: 64 }]);
+  await expect(pickLibraryResourceFile()).resolves.toMatchObject({ type: 'font/woff2' });
+});

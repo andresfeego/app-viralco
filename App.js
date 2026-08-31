@@ -16,6 +16,7 @@ import { AccountDetailScreen } from './src/screens/AccountDetailScreen';
 import { ConfigurationScreen } from './src/screens/ConfigurationScreen';
 import { SuperAdminUsersScreen } from './src/screens/SuperAdminUsersScreen';
 import { EventsScreen } from './src/screens/EventsScreen';
+import { ResourceLibraryScreen } from './src/screens/ResourceLibraryScreen';
 import { SectionHeader } from './src/components/SectionHeader';
 import { BottomMainMenu } from './src/components/BottomMainMenu';
 import { getTheme } from './src/design-system/theme';
@@ -136,12 +137,7 @@ function MainFlow() {
           />
         ) : null}
         {selectedKey === 'recursos' ? (
-          <EventsScreen
-            initialSection="resources"
-            allowedSections={['resources']}
-            showKpi={false}
-            onHeaderChange={setEventsHeaderConfig}
-          />
+          <ResourceLibraryScreen onHeaderChange={setEventsHeaderConfig} />
         ) : null}
         {selectedKey === 'configuracion' ? <ConfigurationScreen /> : null}
       </View>

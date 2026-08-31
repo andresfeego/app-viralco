@@ -13,6 +13,7 @@ export function ResourceUploadAction({ theme, purpose, onPurposeChange, disabled
     { label: t('resource_010'), value: 'gif_overlay' },
     { label: t('resource_011'), value: 'font' },
     { label: t('resource_012'), value: 'background' },
+    { label: t('resource_044'), value: 'start_screen' },
   ];
   return (
     <View style={styles.wrap}>
