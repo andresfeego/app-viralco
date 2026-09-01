@@ -41,13 +41,15 @@ jest.mock('../src/services/media/imagePicker', () => ({
 import { useAuth } from '../src/hooks/useAuth';
 import { useToast } from '../src/providers/ToastProvider';
 import { listAccountsApi } from '../src/services/api/accounts';
-import { createEventApi, listEventModesApi, listEventsApi, listEventTypesApi } from '../src/services/api/events';
+import { createEventApi, getEventDetailApi, listEventModesApi, listEventsApi, listEventTypesApi } from '../src/services/api/events';
+import { EventListCard } from '../src/components/EventListCard';
 import { EventsScreen } from '../src/screens/EventsScreen';
 
 const mockedUseAuth = useAuth as jest.Mock;
 const mockedUseToast = useToast as jest.Mock;
 const mockedListAccounts = listAccountsApi as jest.Mock;
 const mockedCreateEvent = createEventApi as jest.Mock;
+const mockedGetEventDetail = getEventDetailApi as jest.Mock;
 const mockedListEvents = listEventsApi as jest.Mock;
 const mockedListEventTypes = listEventTypesApi as jest.Mock;
 const mockedListModes = listEventModesApi as jest.Mock;
@@ -133,4 +135,18 @@ test('event creation uses the selected account even when selector is hidden', as
   ReactTestRenderer.act(() => {
     renderer!.unmount();
   });
+});
+
+test('opens the mirror configurator from event detail', async () => {
+  const mirrorEvent = { id: '10', accountId: '1', name: 'Evento Espejo', status: 'draft', modes: [{ id: '30', isActive: true, mode: { slug: 'espejo', name: 'Espejo magico' } }] };
+  mockedListAccounts.mockResolvedValue({ accounts: [{ id: '1', name: 'Cuenta Uno', slug: 'cuenta-uno' }] });
+  mockedListEvents.mockResolvedValue({ events: [mirrorEvent] });
+  mockedGetEventDetail.mockResolvedValue({ event: mirrorEvent });
+  const onConfigureMirror = jest.fn();
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<EventsScreen allowedSections={['list', 'detail']} onConfigureMirror={onConfigureMirror} />); });
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(EventListCard).props.onPress());
+  await ReactTestRenderer.act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-configure-mirror' }).props.onPress());
+  expect(onConfigureMirror).toHaveBeenCalledWith(expect.objectContaining({ event: expect.objectContaining({ id: '10' }), eventMode: expect.objectContaining({ id: '30' }), accountId: '1', canEdit: true }));
 });
