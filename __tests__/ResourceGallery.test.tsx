@@ -68,7 +68,7 @@ test('opens video originals with controls and contain sizing in the preview moda
   });
 });
 
-test('video preview starts with a poster and an explicit play action', () => {
+test('video preview keeps the native surface mounted behind its poster', () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(
@@ -86,18 +86,22 @@ test('video preview starts with a poster and an explicit play action', () => {
     );
   });
 
-  expect(renderer!.root.findAllByType('Video')).toHaveLength(0);
+  expect(renderer!.root.findByType('Video').props).toMatchObject({
+    source: { uri: 'https://assets.test/video.mp4' },
+    controls: false,
+    paused: true,
+  });
   expect(renderer!.root.findByType(Image).props.source.uri).toBe('https://assets.test/poster.webp');
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'media-preview-play' }).props.onPress());
   expect(renderer!.root.findByType('Video').props).toMatchObject({
     source: { uri: 'https://assets.test/video.mp4' },
     controls: false,
-    paused: false,
+    paused: true,
   });
-
-  expect(renderer!.root.findAllByType(Image)).toHaveLength(0);
+  expect(renderer!.root.findAllByType(Image)).toHaveLength(1);
+  expect(renderer!.root.findAllByProps({ testID: 'media-preview-play' })).toHaveLength(0);
   ReactTestRenderer.act(() => renderer!.root.findByType('Video').props.onEnd());
   expect(renderer!.root.findByType(Image).props.source.uri).toBe('https://assets.test/poster.webp');
-  expect(renderer!.root.findAllByType('Video')).toHaveLength(0);
+  expect(renderer!.root.findAllByType('Video')).toHaveLength(1);
   expect(renderer!.root.findAllByProps({ testID: 'media-preview-play' }).length).toBeGreaterThan(0);
 });

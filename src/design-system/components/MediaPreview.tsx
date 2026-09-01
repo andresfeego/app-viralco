@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import Video from 'react-native-video';
 import { t } from '../../i18n';
@@ -39,52 +39,81 @@ export function MediaPreview({
   buttonTextColor,
 }: MediaPreviewProps) {
   const [paused, setPaused] = useState(true);
-  const [loading, setLoading] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [layoutReady, setLayoutReady] = useState(false);
+  const [playRequested, setPlayRequested] = useState(false);
   const [failed, setFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const layoutSize = useRef({ width: 0, height: 0 });
 
   useEffect(() => {
     setPaused(true);
-    setLoading(false);
+    setReady(false);
+    setLayoutReady(false);
+    setPlayRequested(false);
     setFailed(false);
     setReloadKey(0);
   }, [uri]);
+
+  useEffect(() => {
+    if (!playRequested || !ready || !layoutReady || failed) return;
+
+    const frame = requestAnimationFrame(() => {
+      setPaused(false);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [failed, layoutReady, playRequested, ready]);
 
   if (isVideoType(mediaType)) {
     const canRenderAction = Boolean(buttonBackgroundColor && buttonPressedColor && buttonTextColor);
     const retry = () => {
       setFailed(false);
-      setLoading(true);
-      setPaused(false);
+      setReady(false);
+      setPlayRequested(true);
+      setPaused(true);
       setReloadKey((current) => current + 1);
     };
     return (
       <View style={styles.videoWrap}>
-        <View style={[styles.frame, { borderColor }]}>
+        <View
+          style={[styles.frame, { borderColor, aspectRatio }]}
+          onLayout={({ nativeEvent }) => {
+            const { width, height } = nativeEvent.layout;
+            layoutSize.current = { width, height };
+            if (width <= 0 || height <= 0) {
+              setLayoutReady(false);
+              return;
+            }
+            requestAnimationFrame(() => {
+              const latest = layoutSize.current;
+              setLayoutReady(latest.width > 0 && latest.height > 0);
+            });
+          }}
+        >
+          <Video
+            key={`${uri}-${reloadKey}`}
+            source={{ uri }}
+            style={styles.mediaFill}
+            controls={!posterUri}
+            paused={paused}
+            resizeMode={resizeMode}
+            onLoadStart={() => setReady(false)}
+            onLoad={() => setReady(true)}
+            onReadyForDisplay={() => setReady(true)}
+            onError={() => { setFailed(true); setPlayRequested(false); setPaused(true); }}
+            onEnd={() => { setPlayRequested(false); setPaused(true); }}
+          />
           {posterUri && paused && !failed ? (
-            <Image source={{ uri: posterUri }} style={[styles.media, { aspectRatio }]} resizeMode={resizeMode} />
-          ) : (
-            <Video
-              key={`${uri}-${reloadKey}`}
-              source={{ uri }}
-              style={[styles.media, { aspectRatio }]}
-              controls={!posterUri}
-              paused={paused}
-              resizeMode={resizeMode}
-              onLoadStart={() => setLoading(true)}
-              onLoad={() => setLoading(false)}
-              onError={() => { setLoading(false); setFailed(true); setPaused(true); }}
-              onEnd={() => setPaused(true)}
-            />
-          )}
-          {loading ? <View pointerEvents="none" style={styles.stateOverlay}><Text style={[styles.stateText, { color: textColor }]}>{t('resource_050')}</Text></View> : null}
+            <Image source={{ uri: posterUri }} style={styles.mediaFill} resizeMode={resizeMode} />
+          ) : null}
+          {playRequested && paused && !failed ? <View pointerEvents="none" style={styles.stateOverlay}><Text style={[styles.stateText, { color: textColor }]}>{t('resource_050')}</Text></View> : null}
           {failed ? <View pointerEvents="none" style={styles.stateOverlay}><Text style={[styles.stateText, { color: textColor }]}>{t('resource_051')}</Text></View> : null}
         </View>
-        {canRenderAction && !failed && paused ? (
+        {canRenderAction && !failed && paused && !playRequested ? (
           <AppButton
             testID="media-preview-play"
             label={t('resource_049')}
-            onPress={() => setPaused(false)}
+            onPress={() => setPlayRequested(true)}
             backgroundColor={buttonBackgroundColor!}
             pressedColor={buttonPressedColor!}
             textColor={buttonTextColor!}
@@ -131,6 +160,7 @@ const styles = StyleSheet.create({
   media: {
     width: '100%',
   },
+  mediaFill: StyleSheet.absoluteFill,
   stateOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 1, alignItems: 'center', justifyContent: 'center', padding: tokens.spacing.md },
   stateText: { fontSize: tokens.typography.caption, fontWeight: '700', textAlign: 'center' },
   action: { width: '100%' },
