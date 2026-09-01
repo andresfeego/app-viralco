@@ -112,6 +112,8 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
   const pendingAssignments = useRef([]);
   const replacedResourceIds = useRef(new Set());
   const assignmentBase = useRef(null);
+  const contentScrollRef = useRef(null);
+  const sectionContentY = useRef(0);
   const storageKey = localKey(accountId, eventId, eventModeId);
   const resourcesById = useMemo(() => resourceMap(resources), [resources]);
 
@@ -183,6 +185,16 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     setIssues([]);
     setMessage('');
   };
+
+  const selectSection = useCallback((nextSection) => {
+    setSection(nextSection);
+    requestAnimationFrame(() => {
+      contentScrollRef.current?.scrollTo({
+        y: Math.max(0, sectionContentY.current - tokens.spacing.sm),
+        animated: true,
+      });
+    });
+  }, []);
 
   const rollbackAssignments = useCallback(async () => {
     const pending = [...pendingAssignments.current];
@@ -498,17 +510,24 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <HorizontalSubMenu items={SECTIONS.map((item) => ({ key: item.key, label: t(item.labelKey) }))} selectedKey={section} onSelect={setSection} theme={theme} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <HorizontalSubMenu items={SECTIONS.map((item) => ({ key: item.key, label: t(item.labelKey) }))} selectedKey={section} onSelect={selectSection} theme={theme} />
+      <ScrollView ref={contentScrollRef} contentContainerStyle={styles.content}>
         <View style={styles.statusRow}><StatusBadge label={t(STATUS_KEYS[status] || 'mirror_017')} flag={STATUS_FLAGS[status] || 'error'} /><Text style={[styles.meta, { color: theme.textSecondary }]}>r{serverRevision}</Text></View>
         {message ? <Text style={[styles.feedback, { color: status === 'error' || status === 'invalid' ? theme.alert : theme.textSecondary }]}>{message}</Text> : null}
         <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}><Text style={[styles.title, { color: theme.textPrimary }]}>{t('mirror_030')}</Text><MirrorConfigPreview config={config} theme={theme} resourcesById={resourcesById} compact /></SurfaceCard>
-        {section === 'event' ? renderEventSection() : null}
-        {section === 'design' ? renderDesignSection() : null}
-        {section === 'experience' ? renderExperienceSection() : null}
-        {section === 'capture' ? renderCaptureSection() : null}
-        {section === 'operation' ? renderOperationSection() : null}
-        {section === 'review' ? renderReviewSection() : null}
+        <View
+          key={section}
+          onLayout={(layoutEvent) => {
+            sectionContentY.current = layoutEvent.nativeEvent.layout.y;
+          }}
+        >
+          {section === 'event' ? renderEventSection() : null}
+          {section === 'design' ? renderDesignSection() : null}
+          {section === 'experience' ? renderExperienceSection() : null}
+          {section === 'capture' ? renderCaptureSection() : null}
+          {section === 'operation' ? renderOperationSection() : null}
+          {section === 'review' ? renderReviewSection() : null}
+        </View>
       </ScrollView>
     </View>
   );

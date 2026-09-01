@@ -14,6 +14,9 @@ export function HorizontalSubMenu({ items, selectedKey, onSelect, theme }) {
       return (
         <Pressable
           key={item.key}
+          testID={`horizontal-submenu-${item.key}`}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: active }}
           onPress={() => onSelect(item.key)}
           style={[
             styles.item,
@@ -25,7 +28,6 @@ export function HorizontalSubMenu({ items, selectedKey, onSelect, theme }) {
             numberOfLines={1}
             style={[
               styles.label,
-              useFixedRow ? styles.labelFixed : null,
               { color: active ? tokens.colors.blue[800] : theme.buttonText },
             ]}
           >
@@ -83,9 +85,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: tokens.typography.caption,
     fontWeight: '700',
-  },
-  labelFixed: {
-    fontSize: 12,
   },
   divider: {
     position: 'absolute',

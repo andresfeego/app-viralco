@@ -83,6 +83,18 @@ test('owner changes a prototype format and saves with the expected revision', as
   expect(saveMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30', expect.objectContaining({ expectedRevision: 2, config: expect.objectContaining({ layout: expect.objectContaining({ format: 'collage', shotCount: 4 }) }) }));
 });
 
+test('a real tab press reveals the selected configurator section', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
+  await flush();
+
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'horizontal-submenu-design' }).props.onPress());
+
+  expect(renderer!.root.findByProps({ testID: 'horizontal-submenu-design' }).props.accessibilityState).toEqual({ selected: true });
+  const text = renderer!.root.findAllByType(Text).map((node) => node.props.children).flat(Infinity).join(' ');
+  expect(text).toContain('Seleccion multiple');
+});
+
 test('operator sees only the active publication', async () => {
   mockedAuth.mockReturnValue({ user: { themeMode: 'dark', globalRoles: [], accounts: [{ account, status: 'active', role: { slug: 'operator' } }] } });
   let renderer: ReactTestRenderer.ReactTestRenderer;
