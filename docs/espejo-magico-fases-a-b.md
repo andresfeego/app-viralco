@@ -8,8 +8,9 @@
 | --- | --- | --- |
 | A — Contrato y sesiones backend | `COMPLETADA` | Contratos API disponibles; UI completa se construye en C y D |
 | B — Pool, favoritos y recursos | `COMPLETADA` | Biblioteca y selector integrados |
-| C — Configurador visual | `PENDIENTE` | Siguiente fase de implementación |
-| D — Lanzamiento operativo | `EN_PROGRESO` | Backend listo; preflight y control mobile pendientes |
+| B.1 — Fototeca global | `COMPLETADA` | Catalogo global y favoritos por cuenta operativos |
+| C — Configurador visual | `COMPLETA` | Publicacion lista para el lanzamiento |
+| D — Lanzamiento operativo | `PAUSADA` | Backend listo; preflight y control mobile se retoman despues de B.1 |
 | E — Runtime de captura | `PENDIENTE` | Cámara y secuencia pendientes |
 | F — Composición y entregable | `PENDIENTE` | Render y pipeline pendientes |
 | G — Entrega al invitado | `PENDIENTE` | QR, compartir y descarga operativa pendientes |
@@ -32,6 +33,8 @@ La seccion Recursos deja de exponer keys o URLs tecnicas. Usa componentes reutil
 
 El selector recibe `accountId`, `eventId`, `eventModeId`, proposito y restricciones. Al confirmar, crea un `event_resource` y devuelve su ID para `MirrorConfigV1`.
 
+El refinamiento B.1 separa responsabilidades: la entrada principal `Recursos` es una fototeca global sin subida ni asignacion, mientras `ResourcePicker` mantiene esas acciones dentro del configurador. Su diseño y contrato mobile se documentan en [`espejo-magico-fototeca-global-b1.md`](./espejo-magico-fototeca-global-b1.md).
+
 ## Reglas UI
 
 - Reutilizar tokens, tema, `AppButton`, `SurfaceCard`, `MediaPreview` y permisos existentes.
@@ -53,3 +56,4 @@ Camara, composicion final, GIF real, eliminacion de fondo e impresion fisica se 
 - Las cargas validan MIME y tamano, muestran progreso y se integran con el selector nativo de documentos.
 - La asignacion crea el `event_resource`, actualiza `MirrorConfigV1` con revision optimista y revierte la asociacion si ocurre un conflicto.
 - La seleccion no se guarda localmente: al reiniciar, la fuente de verdad sigue siendo el borrador versionado del backend.
+- La fototeca principal consume `scope=global`; el configurador consume `scope=available`.

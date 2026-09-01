@@ -181,6 +181,8 @@ Las fases iniciales de configuracion, publicacion, lanzamiento local y bibliotec
 
 El flujo y los estados del configurador visual de la fase C estan definidos en [`docs/espejo-magico-fase-c.md`](../docs/espejo-magico-fase-c.md). Su contrato backend vive en `WEB/backend/docs/modes/espejo-magico-fase-c.md`.
 
+El refinamiento B.1 de fototeca global esta definido en [`docs/espejo-magico-fototeca-global-b1.md`](../docs/espejo-magico-fototeca-global-b1.md). La pantalla principal consulta el catalogo y favoritos; la subida y asociacion permanecen en el configurador. El contrato backend vive en `WEB/backend/docs/modes/espejo-magico-fototeca-global-b1.md`. B.1 y C estan completas; D permanece pausada hasta retomar el lanzamiento operativo.
+
 ### Objetivo
 
 Construir la experiencia principal del dispositivo sin entrar todavía en toda la complejidad interna de cada módulo.
