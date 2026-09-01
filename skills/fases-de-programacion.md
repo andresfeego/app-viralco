@@ -179,6 +179,8 @@ Foto, video 360, videoblog, QR y portal dependen directamente del pipeline de me
 
 Las fases iniciales de configuracion, publicacion, lanzamiento local y biblioteca de recursos para Espejo Magico estan definidas en [`docs/espejo-magico-fases-a-b.md`](../docs/espejo-magico-fases-a-b.md). El plan maestro A–H y su estado oficial viven en `WEB/backend/docs/modes/espejo-magico-plan-maestro.md`; el detalle técnico de A y B permanece en `WEB/backend/docs/modes/espejo-magico-fases-a-b.md`.
 
+El flujo y los estados del configurador visual de la fase C estan definidos en [`docs/espejo-magico-fase-c.md`](../docs/espejo-magico-fase-c.md). Su contrato backend vive en `WEB/backend/docs/modes/espejo-magico-fase-c.md`.
+
 ### Objetivo
 
 Construir la experiencia principal del dispositivo sin entrar todavía en toda la complejidad interna de cada módulo.
