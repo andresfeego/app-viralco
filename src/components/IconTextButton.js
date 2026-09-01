@@ -13,6 +13,7 @@ export function IconTextButton({
   variant = 'filled',
   disabled = false,
   onPress = () => {},
+  accessibilityLabel,
   testID,
   style,
 }) {
@@ -31,6 +32,7 @@ export function IconTextButton({
     <Pressable
       testID={testID}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel || label || undefined}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [

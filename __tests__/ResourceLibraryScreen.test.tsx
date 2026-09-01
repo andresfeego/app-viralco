@@ -1,6 +1,5 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Text } from 'react-native';
 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
 jest.mock('react-native-video', () => 'Video');
@@ -11,87 +10,157 @@ jest.mock('@react-native-picker/picker', () => {
   MockPicker.Item = (props: any) => ReactModule.createElement(View, props);
   return { Picker: MockPicker };
 });
+jest.mock('react-native-paper', () => {
+  const actual = jest.requireActual('react-native-paper');
+  return { ...actual, TextInput: 'PaperTextInput', HelperText: 'HelperText' };
+});
 jest.mock('../src/hooks/useAuth', () => ({ useAuth: jest.fn() }));
+jest.mock('../src/providers/ToastProvider', () => ({ useToast: jest.fn() }));
+jest.mock('../src/components/ResourceGallery', () => {
+  const ReactModule = require('react');
+  const { View } = require('react-native');
+  return { ResourceGallery: (props: any) => ReactModule.createElement(View, props, props.header) };
+});
+jest.mock('../src/components/ResourcePreviewModal', () => {
+  const ReactModule = require('react');
+  const { View } = require('react-native');
+  return { ResourcePreviewModal: (props: any) => ReactModule.createElement(View, props) };
+});
 jest.mock('../src/services/api/accounts', () => ({ listAccountsApi: jest.fn() }));
 jest.mock('../src/services/api/events', () => ({
-  createEventResourceApi: jest.fn(),
-  deleteEventResourceApi: jest.fn(),
-  getMagicMirrorConfigApi: jest.fn(),
   listAccountLibraryApi: jest.fn(),
-  listEventsApi: jest.fn(),
-  saveMagicMirrorConfigApi: jest.fn(),
   updateAccountLibraryFavoriteApi: jest.fn(),
-  uploadAccountLibraryFileApi: jest.fn(),
 }));
-jest.mock('../src/services/media/documentPicker', () => ({ pickLibraryResourceFile: jest.fn() }));
 
+import { CompactAccountSelector } from '../src/components/CompactAccountSelector';
+import { ResourceFilters } from '../src/components/ResourceFilters';
+import { ResourceGallery } from '../src/components/ResourceGallery';
+import { ResourcePreviewModal } from '../src/components/ResourcePreviewModal';
 import { useAuth } from '../src/hooks/useAuth';
+import { useToast } from '../src/providers/ToastProvider';
 import { listAccountsApi } from '../src/services/api/accounts';
-import {
-  createEventResourceApi,
-  deleteEventResourceApi,
-  getMagicMirrorConfigApi,
-  listAccountLibraryApi,
-  listEventsApi,
-  saveMagicMirrorConfigApi,
-} from '../src/services/api/events';
-import { ResourcePicker } from '../src/components/ResourcePicker';
-import { ResourceSelectionSummary } from '../src/components/ResourceSelectionSummary';
-import { ResourceUploadAction } from '../src/components/ResourceUploadAction';
+import { listAccountLibraryApi, updateAccountLibraryFavoriteApi } from '../src/services/api/events';
 import { ResourceLibraryScreen } from '../src/screens/ResourceLibraryScreen';
 
 const mockedUseAuth = useAuth as unknown as jest.Mock;
+const mockedUseToast = useToast as unknown as jest.Mock;
+const showToast = jest.fn();
 const account = { id: '10', name: 'Cuenta' };
-const event = { id: '20', name: 'Evento', modes: [{ id: '30', isActive: true, mode: { slug: 'espejo' } }] };
-const libraryItem = { id: '40', libraryAssetId: '50', displayName: 'Marco', asset: { id: '50', type: 'frame', mimeType: 'image/png', ownerType: 'viralco' } };
+const secondAccount = { id: '11', name: 'Segunda' };
+const libraryItem = {
+  id: null,
+  libraryAssetId: '50',
+  displayName: 'Marco global',
+  isFavorite: false,
+  asset: {
+    id: '50', type: 'frame', mimeType: 'image/png', ownerType: 'viralco', name: 'Marco global',
+    variants: { card: { signedUrl: 'https://assets.test/card.webp', mimeType: 'image/webp' } },
+    fileSignedUrl: 'https://assets.test/original.png',
+  },
+};
 
 async function flush() {
-  await ReactTestRenderer.act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  await ReactTestRenderer.act(async () => {
+    jest.runOnlyPendingTimers();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+function setRole(role: string, accounts = [account]) {
+  mockedUseAuth.mockReturnValue({
+    user: {
+      themeMode: 'light',
+      globalRoles: [],
+      accounts: accounts.map((item) => ({ account: item, status: 'active', role: { slug: role } })),
+    },
+  });
 }
 
 beforeEach(() => {
+  jest.useFakeTimers();
   jest.clearAllMocks();
+  setRole('owner');
+  mockedUseToast.mockReturnValue({ showToast, hideToast: jest.fn() });
   (listAccountsApi as jest.Mock).mockResolvedValue({ accounts: [account] });
-  (listEventsApi as jest.Mock).mockResolvedValue({ events: [event] });
-  (listAccountLibraryApi as jest.Mock).mockResolvedValue({ library: [libraryItem], pagination: { page: 1, pageCount: 1 } });
-  (createEventResourceApi as jest.Mock).mockResolvedValue({ resource: { id: '60' } });
-  (getMagicMirrorConfigApi as jest.Mock).mockResolvedValue({ config: { revision: 2, config: { resources: {} } } });
-  (saveMagicMirrorConfigApi as jest.Mock).mockResolvedValue({});
-  (deleteEventResourceApi as jest.Mock).mockResolvedValue({});
+  (listAccountLibraryApi as jest.Mock).mockResolvedValue({ library: [libraryItem], pagination: { page: 1, pageSize: 60, total: 1, pageCount: 1 } });
+  (updateAccountLibraryFavoriteApi as jest.Mock).mockResolvedValue({ library: { ...libraryItem, id: '70', isFavorite: true } });
 });
 
-test('keeps the pool read-only for an operator', async () => {
-  mockedUseAuth.mockReturnValue({ user: { themeMode: 'dark', globalRoles: [], accounts: [{ account, status: 'active', role: { slug: 'operator' } }] } });
+afterEach(() => {
+  jest.runOnlyPendingTimers();
+  jest.useRealTimers();
+});
+
+test('loads only the global catalog and keeps it read-only for an operator', async () => {
+  setRole('operator');
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
   await flush();
-  expect(renderer!.root.findAllByType(ResourceUploadAction)).toHaveLength(0);
-  expect(renderer!.root.findByType(ResourcePicker).props.canManage).toBe(false);
+
+  expect(listAccountLibraryApi).toHaveBeenCalledWith('10', expect.objectContaining({ scope: 'global', favorite: '', page: 1, pageSize: 60 }));
+  expect(renderer!.root.findByType(ResourceGallery).props.canManage).toBe(false);
+  expect(renderer!.root.findByType(ResourceFilters).props.poolLabel).toBe('Global');
 });
 
-test('associates a selected resource and updates the mirror draft revision', async () => {
-  mockedUseAuth.mockReturnValue({ user: { themeMode: 'light', globalRoles: [], accounts: [{ account, status: 'active', role: { slug: 'admin' } }] } });
+test('shows the compact account selector only for multiple accounts', async () => {
+  setRole('admin', [account, secondAccount]);
+  (listAccountsApi as jest.Mock).mockResolvedValue({ accounts: [account, secondAccount] });
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
   await flush();
-  ReactTestRenderer.act(() => renderer!.root.findByType(ResourcePicker).props.onSelect(libraryItem));
-  await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceSelectionSummary).props.onConfirm());
-  expect(createEventResourceApi).toHaveBeenCalledWith('20', expect.objectContaining({ libraryAssetId: '50', eventModeId: '30', purpose: 'frame' }));
-  expect(saveMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30', expect.objectContaining({
-    expectedRevision: 2,
-    config: expect.objectContaining({ resources: expect.objectContaining({ frameResourceId: '60' }) }),
-  }));
+  expect(renderer!.root.findByType(CompactAccountSelector).props.accounts).toHaveLength(2);
 });
 
-test('rolls back the event resource after a revision conflict', async () => {
-  mockedUseAuth.mockReturnValue({ user: { themeMode: 'light', globalRoles: [], accounts: [{ account, status: 'active', role: { slug: 'owner' } }] } });
-  (saveMagicMirrorConfigApi as jest.Mock).mockRejectedValue(Object.assign(new Error('conflict'), { status: 409 }));
+test('switches to shared favorites and opens a resource preview', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
   await flush();
-  ReactTestRenderer.act(() => renderer!.root.findByType(ResourcePicker).props.onSelect(libraryItem));
-  await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceSelectionSummary).props.onConfirm());
-  expect(deleteEventResourceApi).toHaveBeenCalledWith('20', '60');
-  const text = renderer!.root.findAllByType(Text).map((node) => node.props.children).flat().join(' ');
-  expect(text).toContain('La configuracion cambio');
+
+  ReactTestRenderer.act(() => renderer!.root.findByType(ResourceFilters).props.onTabChange('favorites'));
+  await flush();
+  expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ scope: 'global', favorite: true }));
+
+  ReactTestRenderer.act(() => renderer!.root.findByType(ResourceGallery).props.onPressItem(libraryItem));
+  expect(renderer!.root.findByType(ResourcePreviewModal).props.item.libraryAssetId).toBe('50');
+});
+
+test('updates a favorite optimistically and persists the account association', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
+  await flush();
+
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceGallery).props.onToggleFavorite(libraryItem));
+
+  expect(updateAccountLibraryFavoriteApi).toHaveBeenCalledWith('10', '50', true);
+  expect(renderer!.root.findByType(ResourceGallery).props.items[0].isFavorite).toBe(true);
+  expect(showToast).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
+});
+
+test('rolls back the optimistic favorite when the API fails', async () => {
+  (updateAccountLibraryFavoriteApi as jest.Mock).mockRejectedValue(new Error('fallo'));
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
+  await flush();
+
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceGallery).props.onToggleFavorite(libraryItem));
+
+  expect(renderer!.root.findByType(ResourceGallery).props.items[0].isFavorite).toBe(false);
+  expect(showToast).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+});
+
+test('loads and merges the next catalog page without duplicate assets', async () => {
+  (listAccountLibraryApi as jest.Mock)
+    .mockResolvedValueOnce({ library: [libraryItem], pagination: { page: 1, pageSize: 60, total: 2, pageCount: 2 } })
+    .mockResolvedValueOnce({ library: [{ ...libraryItem, libraryAssetId: '51', asset: { ...libraryItem.asset, id: '51', name: 'Otro marco' } }], pagination: { page: 2, pageSize: 60, total: 2, pageCount: 2 } });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
+  await flush();
+
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceGallery).props.onLoadMore());
+  await flush();
+
+  expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ page: 2 }));
+  expect(renderer!.root.findByType(ResourceGallery).props.items.map((item: any) => item.libraryAssetId)).toEqual(['50', '51']);
 });

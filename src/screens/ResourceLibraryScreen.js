@@ -1,38 +1,34 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Picker } from '@react-native-picker/picker';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SurfaceCard } from '../design-system/components/SurfaceCard';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
-import { ResourcePicker } from '../components/ResourcePicker';
-import { ResourceSelectionSummary } from '../components/ResourceSelectionSummary';
-import { ResourceUploadAction } from '../components/ResourceUploadAction';
+import { CompactAccountSelector } from '../components/CompactAccountSelector';
+import { ResourceFilters } from '../components/ResourceFilters';
+import { ResourceGallery } from '../components/ResourceGallery';
+import { ResourcePreviewModal } from '../components/ResourcePreviewModal';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../providers/ToastProvider';
 import { t } from '../i18n';
 import { listAccountsApi } from '../services/api/accounts';
-import {
-  createEventResourceApi,
-  deleteEventResourceApi,
-  getMagicMirrorConfigApi,
-  listAccountLibraryApi,
-  listEventsApi,
-  saveMagicMirrorConfigApi,
-  updateAccountLibraryFavoriteApi,
-  uploadAccountLibraryFileApi,
-} from '../services/api/events';
-import { pickLibraryResourceFile } from '../services/media/documentPicker';
+import { listAccountLibraryApi, updateAccountLibraryFavoriteApi } from '../services/api/events';
 
-const INITIAL_FILTERS = { tab: 'pool', search: '', type: '', page: 1 };
-const MAX_STANDARD_UPLOAD_BYTES = 25 * 1024 * 1024;
-const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
+const INITIAL_FILTERS = { tab: 'pool', search: '', type: '' };
+const PAGE_SIZE = 60;
+const SEARCH_DEBOUNCE_MS = 300;
 
 function normalizeEntry(item) {
   return {
     ...item,
-    id: String(item?.id || ''),
+    id: item?.id == null ? null : String(item.id),
     libraryAssetId: String(item?.libraryAssetId || item?.asset?.id || ''),
     isFavorite: Boolean(item?.isFavorite),
   };
+}
+
+function mergeUnique(current, incoming) {
+  const byAsset = new Map(current.map((item) => [String(item.libraryAssetId), item]));
+  incoming.forEach((item) => byAsset.set(String(item.libraryAssetId), item));
+  return [...byAsset.values()];
 }
 
 function accountRole(user, accountId) {
@@ -40,222 +36,166 @@ function accountRole(user, accountId) {
   return membership?.status === 'active' ? membership?.role?.slug || '' : '';
 }
 
-function mirrorModeForEvent(event) {
-  return (event?.modes || []).find((item) => item?.mode?.slug === 'espejo' && item?.isActive !== false) || null;
-}
-
-function configResourcePatch(config, purpose, eventResourceId) {
-  const resources = { ...(config.resources || {}) };
-  const fields = {
-    template: 'templateResourceId',
-    frame: 'frameResourceId',
-    gif_overlay: 'gifOverlayResourceId',
-    start_screen: 'startScreenResourceId',
-    background: 'backgroundResourceId',
-    font: 'fontResourceId',
-  };
-  if (purpose === 'animation') {
-    resources.animationResourceIds = [...new Set([...(resources.animationResourceIds || []), eventResourceId])];
-  } else if (fields[purpose]) {
-    resources[fields[purpose]] = eventResourceId;
-  }
-  return { ...config, resources };
-}
-
 export function ResourceLibraryScreen({ onHeaderChange = null }) {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState('');
-  const [events, setEvents] = useState([]);
-  const [eventId, setEventId] = useState('');
   const [items, setItems] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, pageSize: 30, total: 0, pageCount: 0 });
   const [filters, setFilters] = useState(INITIAL_FILTERS);
-  const [selected, setSelected] = useState(null);
-  const [uploadPurpose, setUploadPurpose] = useState('template');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [pagination, setPagination] = useState({ page: 1, pageSize: PAGE_SIZE, total: 0, pageCount: 0 });
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [libraryError, setLibraryError] = useState('');
-  const [ok, setOk] = useState('');
+  const [accountError, setAccountError] = useState('');
+  const [previewItem, setPreviewItem] = useState(null);
+  const favoriteSavingIds = useRef(new Set());
+  const requestSequence = useRef(0);
 
   const canManage = isSuperAdmin || ['owner', 'admin'].includes(accountRole(user, accountId));
-  const selectedEvent = events.find((event) => String(event.id) === String(eventId)) || null;
-  const selectedMirrorMode = mirrorModeForEvent(selectedEvent);
 
   useEffect(() => {
     onHeaderChange?.({ title: t('menu_004'), subtitle: '', iconName: 'images', onBack: null, backLabel: t('event_109') });
   }, [onHeaderChange]);
 
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(filters.search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timeout);
+  }, [filters.search]);
+
   const loadAccounts = useCallback(async () => {
+    setAccountError('');
     try {
       const payload = await listAccountsApi();
       const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
       setAccounts(rows);
       setAccountId((current) => rows.some((account) => String(account.id) === String(current)) ? current : String(rows[0]?.id || ''));
     } catch (loadError) {
-      setError(loadError?.message || t('account_006'));
+      setAccountError(loadError?.message || t('account_006'));
     }
   }, []);
 
-  const loadEvents = useCallback(async () => {
-    if (!accountId) { setEvents([]); setEventId(''); return; }
-    try {
-      const payload = await listEventsApi(accountId);
-      const rows = Array.isArray(payload?.events) ? payload.events.filter((event) => mirrorModeForEvent(event)) : [];
-      setEvents(rows);
-      setEventId((current) => rows.some((event) => String(event.id) === String(current)) ? current : String(rows[0]?.id || ''));
-    } catch (loadError) {
-      setError(loadError?.message || t('event_040'));
-    }
-  }, [accountId]);
-
-  const loadLibrary = useCallback(async () => {
+  const loadLibrary = useCallback(async ({ page = 1, append = false, refresh = false } = {}) => {
     if (!accountId) { setItems([]); return; }
-    setLoading(true);
-    setLibraryError('');
+    const requestId = ++requestSequence.current;
+    if (append) setLoadingMore(true);
+    else if (refresh) setRefreshing(true);
+    else setLoading(true);
+    setError('');
     try {
       const payload = await listAccountLibraryApi(accountId, {
+        scope: 'global',
         favorite: filters.tab === 'favorites' ? true : '',
         type: filters.type,
-        q: filters.search,
-        page: filters.page,
-        pageSize: 30,
+        q: debouncedSearch,
+        page,
+        pageSize: PAGE_SIZE,
       });
-      setItems((payload?.library || []).map(normalizeEntry));
-      setPagination(payload?.pagination || { page: 1, pageSize: 30, total: 0, pageCount: 0 });
+      if (requestId !== requestSequence.current) return;
+      const rows = (payload?.library || []).map(normalizeEntry);
+      setItems((current) => append ? mergeUnique(current, rows) : rows);
+      setPagination(payload?.pagination || { page, pageSize: PAGE_SIZE, total: rows.length, pageCount: rows.length ? 1 : 0 });
     } catch (loadError) {
-      setLibraryError(loadError?.message || t('resource_028'));
+      if (requestId === requestSequence.current) setError(loadError?.message || t('resource_028'));
     } finally {
-      setLoading(false);
+      if (requestId === requestSequence.current) {
+        setLoading(false);
+        setLoadingMore(false);
+        setRefreshing(false);
+      }
     }
-  }, [accountId, filters]);
+  }, [accountId, debouncedSearch, filters.tab, filters.type]);
 
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
-  useEffect(() => { loadEvents(); }, [loadEvents]);
-  useEffect(() => { loadLibrary(); }, [loadLibrary]);
+  useEffect(() => { setItems([]); setPreviewItem(null); loadLibrary(); }, [loadLibrary]);
+
+  const changeAccount = (nextAccountId) => {
+    requestSequence.current += 1;
+    setAccountId(nextAccountId);
+    setItems([]);
+    setPagination({ page: 1, pageSize: PAGE_SIZE, total: 0, pageCount: 0 });
+    setPreviewItem(null);
+  };
 
   const toggleFavorite = async (item) => {
-    if (!canManage) return;
-    setSaving(true); setError(''); setOk('');
+    if (!canManage || !item?.libraryAssetId || favoriteSavingIds.current.has(item.libraryAssetId)) return;
+    const assetId = item.libraryAssetId;
+    const nextFavorite = !item.isFavorite;
+    const beforeItems = items;
+    const beforePreview = previewItem;
+    favoriteSavingIds.current.add(assetId);
+    setItems((current) => current
+      .map((entry) => entry.libraryAssetId === assetId ? { ...entry, isFavorite: nextFavorite } : entry)
+      .filter((entry) => filters.tab !== 'favorites' || entry.isFavorite));
+    setPreviewItem((current) => current?.libraryAssetId === assetId ? { ...current, isFavorite: nextFavorite } : current);
     try {
-      await updateAccountLibraryFavoriteApi(accountId, item.libraryAssetId, !item.isFavorite);
-      setOk(t('resource_029'));
-      await loadLibrary();
+      const payload = await updateAccountLibraryFavoriteApi(accountId, assetId, nextFavorite);
+      const saved = normalizeEntry(payload?.library || { ...item, isFavorite: nextFavorite });
+      setItems((current) => current.map((entry) => entry.libraryAssetId === assetId ? { ...entry, ...saved } : entry));
+      setPreviewItem((current) => current?.libraryAssetId === assetId ? { ...current, ...saved } : current);
+      showToast({ message: t('resource_029'), type: 'success' });
     } catch (saveError) {
-      setError(saveError?.message || t('resource_030'));
-    } finally { setSaving(false); }
+      setItems(beforeItems);
+      setPreviewItem(beforePreview);
+      showToast({ message: saveError?.message || t('resource_030'), type: 'error' });
+    } finally {
+      favoriteSavingIds.current.delete(assetId);
+    }
   };
 
-  const uploadResource = async () => {
-    if (!canManage || !accountId) return;
-    setSaving(true); setError(''); setOk('');
-    setUploadProgress(0);
-    try {
-      const file = await pickLibraryResourceFile();
-      if (!file) return;
-      if (!file.fileSize) throw new Error(t('resource_031'));
-      const maxBytes = file.type.startsWith('video/') ? MAX_VIDEO_UPLOAD_BYTES : MAX_STANDARD_UPLOAD_BYTES;
-      if (file.fileSize > maxBytes) throw new Error(t('resource_043'));
-      await uploadAccountLibraryFileApi(accountId, file, uploadPurpose, setUploadProgress);
-      setOk(t('resource_032'));
-      await loadLibrary();
-    } catch (uploadError) {
-      setError(uploadError?.message || t('resource_033'));
-    } finally { setSaving(false); setUploadProgress(0); }
+  const loadMore = () => {
+    if (loading || loadingMore || pagination.page >= pagination.pageCount) return;
+    loadLibrary({ page: pagination.page + 1, append: true });
   };
 
-  const assignResource = async () => {
-    if (!selected || !selectedEvent || !selectedMirrorMode || !canManage) return;
-    setSaving(true); setError(''); setOk('');
-    let createdResourceId = '';
-    try {
-      const created = await createEventResourceApi(selectedEvent.id, {
-        libraryAssetId: selected.libraryAssetId,
-        eventModeId: selectedMirrorMode.id,
-        purpose: selected.asset?.type || uploadPurpose,
-        orderIndex: 0,
-        isActive: true,
-      });
-      const resourceId = created?.resource?.id;
-      if (!resourceId) throw new Error(t('resource_034'));
-      createdResourceId = String(resourceId);
-      const current = await getMagicMirrorConfigApi(selectedEvent.id, selectedMirrorMode.id);
-      const draft = current?.config;
-      await saveMagicMirrorConfigApi(selectedEvent.id, selectedMirrorMode.id, {
-        expectedRevision: draft.revision,
-        schemaVersion: 1,
-        config: configResourcePatch(draft.config, selected.asset?.type, resourceId),
-      });
-      setOk(t('resource_035'));
-      setSelected(null);
-    } catch (assignError) {
-      if (createdResourceId) {
-        try {
-          await deleteEventResourceApi(selectedEvent.id, createdResourceId);
-        } catch (_rollbackError) {
-          // The original assignment error remains the actionable result.
-        }
-      }
-      setError(assignError?.status === 409 ? t('resource_036') : assignError?.message || t('resource_034'));
-    } finally { setSaving(false); }
-  };
+  const hasActiveFilter = Boolean(filters.search || filters.type);
+  const header = (
+    <View style={styles.header}>
+      <CompactAccountSelector accounts={accounts} value={accountId} onChange={changeAccount} theme={theme} />
+      {accountError ? <Text style={[styles.feedback, { color: theme.alert }]}>{accountError}</Text> : null}
+      <ResourceFilters
+        theme={theme}
+        tab={filters.tab}
+        onTabChange={(tab) => setFilters((current) => ({ ...current, tab }))}
+        search={filters.search}
+        onSearchChange={(search) => setFilters((current) => ({ ...current, search }))}
+        type={filters.type}
+        onTypeChange={(type) => setFilters((current) => ({ ...current, type }))}
+        poolLabel={t('resource_045')}
+        horizontalTypes
+      />
+    </View>
+  );
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
-      <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-        <Text style={[styles.label, { color: theme.textSecondary }]}>{t('resource_037')}</Text>
-        <View style={[styles.picker, { borderColor: theme.border }]}>
-          <Picker selectedValue={accountId} onValueChange={(value) => { setAccountId(String(value)); setFilters(INITIAL_FILTERS); setSelected(null); }} style={{ color: theme.textPrimary }}>
-            {accounts.map((account) => <Picker.Item key={account.id} label={account.name} value={String(account.id)} />)}
-          </Picker>
-        </View>
-        <Text style={[styles.label, { color: theme.textSecondary }]}>{t('resource_038')}</Text>
-        <View style={[styles.picker, { borderColor: theme.border }]}>
-          <Picker selectedValue={eventId} onValueChange={(value) => setEventId(String(value))} style={{ color: theme.textPrimary }}>
-            {!events.length ? <Picker.Item label={t('resource_039')} value="" /> : null}
-            {events.map((event) => <Picker.Item key={event.id} label={event.name} value={String(event.id)} />)}
-          </Picker>
-        </View>
-      </SurfaceCard>
-
-      {error ? <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text> : null}
-      {ok ? <Text style={[styles.feedback, { color: theme.secondary }]}>{ok}</Text> : null}
-      {saving ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{uploadProgress ? `${t('resource_042')} ${uploadProgress}%` : t('event_020')}</Text> : null}
-
-      {canManage ? (
-        <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-          <ResourceUploadAction theme={theme} purpose={uploadPurpose} onPurposeChange={setUploadPurpose} disabled={saving} onUpload={uploadResource} />
-        </SurfaceCard>
-      ) : null}
-
-      <ResourceSelectionSummary item={selected} theme={theme} disabled={!selectedMirrorMode || saving} onClear={() => setSelected(null)} onConfirm={assignResource} />
-
-      <ResourcePicker
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ResourceGallery
         items={items}
         theme={theme}
         canManage={canManage}
         loading={loading}
-        error={libraryError}
-        filters={filters}
-        onFiltersChange={setFilters}
-        selectedId={selected?.id || ''}
-        onSelect={setSelected}
+        loadingMore={loadingMore}
+        refreshing={refreshing}
+        error={error}
+        emptyLabel={hasActiveFilter || filters.tab === 'favorites' ? t('resource_024') : t('resource_023')}
+        header={header}
+        onPressItem={setPreviewItem}
         onToggleFavorite={toggleFavorite}
-        onRetry={loadLibrary}
-        pagination={pagination}
-        onPageChange={(page) => setFilters((current) => ({ ...current, page }))}
+        onRetry={() => loadLibrary()}
+        onRefresh={() => loadLibrary({ refresh: true })}
+        onLoadMore={loadMore}
       />
-    </ScrollView>
+      <ResourcePreviewModal item={previewItem} theme={theme} canManage={canManage} onClose={() => setPreviewItem(null)} onToggleFavorite={toggleFavorite} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: tokens.spacing.md, paddingBottom: tokens.spacing.xl, gap: tokens.spacing.md },
-  label: { fontSize: tokens.typography.caption, fontWeight: '700' },
-  picker: { borderWidth: 1, borderRadius: tokens.radius.sm, overflow: 'hidden' },
+  container: { flex: 1 },
+  header: { padding: tokens.spacing.md, gap: tokens.spacing.md },
   feedback: { fontSize: tokens.typography.caption, fontWeight: '700' },
 });

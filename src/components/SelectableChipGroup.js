@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { tokens } from '../design-system/tokens';
 
 export function SelectableChipGroup({
@@ -12,46 +12,51 @@ export function SelectableChipGroup({
   onChange = () => {},
   errorText = '',
   disabled = false,
+  horizontal = false,
   testID,
 }) {
+  const chipItems = options.map((option) => {
+    const isSelected = multiple ? values.map(String).includes(String(option.value)) : String(option.value) === String(value);
+    const isDisabled = disabled || option.disabled;
+    const chipTestID = testID ? `${testID}-${option.value}` : undefined;
+
+    return (
+      <Pressable
+        key={option.value}
+        testID={chipTestID}
+        accessibilityRole="button"
+        accessibilityState={{ selected: isSelected, disabled: isDisabled }}
+        disabled={isDisabled}
+        onPress={() => {
+          if (!multiple) {
+            onChange(option.value);
+            return;
+          }
+          const currentValues = values.map(String);
+          const optionValue = String(option.value);
+          onChange(isSelected ? currentValues.filter((item) => item !== optionValue) : [...currentValues, optionValue]);
+        }}
+        style={({ pressed }) => [
+          styles.chip,
+          {
+            backgroundColor: isSelected ? theme.primary : pressed ? theme.background : theme.surface,
+            borderColor: errorText ? theme.alert : isSelected ? theme.primary : theme.border,
+          },
+        ]}
+      >
+        <Text style={[styles.chipText, { color: isSelected ? theme.buttonText : theme.textPrimary }]}>{option.label}</Text>
+      </Pressable>
+    );
+  });
+
   return (
     <View style={styles.wrap}>
       {label ? <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text> : null}
-      <View style={styles.chipRow}>
-        {options.map((option) => {
-          const isSelected = multiple ? values.map(String).includes(String(option.value)) : String(option.value) === String(value);
-          const isDisabled = disabled || option.disabled;
-          const chipTestID = testID ? `${testID}-${option.value}` : undefined;
-
-          return (
-            <Pressable
-              key={option.value}
-              testID={chipTestID}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isSelected, disabled: isDisabled }}
-              disabled={isDisabled}
-              onPress={() => {
-                if (!multiple) {
-                  onChange(option.value);
-                  return;
-                }
-                const currentValues = values.map(String);
-                const optionValue = String(option.value);
-                onChange(isSelected ? currentValues.filter((item) => item !== optionValue) : [...currentValues, optionValue]);
-              }}
-              style={({ pressed }) => [
-                styles.chip,
-                {
-                  backgroundColor: isSelected ? theme.primary : pressed ? theme.background : theme.surface,
-                  borderColor: errorText ? theme.alert : isSelected ? theme.primary : theme.border,
-                },
-              ]}
-            >
-              <Text style={[styles.chipText, { color: isSelected ? theme.buttonText : theme.textPrimary }]}>{option.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {horizontal ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalChipRow}>
+          {chipItems}
+        </ScrollView>
+      ) : <View style={styles.chipRow}>{chipItems}</View>}
       {errorText ? <Text style={[styles.feedback, { color: theme.alert }]}>{errorText}</Text> : null}
     </View>
   );
@@ -69,6 +74,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: tokens.spacing.xs,
+  },
+  horizontalChipRow: {
+    gap: tokens.spacing.xs,
+    paddingRight: tokens.spacing.md,
   },
   chip: {
     borderWidth: 1,

@@ -245,7 +245,7 @@ export function EventsScreen({
     if (!accountId) return;
     try {
       const [libraryPayload, resourcePayload] = await Promise.all([
-        listAccountLibraryApi(accountId),
+        listAccountLibraryApi(accountId, { scope: 'available' }),
         eventId ? listEventResourcesApi(eventId) : Promise.resolve({ resources: [] }),
       ]);
       const normalizedLibrary = (libraryPayload?.library || []).map(normalizeLibraryEntry);

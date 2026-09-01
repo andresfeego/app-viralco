@@ -323,7 +323,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     if (!resourceTarget || !accountId) return;
     setLibraryLoading(true); setLibraryError('');
     try {
-      const response = await listAccountLibraryApi(accountId, { favorite: libraryFilters.tab === 'favorites' ? true : '', type: libraryFilters.type || resourceTarget.purpose, q: libraryFilters.search, page: libraryFilters.page, pageSize: 30 });
+      const response = await listAccountLibraryApi(accountId, { scope: 'available', favorite: libraryFilters.tab === 'favorites' ? true : '', type: libraryFilters.type || resourceTarget.purpose, q: libraryFilters.search, page: libraryFilters.page, pageSize: 30 });
       setLibrary((response?.library || []).map(normalizeLibraryItem));
       setPagination(response?.pagination || { page: 1, pageCount: 0, total: 0, pageSize: 30 });
     } catch (error) { setLibraryError(error?.message || t('resource_028')); }

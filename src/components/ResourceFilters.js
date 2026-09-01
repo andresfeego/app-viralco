@@ -6,7 +6,7 @@ import { HorizontalSubMenu } from './HorizontalSubMenu';
 import { PaperFormInput } from './PaperFormInput';
 import { SelectableChipGroup } from './SelectableChipGroup';
 
-export function ResourceFilters({ theme, tab, onTabChange, search, onSearchChange, type, onTypeChange }) {
+export function ResourceFilters({ theme, tab, onTabChange, search, onSearchChange, type, onTypeChange, poolLabel = t('resource_001'), horizontalTypes = false }) {
   const typeOptions = [
     { label: t('resource_006'), value: '' },
     { label: t('resource_007'), value: 'template' },
@@ -23,10 +23,10 @@ export function ResourceFilters({ theme, tab, onTabChange, search, onSearchChang
         theme={theme}
         selectedKey={tab}
         onSelect={onTabChange}
-        items={[{ key: 'pool', label: t('resource_001') }, { key: 'favorites', label: t('resource_002') }]}
+        items={[{ key: 'pool', label: poolLabel }, { key: 'favorites', label: t('resource_002') }]}
       />
       <PaperFormInput theme={theme} label={t('resource_003')} value={search} onChangeText={onSearchChange} />
-      <SelectableChipGroup theme={theme} label={t('resource_005')} options={typeOptions} value={type} onChange={onTypeChange} />
+      <SelectableChipGroup theme={theme} label={t('resource_005')} options={typeOptions} value={type} onChange={onTypeChange} horizontal={horizontalTypes} />
     </View>
   );
 }

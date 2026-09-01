@@ -9,6 +9,8 @@ interface MediaPreviewProps {
   mediaType: string;
   borderColor: string;
   textColor: string;
+  resizeMode?: 'cover' | 'contain';
+  aspectRatio?: number;
 }
 
 function isVideoType(mediaType: string) {
@@ -19,16 +21,16 @@ function isImageType(mediaType: string) {
   return mediaType.toLowerCase().startsWith('image/');
 }
 
-export function MediaPreview({ uri, mediaType, borderColor, textColor }: MediaPreviewProps) {
+export function MediaPreview({ uri, mediaType, borderColor, textColor, resizeMode = 'cover', aspectRatio = 16 / 9 }: MediaPreviewProps) {
   if (isVideoType(mediaType)) {
     return (
       <View style={[styles.frame, { borderColor }]}>
         <Video
           source={{ uri }}
-          style={styles.media}
+          style={[styles.media, { aspectRatio }]}
           controls
           paused
-          resizeMode="cover"
+          resizeMode={resizeMode}
         />
       </View>
     );
@@ -37,13 +39,13 @@ export function MediaPreview({ uri, mediaType, borderColor, textColor }: MediaPr
   if (isImageType(mediaType)) {
     return (
       <View style={[styles.frame, { borderColor }]}>
-        <Image source={{ uri }} style={styles.media} resizeMode="cover" />
+        <Image source={{ uri }} style={[styles.media, { aspectRatio }]} resizeMode={resizeMode} />
       </View>
     );
   }
 
   return (
-    <View style={[styles.fallback, { borderColor }]}> 
+    <View style={[styles.fallback, { borderColor }]}>
       <Text style={[styles.fallbackText, { color: textColor }]}>{t('resource_041')}: {mediaType}</Text>
     </View>
   );
@@ -57,7 +59,6 @@ const styles = StyleSheet.create({
   },
   media: {
     width: '100%',
-    aspectRatio: 16 / 9,
   },
   fallback: {
     borderWidth: 1,

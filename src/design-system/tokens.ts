@@ -120,6 +120,11 @@ export const tokens = {
     body: 16,
     caption: 14,
   },
+  layout: {
+    wideScreenMinWidth: 768,
+    resourceGridPhoneColumns: 3,
+    resourceGridWideColumns: 5,
+  },
   opacity: {
     disabled: 0.6,
   },
