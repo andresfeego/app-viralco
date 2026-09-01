@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Menu } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,8 @@ import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
 import { useAuth } from '../hooks/useAuth';
 import { t } from '../i18n';
-import { AccountLogoPreview } from '../components/AccountLogoPreview';
+import { AccountRequiredEmptyState } from '../components/AccountRequiredEmptyState';
+import { CompactAccountSelector } from '../components/CompactAccountSelector';
 import { EventHeroHeader } from '../components/EventHeroHeader';
 import { EventListCard } from '../components/EventListCard';
 import { IconTextButton } from '../components/IconTextButton';
@@ -38,7 +39,6 @@ import {
 import { pickEventResourceImage } from '../services/media/imagePicker';
 
 const RESOURCE_PURPOSES = ['frame', 'overlay', 'intro', 'outro', 'music', 'logo', 'background', 'template', 'branding', 'other'];
-const MENU_BAR_HEIGHT = tokens.spacing.xl + tokens.spacing.xs + tokens.spacing.xxs / 2;
 const EMPTY_EVENT_FORM = { name: '', eventTypeSlug: '', startDate: '', status: 'draft', timezone: 'America/Bogota', description: '', modeSlugs: [] };
 
 function normalizeEvent(item) {
@@ -93,16 +93,6 @@ function normalizeResource(item) {
   };
 }
 
-function accountLogoPreviewUrl(account) {
-  return account?.logoAsset?.variants?.thumb?.signedUrl
-    || account?.logoAsset?.variants?.thumb?.fileUrl
-    || account?.logoAsset?.previewSignedUrl
-    || account?.logoAsset?.previewUrl
-    || account?.logoAsset?.fileSignedUrl
-    || account?.logoAsset?.fileUrl
-    || '';
-}
-
 function resourcePreviewUrl(resource) {
   const asset = resource?.asset;
   return asset?.variants?.card?.signedUrl
@@ -130,6 +120,7 @@ export function EventsScreen({
   showKpi = true,
   onHeaderChange = null,
   onConfigureMirror = null,
+  onCreateAccount = () => {},
 }) {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -139,7 +130,7 @@ export function EventsScreen({
   const [section, setSection] = useState(normalizedSections.includes(initialSection) ? initialSection : normalizedSections[0] || 'list');
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState('');
-  const [isAccountModalVisible, setAccountModalVisible] = useState(false);
+  const [accountsLoading, setAccountsLoading] = useState(true);
   const [eventTypes, setEventTypes] = useState([]);
   const [modes, setModes] = useState([]);
   const [events, setEvents] = useState([]);
@@ -181,6 +172,7 @@ export function EventsScreen({
   const clearMessages = () => { setError(''); setOk(''); };
 
   const loadAccounts = useCallback(async () => {
+    setAccountsLoading(true);
     try {
       const payload = await listAccountsApi();
       const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
@@ -190,6 +182,7 @@ export function EventsScreen({
         return String(rows[0]?.id || '');
       });
     } catch (err) { setError(err?.message || t('account_006')); }
+    finally { setAccountsLoading(false); }
   }, []);
 
   const loadEventTypes = useCallback(async () => {
@@ -453,14 +446,11 @@ export function EventsScreen({
     finally { setSaving(false); }
   };
 
-  const selectedAccount = accounts.find((account) => String(account.id) === String(accountId));
-
   const selectAccount = (nextAccountId) => {
     setAccountId(String(nextAccountId || ''));
     setSelectedEventId('');
     setSelectedEvent(null);
     setEvents([]);
-    setAccountModalVisible(false);
     setSection('list');
   };
 
@@ -490,71 +480,6 @@ export function EventsScreen({
       multiline={multiline}
       editable={canEdit}
     />
-  );
-
-  const renderAccountSelector = () => {
-    if (accounts.length <= 1) return null;
-    return (
-      <View style={[styles.accountSelectorRow, { borderBottomColor: theme.border }]}>
-        <AccountLogoPreview theme={theme} imageUri={accountLogoPreviewUrl(selectedAccount)} size="bar" borderless />
-        <View style={styles.accountSelectorData}>
-          <Text numberOfLines={1} style={[styles.accountSelectorName, { color: theme.textPrimary }]}>
-            {selectedAccount?.name || '-'}
-          </Text>
-          <Text numberOfLines={1} style={[styles.helper, { color: theme.textSecondary }]}>
-            {selectedAccount?.slug || '-'} - {isSuperAdmin ? 'super_admin' : roleSlug || '-'}
-          </Text>
-        </View>
-        <IconTextButton
-          theme={theme}
-          label={t('event_095')}
-          icon="shuffle"
-          order="text-first"
-          variant="ghost"
-          onPress={() => setAccountModalVisible(true)}
-          style={styles.changeAccountButton}
-        />
-      </View>
-    );
-  };
-
-  const renderAccountModal = () => (
-    <Modal visible={isAccountModalVisible} animationType="slide" transparent onRequestClose={() => setAccountModalVisible(false)}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_096')}</Text>
-          <ScrollView contentContainerStyle={[styles.modalList, styles.editModalList]}>
-            {accounts.map((account) => {
-              const isSelected = String(account.id) === String(accountId);
-              return (
-                <Pressable key={account.id} onPress={() => selectAccount(account.id)} style={styles.pressableCard}>
-                  <SurfaceCard surfaceColor={theme.surface} borderColor={isSelected ? theme.primary : theme.border}>
-                    <View style={styles.accountOptionRow}>
-                      <View style={styles.accountSelectorData}>
-                        <Text numberOfLines={1} style={[styles.accountSelectorName, { color: theme.textPrimary }]}>
-                          {account.name || '-'}
-                        </Text>
-                        <Text numberOfLines={1} style={[styles.helper, { color: theme.textSecondary }]}>
-                          {account.slug || '-'}
-                        </Text>
-                      </View>
-                      <AccountLogoPreview theme={theme} imageUri={accountLogoPreviewUrl(account)} size="md" />
-                    </View>
-                  </SurfaceCard>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-          <AppButton
-            label={t('account_028')}
-            onPress={() => setAccountModalVisible(false)}
-            backgroundColor={theme.surface}
-            pressedColor={theme.surface}
-            textColor={theme.textPrimary}
-          />
-        </View>
-      </View>
-    </Modal>
   );
 
   const renderEventTypePicker = () => (
@@ -701,12 +626,28 @@ export function EventsScreen({
     );
   };
 
+  if (accountsLoading) {
+    return (
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <ActivityIndicator color={theme.primary} />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {eventMenu.length > 1 ? <HorizontalSubMenu items={eventMenu} selectedKey={section} onSelect={setSection} theme={theme} /> : null}
-      {renderAccountSelector()}
+      <CompactAccountSelector
+        accounts={accounts}
+        value={accountId}
+        onChange={selectAccount}
+        theme={theme}
+        roleLabel={isSuperAdmin ? 'super_admin' : roleSlug || ''}
+      />
+      {section === 'create' && accounts.length === 0 ? (
+        <AccountRequiredEmptyState theme={theme} onCreateAccount={onCreateAccount} testID="events-account-required" />
+      ) : (
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {accounts.length === 0 ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>Aun no tienes cuentas. Crea una cuenta desde la seccion Cuenta para activar eventos.</Text> : null}
         {error ? <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text> : null}
         {ok ? <Text style={[styles.feedback, { color: theme.secondary }]}>{ok}</Text> : null}
         {saving || loading ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('event_020')}</Text> : null}
@@ -805,7 +746,7 @@ export function EventsScreen({
           </View>
         ) : null}
       </ScrollView>
-      {renderAccountModal()}
+      )}
       {renderEditEventModal()}
       {renderEditModesModal()}
     </View>
@@ -814,15 +755,10 @@ export function EventsScreen({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { padding: tokens.spacing.md, gap: tokens.spacing.md },
   sectionWrap: { gap: tokens.spacing.sm },
   sectionTitle: { fontSize: tokens.typography.heading, fontWeight: '700' },
-  accountSelectorRow: { height: MENU_BAR_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, borderBottomWidth: 1 },
-  accountOptionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
-  accountSelectorData: { flex: 1, minWidth: 0 },
-  accountSelectorName: { fontSize: tokens.typography.caption, fontWeight: '700' },
-  changeAccountButton: { minWidth: 0, paddingRight: tokens.spacing.md },
-  pressableCard: { width: '100%' },
   fieldLabel: { fontSize: tokens.typography.caption, fontWeight: '700' },
   pickerWrap: { borderWidth: 1, borderRadius: tokens.radius.sm, overflow: 'hidden' },
   helper: { fontSize: tokens.typography.caption },

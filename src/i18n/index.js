@@ -99,6 +99,8 @@ export const dictionary = {
   account_072: { es: 'Selecciona al menos un servicio', en: 'Select at least one service' },
   account_073: { es: 'Suscripcion', en: 'Subscription' },
   account_074: { es: 'Total a pagar mensual', en: 'Monthly total' },
+  account_075: { es: 'Crea una cuenta para continuar', en: 'Create an account to continue' },
+  account_076: { es: 'Para utilizar recursos, añadir favoritos y crear eventos, primero debes crear una cuenta.', en: 'To use resources, add favorites, and create events, you must first create an account.' },
   profile_000: { es: 'Nombre', en: 'Name' },
   profile_001: { es: 'Telefono', en: 'Phone' },
   status_003: { es: 'Desconocido', en: 'Unknown' },

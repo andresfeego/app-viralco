@@ -1,5 +1,5 @@
 import React from 'react';
-import { TextInput } from 'react-native';
+import { Modal, TextInput } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
@@ -138,6 +138,21 @@ test('account creation blocks invalid required fields before api call', async ()
   });
 
   expect(mockedCreateAccount).not.toHaveBeenCalled();
+});
+
+test('account creation can open immediately when routed from an account-required empty state', async () => {
+  mockedUseAuth.mockReturnValue({
+    user: { themeMode: 'dark', globalRoles: [] },
+    reloadMe: jest.fn().mockResolvedValue(undefined),
+  });
+  mockedListAccounts.mockResolvedValue({ accounts: [] });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<AccountsScreen openCreateOnMount />);
+  });
+
+  expect(renderer!.root.findByType(Modal).props.visible).toBe(true);
 });
 
 test('account creation sends contracted service modes instead of a plan slug', async () => {

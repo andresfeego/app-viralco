@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
 import { CompactAccountSelector } from '../components/CompactAccountSelector';
+import { AccountRequiredEmptyState } from '../components/AccountRequiredEmptyState';
+import { HorizontalSubMenu } from '../components/HorizontalSubMenu';
 import { ResourceFilters } from '../components/ResourceFilters';
 import { ResourceGallery } from '../components/ResourceGallery';
 import { ResourcePreviewModal } from '../components/ResourcePreviewModal';
@@ -12,7 +14,7 @@ import { t } from '../i18n';
 import { listAccountsApi } from '../services/api/accounts';
 import { listAccountLibraryApi, updateAccountLibraryFavoriteApi } from '../services/api/events';
 
-const INITIAL_FILTERS = { tab: 'pool', search: '', type: '' };
+const INITIAL_FILTERS = { tab: 'favorites', search: '', type: '' };
 const PAGE_SIZE = 60;
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -36,13 +38,14 @@ function accountRole(user, accountId) {
   return membership?.status === 'active' ? membership?.role?.slug || '' : '';
 }
 
-export function ResourceLibraryScreen({ onHeaderChange = null }) {
+export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount = () => {} }) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState('');
+  const [accountsLoading, setAccountsLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -69,6 +72,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null }) {
 
   const loadAccounts = useCallback(async () => {
     setAccountError('');
+    setAccountsLoading(true);
     try {
       const payload = await listAccountsApi();
       const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
@@ -76,6 +80,8 @@ export function ResourceLibraryScreen({ onHeaderChange = null }) {
       setAccountId((current) => rows.some((account) => String(account.id) === String(current)) ? current : String(rows[0]?.id || ''));
     } catch (loadError) {
       setAccountError(loadError?.message || t('account_006'));
+    } finally {
+      setAccountsLoading(false);
     }
   }, []);
 
@@ -155,8 +161,6 @@ export function ResourceLibraryScreen({ onHeaderChange = null }) {
   const hasActiveFilter = Boolean(filters.search || filters.type);
   const header = (
     <View style={styles.header}>
-      <CompactAccountSelector accounts={accounts} value={accountId} onChange={changeAccount} theme={theme} />
-      {accountError ? <Text style={[styles.feedback, { color: theme.alert }]}>{accountError}</Text> : null}
       <ResourceFilters
         theme={theme}
         tab={filters.tab}
@@ -165,14 +169,44 @@ export function ResourceLibraryScreen({ onHeaderChange = null }) {
         onSearchChange={(search) => setFilters((current) => ({ ...current, search }))}
         type={filters.type}
         onTypeChange={(type) => setFilters((current) => ({ ...current, type }))}
-        poolLabel={t('resource_045')}
         horizontalTypes
+        showTabs={false}
       />
     </View>
   );
 
+  if (accountsLoading) {
+    return (
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <ActivityIndicator color={theme.primary} />
+      </View>
+    );
+  }
+
+  if (accounts.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        {accountError ? <Text style={[styles.feedback, { color: theme.alert }]}>{accountError}</Text> : null}
+        <AccountRequiredEmptyState theme={theme} onCreateAccount={onCreateAccount} testID="resources-account-required" />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <HorizontalSubMenu
+        theme={theme}
+        selectedKey={filters.tab}
+        onSelect={(tab) => setFilters((current) => ({ ...current, tab }))}
+        items={[{ key: 'favorites', label: t('resource_002') }, { key: 'pool', label: t('resource_045') }]}
+      />
+      <CompactAccountSelector
+        accounts={accounts}
+        value={accountId}
+        onChange={changeAccount}
+        theme={theme}
+        roleLabel={isSuperAdmin ? 'super_admin' : accountRole(user, accountId)}
+      />
       <ResourceGallery
         items={items}
         theme={theme}
@@ -196,6 +230,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: { padding: tokens.spacing.md, gap: tokens.spacing.md },
   feedback: { fontSize: tokens.typography.caption, fontWeight: '700' },
 });

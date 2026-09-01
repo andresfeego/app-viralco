@@ -43,6 +43,8 @@ import { useToast } from '../src/providers/ToastProvider';
 import { listAccountsApi } from '../src/services/api/accounts';
 import { createEventApi, getEventDetailApi, listEventModesApi, listEventsApi, listEventTypesApi } from '../src/services/api/events';
 import { EventListCard } from '../src/components/EventListCard';
+import { AccountRequiredEmptyState } from '../src/components/AccountRequiredEmptyState';
+import { HorizontalSubMenu } from '../src/components/HorizontalSubMenu';
 import { EventsScreen } from '../src/screens/EventsScreen';
 
 const mockedUseAuth = useAuth as jest.Mock;
@@ -90,6 +92,26 @@ test('events list hides account selector when user has one account', async () =>
   ReactTestRenderer.act(() => {
     renderer!.unmount();
   });
+});
+
+test('only event creation shows the account-required empty state and routes to account creation', async () => {
+  mockedListAccounts.mockResolvedValue({ accounts: [] });
+  const onCreateAccount = jest.fn();
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<EventsScreen initialSection="create" allowedSections={['list', 'create']} onCreateAccount={onCreateAccount} />);
+  });
+
+  expect(renderer!.root.findAllByProps({ testID: 'event-name-input' })).toHaveLength(0);
+  expect(renderer!.root.findAllByProps({ testID: 'event-create-save' })).toHaveLength(0);
+  expect(renderer!.root.findAllByType(HorizontalSubMenu)).toHaveLength(1);
+  ReactTestRenderer.act(() => renderer!.root.findByType(AccountRequiredEmptyState).props.onCreateAccount());
+  expect(onCreateAccount).toHaveBeenCalledTimes(1);
+
+  ReactTestRenderer.act(() => renderer!.root.findByType(HorizontalSubMenu).props.onSelect('list'));
+  expect(renderer!.root.findAllByType(AccountRequiredEmptyState)).toHaveLength(0);
+  expect(renderer!.root.findByType(HorizontalSubMenu).props.selectedKey).toBe('list');
 });
 
 test('events list shows account switcher when user has multiple accounts', async () => {

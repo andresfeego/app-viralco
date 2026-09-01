@@ -57,6 +57,10 @@ function MainFlow() {
   const theme = useMemo(() => getTheme(mode), [mode]);
   const openAccountDetail = useCallback((account) => setAccountRoute({ name: 'detail', account }), []);
   const closeAccountDetail = useCallback(() => setAccountRoute({ name: 'list', account: null }), []);
+  const openAccountCreation = useCallback(() => {
+    setAccountRoute({ name: 'list', account: null, openCreate: true });
+    setScreen('cuenta');
+  }, []);
   const openMirrorConfig = useCallback(({ event, eventMode, accountId }) => setEventRoute({ name: 'mirror-config', event, eventMode, accountId: String(accountId || event?.accountId || '') }), []);
   const closeMirrorConfig = useCallback(() => setEventRoute((current) => ({ name: 'detail', event: current.event, eventMode: null, accountId: current.accountId })), []);
 
@@ -128,6 +132,7 @@ function MainFlow() {
         {selectedKey === 'cuenta' && accountRoute.name === 'list' ? (
           <AccountsScreen
             onOpenAccount={openAccountDetail}
+            openCreateOnMount={Boolean(accountRoute.openCreate)}
           />
         ) : null}
         {selectedKey === 'cuenta' && accountRoute.name === 'detail' ? (
@@ -144,6 +149,7 @@ function MainFlow() {
             allowedSections={['list', 'create', 'detail']}
             onHeaderChange={setEventsHeaderConfig}
             onConfigureMirror={openMirrorConfig}
+            onCreateAccount={openAccountCreation}
           />
         ) : null}
         {selectedKey === 'eventos' && eventRoute.name === 'mirror-config' ? (
@@ -156,9 +162,9 @@ function MainFlow() {
           />
         ) : null}
         {selectedKey === 'recursos' ? (
-          <ResourceLibraryScreen onHeaderChange={setEventsHeaderConfig} />
+          <ResourceLibraryScreen onHeaderChange={setEventsHeaderConfig} onCreateAccount={openAccountCreation} />
         ) : null}
-        {selectedKey === 'configuracion' ? <ConfigurationScreen /> : null}
+        {selectedKey === 'configuracion' ? <ConfigurationScreen onCreateAccount={openAccountCreation} /> : null}
       </View>
       <BottomMainMenu items={menuItems} selectedKey={selectedKey} onSelect={selectMenuItem} theme={theme} />
     </View>

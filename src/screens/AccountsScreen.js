@@ -53,7 +53,7 @@ function isNumericId(value) {
   return !text || /^\d+$/.test(text);
 }
 
-export function AccountsScreen({ onOpenAccount = () => {} }) {
+export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = false }) {
   const { user, reloadMe } = useAuth();
   const { showToast } = useToast();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
@@ -65,6 +65,10 @@ export function AccountsScreen({ onOpenAccount = () => {} }) {
   const [accountForm, setAccountForm] = useState({ slug: '', name: '', phone: '', email: '', modeSlugs: [], ownerUserId: '' });
   const [formErrors, setFormErrors] = useState({});
   const [selectedLogo, setSelectedLogo] = useState(null);
+
+  useEffect(() => {
+    if (openCreateOnMount) setCreateModalVisible(true);
+  }, [openCreateOnMount]);
 
   const loadAccounts = useCallback(async () => {
     try {

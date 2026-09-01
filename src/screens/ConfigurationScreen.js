@@ -13,7 +13,7 @@ const CONFIG_SECTIONS = [
   { key: 'branding', label: 'Branding' },
 ];
 
-export function ConfigurationScreen() {
+export function ConfigurationScreen({ onCreateAccount = () => {} }) {
   const { logout, user } = useAuth();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const [section, setSection] = useState('profile');
@@ -23,7 +23,7 @@ export function ConfigurationScreen() {
       <HorizontalSubMenu items={CONFIG_SECTIONS} selectedKey={section} onSelect={setSection} theme={theme} />
       <View style={styles.content}>
         {section === 'profile' ? <ProfileScreen /> : null}
-        {section === 'branding' ? <EventsScreen initialSection="branding" allowedSections={['branding']} showKpi={false} /> : null}
+        {section === 'branding' ? <EventsScreen initialSection="branding" allowedSections={['branding']} showKpi={false} onCreateAccount={onCreateAccount} /> : null}
         {section === 'profile' ? (
           <View style={styles.logoutWrap}>
             <AppButton

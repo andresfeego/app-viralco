@@ -101,6 +101,9 @@ For `APP/mobile` UI work:
 10. Preserve safe-area behavior, bottom-menu clearance, and scroll bottom padding so content is not hidden by navigation.
 9. Keep screen horizontal padding consistent with the current screen family; prefer token scale changes over isolated numeric offsets.
 10. Avoid changing global density or component spacing unless the task explicitly asks for a broader redesign.
+11. Screens scoped by account must follow the shared hierarchy: `HorizontalSubMenu`, then the reusable account selector bar, then screen content. Do not place the account selector inside a list, card, filter header, or scrollable gallery header.
+12. When an account-dependent action has no active account, do not render its dependent filters, forms, uploads, or assignment controls. Render the reusable account-required empty state with a direct action that opens account creation. Apply this at the narrowest product section: a read-only parent such as the event list may remain visible while only `Crear evento` is replaced by the empty state.
+13. Account selectors must reuse the same compact bar and selection modal across Events, Resources, configuration, and future account-scoped screens. Do not create screen-specific picker variants.
 
 ## Anti-regression rules
 

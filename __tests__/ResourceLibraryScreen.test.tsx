@@ -33,6 +33,8 @@ jest.mock('../src/services/api/events', () => ({
 }));
 
 import { CompactAccountSelector } from '../src/components/CompactAccountSelector';
+import { AccountRequiredEmptyState } from '../src/components/AccountRequiredEmptyState';
+import { HorizontalSubMenu } from '../src/components/HorizontalSubMenu';
 import { ResourceFilters } from '../src/components/ResourceFilters';
 import { ResourceGallery } from '../src/components/ResourceGallery';
 import { ResourcePreviewModal } from '../src/components/ResourcePreviewModal';
@@ -99,9 +101,24 @@ test('loads only the global catalog and keeps it read-only for an operator', asy
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
   await flush();
 
-  expect(listAccountLibraryApi).toHaveBeenCalledWith('10', expect.objectContaining({ scope: 'global', favorite: '', page: 1, pageSize: 60 }));
+  expect(listAccountLibraryApi).toHaveBeenCalledWith('10', expect.objectContaining({ scope: 'global', favorite: true, page: 1, pageSize: 60 }));
   expect(renderer!.root.findByType(ResourceGallery).props.canManage).toBe(false);
-  expect(renderer!.root.findByType(ResourceFilters).props.poolLabel).toBe('Global');
+  expect(renderer!.root.findByType(ResourceFilters).props.showTabs).toBe(false);
+  expect(renderer!.root.findByType(HorizontalSubMenu).props.items.map((item: any) => item.label)).toEqual(['Favoritos', 'Global']);
+});
+
+test('shows only the account-required empty state and opens account creation when no account exists', async () => {
+  const onCreateAccount = jest.fn();
+  (listAccountsApi as jest.Mock).mockResolvedValue({ accounts: [] });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen onCreateAccount={onCreateAccount} />); });
+  await flush();
+
+  expect(renderer!.root.findAllByType(ResourceGallery)).toHaveLength(0);
+  expect(renderer!.root.findAllByType(ResourceFilters)).toHaveLength(0);
+  expect(renderer!.root.findAllByType(HorizontalSubMenu)).toHaveLength(0);
+  ReactTestRenderer.act(() => renderer!.root.findByType(AccountRequiredEmptyState).props.onCreateAccount());
+  expect(onCreateAccount).toHaveBeenCalledTimes(1);
 });
 
 test('shows the compact account selector only for multiple accounts', async () => {
@@ -113,14 +130,15 @@ test('shows the compact account selector only for multiple accounts', async () =
   expect(renderer!.root.findByType(CompactAccountSelector).props.accounts).toHaveLength(2);
 });
 
-test('switches to shared favorites and opens a resource preview', async () => {
+test('starts in shared favorites, switches to global and opens a resource preview', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
   await flush();
 
-  ReactTestRenderer.act(() => renderer!.root.findByType(ResourceFilters).props.onTabChange('favorites'));
-  await flush();
   expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ scope: 'global', favorite: true }));
+  ReactTestRenderer.act(() => renderer!.root.findByType(HorizontalSubMenu).props.onSelect('pool'));
+  await flush();
+  expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ scope: 'global', favorite: '' }));
 
   ReactTestRenderer.act(() => renderer!.root.findByType(ResourceGallery).props.onPressItem(libraryItem));
   expect(renderer!.root.findByType(ResourcePreviewModal).props.item.libraryAssetId).toBe('50');
