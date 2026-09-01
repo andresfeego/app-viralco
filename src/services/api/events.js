@@ -154,3 +154,7 @@ export function validateMagicMirrorConfigApi(eventId, eventModeId, input) {
 export function publishMagicMirrorConfigApi(eventId, eventModeId, expectedRevision) {
   return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/config/publish`, { method: 'POST', body: JSON.stringify({ expectedRevision }) });
 }
+
+export function getPublishedMagicMirrorConfigApi(eventId, eventModeId) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/config/published`, { method: 'GET' });
+}

@@ -125,9 +125,11 @@ function accountContractedModeSlugs(account) {
 
 export function EventsScreen({
   initialSection = 'list',
+  initialEventId = '',
   allowedSections = ['list', 'create', 'detail', 'branding', 'resources'],
   showKpi = true,
   onHeaderChange = null,
+  onConfigureMirror = null,
 }) {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -141,7 +143,7 @@ export function EventsScreen({
   const [eventTypes, setEventTypes] = useState([]);
   const [modes, setModes] = useState([]);
   const [events, setEvents] = useState([]);
-  const [selectedEventId, setSelectedEventId] = useState('');
+  const [selectedEventId, setSelectedEventId] = useState(String(initialEventId || ''));
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [library, setLibrary] = useState([]);
   const [resources, setResources] = useState([]);
@@ -215,10 +217,15 @@ export function EventsScreen({
       const payload = await listEventsApi(accountId);
       const normalized = (payload?.events || []).map(normalizeEvent).filter(Boolean);
       setEvents(normalized);
-      if (!selectedEventId && normalized[0]?.id) setSelectedEventId(normalized[0].id);
+      const requested = normalized.find((item) => String(item.id) === String(initialEventId));
+      if (requested) {
+        setSelectedEventId(requested.id);
+        setSelectedEvent(requested);
+        setSection('detail');
+      } else if (!selectedEventId && normalized[0]?.id) setSelectedEventId(normalized[0].id);
     } catch (err) { setError(err?.message || t('event_040')); }
     finally { setLoading(false); }
-  }, [accountId, selectedEventId]);
+  }, [accountId, initialEventId, selectedEventId]);
 
   const loadEventDetail = useCallback(async (eventId) => {
     if (!eventId) return;
@@ -674,9 +681,20 @@ export function EventsScreen({
             {canEdit ? <IconTextButton theme={theme} icon="pencil" variant="ghost" onPress={() => setEditModesVisible(true)} testID="event-modes-edit" /> : null}
           </View>
           {event?.modes?.length ? event.modes.map((item) => (
-            <Text key={item.id || item.mode?.slug} style={[styles.cardMeta, { color: theme.textSecondary }]}>
-              {item.mode?.name || item.mode?.slug || '-'}
-            </Text>
+            <View key={item.id || item.mode?.slug} style={styles.modeRow}>
+              <Text style={[styles.cardMeta, styles.modeName, { color: theme.textSecondary }]}>{item.mode?.name || item.mode?.slug || '-'}</Text>
+              {item.mode?.slug === 'espejo' && item.isActive !== false && onConfigureMirror ? (
+                <AppButton
+                  testID="event-configure-mirror"
+                  label={t('mirror_008')}
+                  onPress={() => onConfigureMirror({ event, eventMode: item, accountId, canEdit })}
+                  backgroundColor={theme.buttonBg}
+                  pressedColor={theme.buttonBgPressed}
+                  textColor={theme.buttonText}
+                  style={styles.modeButton}
+                />
+              ) : null}
+            </View>
           )) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
         </SurfaceCard>
       </View>
@@ -815,6 +833,9 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   cardTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
   cardMeta: { fontSize: tokens.typography.caption },
+  modeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
+  modeName: { flex: 1 },
+  modeButton: { minWidth: tokens.spacing.xl * 3 },
   row: { flexDirection: 'row', gap: tokens.spacing.xs },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   smallButton: { flex: 1 },

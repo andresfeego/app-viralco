@@ -17,6 +17,7 @@ import { ConfigurationScreen } from './src/screens/ConfigurationScreen';
 import { SuperAdminUsersScreen } from './src/screens/SuperAdminUsersScreen';
 import { EventsScreen } from './src/screens/EventsScreen';
 import { ResourceLibraryScreen } from './src/screens/ResourceLibraryScreen';
+import { MagicMirrorConfigScreen } from './src/screens/MagicMirrorConfigScreen';
 import { SectionHeader } from './src/components/SectionHeader';
 import { BottomMainMenu } from './src/components/BottomMainMenu';
 import { getTheme } from './src/design-system/theme';
@@ -45,6 +46,7 @@ function MainFlow() {
   const mode = user?.themeMode || 'dark';
   const [screen, setScreen] = useState('eventos');
   const [accountRoute, setAccountRoute] = useState({ name: 'list', account: null });
+  const [eventRoute, setEventRoute] = useState({ name: 'list', event: null, eventMode: null, accountId: '' });
   const [eventsHeaderConfig, setEventsHeaderConfig] = useState({
     title: t('menu_002'),
     subtitle: '',
@@ -55,6 +57,8 @@ function MainFlow() {
   const theme = useMemo(() => getTheme(mode), [mode]);
   const openAccountDetail = useCallback((account) => setAccountRoute({ name: 'detail', account }), []);
   const closeAccountDetail = useCallback(() => setAccountRoute({ name: 'list', account: null }), []);
+  const openMirrorConfig = useCallback(({ event, eventMode, accountId }) => setEventRoute({ name: 'mirror-config', event, eventMode, accountId: String(accountId || event?.accountId || '') }), []);
+  const closeMirrorConfig = useCallback(() => setEventRoute((current) => ({ name: 'detail', event: current.event, eventMode: null, accountId: current.accountId })), []);
 
   const isSuperAdmin = useMemo(
     () => (user?.globalRoles || []).some((role) => role.slug === 'super_admin'),
@@ -103,6 +107,9 @@ function MainFlow() {
     if (key === 'cuenta') {
       setAccountRoute({ name: 'list', account: null });
     }
+    if (key === 'eventos') {
+      setEventRoute({ name: 'list', event: null, eventMode: null, accountId: '' });
+    }
     setScreen(key);
   };
 
@@ -130,9 +137,21 @@ function MainFlow() {
             onAccountUpdated={openAccountDetail}
           />
         ) : null}
-        {selectedKey === 'eventos' ? (
+        {selectedKey === 'eventos' && eventRoute.name !== 'mirror-config' ? (
           <EventsScreen
-            allowedSections={['list', 'create']}
+            initialSection={eventRoute.name === 'detail' ? 'detail' : 'list'}
+            initialEventId={eventRoute.event?.id || ''}
+            allowedSections={['list', 'create', 'detail']}
+            onHeaderChange={setEventsHeaderConfig}
+            onConfigureMirror={openMirrorConfig}
+          />
+        ) : null}
+        {selectedKey === 'eventos' && eventRoute.name === 'mirror-config' ? (
+          <MagicMirrorConfigScreen
+            event={eventRoute.event}
+            eventMode={eventRoute.eventMode}
+            accountId={eventRoute.accountId}
+            onBack={closeMirrorConfig}
             onHeaderChange={setEventsHeaderConfig}
           />
         ) : null}

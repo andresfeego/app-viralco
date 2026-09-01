@@ -343,6 +343,14 @@ export const dictionary = {
   mirror_116: { es: 'Solo lectura: se muestra la publicacion activa.', en: 'Read only: showing the active publication.' },
   mirror_117: { es: 'Version publicada', en: 'Published version' },
   mirror_118: { es: 'Sin publicacion activa', en: 'No active publication' },
+  mirror_stage_beforeCountdown: { es: 'Antes de la cuenta regresiva', en: 'Before countdown' },
+  mirror_stage_afterCapture: { es: 'Despues de capturar', en: 'After capture' },
+  mirror_stage_countdown: { es: 'Cuenta regresiva', en: 'Countdown' },
+  mirror_stage_pickMusic: { es: 'Seleccionar musica', en: 'Pick music' },
+  mirror_stage_beforeSignature: { es: 'Antes de la firma', en: 'Before signature' },
+  mirror_stage_processing: { es: 'Mientras se procesa', en: 'While processing' },
+  mirror_stage_afterProcessing: { es: 'Despues de procesar', en: 'After processing' },
+  mirror_stage_sessionEnd: { es: 'Fin de la sesion', en: 'Session end' },
 };
 
 let activeLocale = 'es';
