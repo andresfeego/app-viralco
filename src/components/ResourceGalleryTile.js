@@ -28,6 +28,9 @@ export function resourceThumbnailUri(item) {
 export function resourceOriginalUri(item) {
   const asset = item?.asset || {};
   const full = asset?.variants?.full;
+  if (String(asset.mimeType || '').startsWith('video/')) {
+    return asset.fileUrl || asset.fileSignedUrl || resourceThumbnailUri(item);
+  }
   return asset.fileSignedUrl || full?.signedUrl || full?.fileUrl || asset.fileUrl || resourceThumbnailUri(item);
 }
 

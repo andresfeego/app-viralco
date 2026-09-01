@@ -24,7 +24,8 @@ const videoItem = {
   libraryAssetId: '51', isFavorite: true, displayName: 'Animacion',
   asset: {
     id: '51', name: 'Animacion', type: 'animation', mimeType: 'video/mp4', ownerType: 'viralco',
-    fileSignedUrl: 'https://assets.test/video.mp4',
+    fileSignedUrl: 'https://signed.assets.test/video.mp4',
+    fileUrl: 'https://assets.test/video.mp4',
     variants: { card: { signedUrl: 'https://assets.test/poster.webp' } },
   },
 };
@@ -60,7 +61,36 @@ test('opens video originals with controls and contain sizing in the preview moda
   });
   expect(renderer!.root.findByType(MediaPreview).props).toMatchObject({
     uri: 'https://assets.test/video.mp4',
+    posterUri: 'https://assets.test/poster.webp',
     mediaType: 'video/mp4',
     resizeMode: 'contain',
+    aspectRatio: 9 / 16,
   });
+});
+
+test('video preview starts with a poster and an explicit play action', () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <MediaPreview
+        uri="https://assets.test/video.mp4"
+        posterUri="https://assets.test/poster.webp"
+        mediaType="video/mp4"
+        borderColor={theme.border}
+        textColor={theme.textSecondary}
+        aspectRatio={9 / 16}
+        buttonBackgroundColor={theme.buttonBg}
+        buttonPressedColor={theme.buttonBgPressed}
+        buttonTextColor={theme.buttonText}
+      />,
+    );
+  });
+
+  expect(renderer!.root.findByType('Video').props).toMatchObject({
+    source: { uri: 'https://assets.test/video.mp4' },
+    poster: { source: { uri: 'https://assets.test/poster.webp' }, resizeMode: 'cover' },
+    paused: true,
+  });
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'media-preview-play' }).props.onPress());
+  expect(renderer!.root.findByType('Video').props.paused).toBe(false);
 });

@@ -1,16 +1,21 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import Video from 'react-native-video';
 import { t } from '../../i18n';
+import { AppButton } from './AppButton';
 import { tokens } from '../tokens';
 
 interface MediaPreviewProps {
   uri: string;
+  posterUri?: string;
   mediaType: string;
   borderColor: string;
   textColor: string;
   resizeMode?: 'cover' | 'contain';
   aspectRatio?: number;
+  buttonBackgroundColor?: string;
+  buttonPressedColor?: string;
+  buttonTextColor?: string;
 }
 
 function isVideoType(mediaType: string) {
@@ -21,17 +26,78 @@ function isImageType(mediaType: string) {
   return mediaType.toLowerCase().startsWith('image/');
 }
 
-export function MediaPreview({ uri, mediaType, borderColor, textColor, resizeMode = 'cover', aspectRatio = 16 / 9 }: MediaPreviewProps) {
+export function MediaPreview({
+  uri,
+  posterUri = '',
+  mediaType,
+  borderColor,
+  textColor,
+  resizeMode = 'cover',
+  aspectRatio = 16 / 9,
+  buttonBackgroundColor,
+  buttonPressedColor,
+  buttonTextColor,
+}: MediaPreviewProps) {
+  const [paused, setPaused] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    setPaused(true);
+    setLoading(false);
+    setFailed(false);
+    setReloadKey(0);
+  }, [uri]);
+
   if (isVideoType(mediaType)) {
+    const canRenderAction = Boolean(buttonBackgroundColor && buttonPressedColor && buttonTextColor);
+    const retry = () => {
+      setFailed(false);
+      setLoading(true);
+      setPaused(false);
+      setReloadKey((current) => current + 1);
+    };
     return (
-      <View style={[styles.frame, { borderColor }]}>
-        <Video
-          source={{ uri }}
-          style={[styles.media, { aspectRatio }]}
-          controls
-          paused
-          resizeMode={resizeMode}
-        />
+      <View style={styles.videoWrap}>
+        <View style={[styles.frame, { borderColor }]}>
+          <Video
+            key={`${uri}-${reloadKey}`}
+            source={{ uri }}
+            poster={posterUri ? { source: { uri: posterUri }, resizeMode } : undefined}
+            style={[styles.media, { aspectRatio }]}
+            controls
+            paused={paused}
+            resizeMode={resizeMode}
+            onLoadStart={() => setLoading(true)}
+            onLoad={() => setLoading(false)}
+            onError={() => { setLoading(false); setFailed(true); setPaused(true); }}
+          />
+          {loading ? <View pointerEvents="none" style={styles.stateOverlay}><Text style={[styles.stateText, { color: textColor }]}>{t('resource_050')}</Text></View> : null}
+          {failed ? <View pointerEvents="none" style={styles.stateOverlay}><Text style={[styles.stateText, { color: textColor }]}>{t('resource_051')}</Text></View> : null}
+        </View>
+        {canRenderAction && !failed && paused ? (
+          <AppButton
+            testID="media-preview-play"
+            label={t('resource_049')}
+            onPress={() => setPaused(false)}
+            backgroundColor={buttonBackgroundColor!}
+            pressedColor={buttonPressedColor!}
+            textColor={buttonTextColor!}
+            style={styles.action}
+          />
+        ) : null}
+        {canRenderAction && failed ? (
+          <AppButton
+            testID="media-preview-retry"
+            label={t('resource_052')}
+            onPress={retry}
+            backgroundColor={buttonBackgroundColor!}
+            pressedColor={buttonPressedColor!}
+            textColor={buttonTextColor!}
+            style={styles.action}
+          />
+        ) : null}
       </View>
     );
   }
@@ -57,9 +123,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: tokens.radius.sm,
   },
+  videoWrap: { gap: tokens.spacing.sm },
   media: {
     width: '100%',
   },
+  stateOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', padding: tokens.spacing.md },
+  stateText: { fontSize: tokens.typography.caption, fontWeight: '700', textAlign: 'center' },
+  action: { width: '100%' },
   fallback: {
     borderWidth: 1,
     borderRadius: tokens.radius.sm,

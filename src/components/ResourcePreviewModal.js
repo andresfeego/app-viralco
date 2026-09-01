@@ -7,13 +7,14 @@ import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { tokens } from '../design-system/tokens';
 import { t } from '../i18n';
 import { StatusBadge } from './StatusBadge';
-import { resourceOriginalUri, resourceTypeLabel } from './ResourceGalleryTile';
+import { resourceOriginalUri, resourceThumbnailUri, resourceTypeLabel } from './ResourceGalleryTile';
 
 export function ResourcePreviewModal({ item, theme, canManage, onClose, onToggleFavorite }) {
   const insets = useSafeAreaInsets();
   const asset = item?.asset || {};
   const name = item?.displayName || asset.name || t('resource_018');
   const uri = resourceOriginalUri(item);
+  const posterUri = resourceThumbnailUri(item);
   const isVideo = String(asset.mimeType || '').startsWith('video/');
   return (
     <Modal visible={Boolean(item)} animationType="slide" onRequestClose={onClose}>
@@ -25,7 +26,18 @@ export function ResourcePreviewModal({ item, theme, canManage, onClose, onToggle
         <ScrollView contentContainerStyle={styles.content}>
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
             {uri ? (
-              <MediaPreview uri={uri} mediaType={asset.mimeType || ''} borderColor={theme.border} textColor={theme.textSecondary} resizeMode="contain" aspectRatio={isVideo ? 16 / 9 : 1} />
+              <MediaPreview
+                uri={uri}
+                posterUri={isVideo ? posterUri : ''}
+                mediaType={asset.mimeType || ''}
+                borderColor={theme.border}
+                textColor={theme.textSecondary}
+                resizeMode="contain"
+                aspectRatio={isVideo ? 9 / 16 : 1}
+                buttonBackgroundColor={theme.buttonBg}
+                buttonPressedColor={theme.buttonBgPressed}
+                buttonTextColor={theme.buttonText}
+              />
             ) : (
               <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('resource_041')}: {asset.mimeType || asset.type}</Text>
             )}
