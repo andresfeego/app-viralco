@@ -61,18 +61,22 @@ export function MediaPreview({
     return (
       <View style={styles.videoWrap}>
         <View style={[styles.frame, { borderColor }]}>
-          <Video
-            key={`${uri}-${reloadKey}`}
-            source={{ uri }}
-            poster={posterUri ? { source: { uri: posterUri }, resizeMode } : undefined}
-            style={[styles.media, { aspectRatio }]}
-            controls
-            paused={paused}
-            resizeMode={resizeMode}
-            onLoadStart={() => setLoading(true)}
-            onLoad={() => setLoading(false)}
-            onError={() => { setLoading(false); setFailed(true); setPaused(true); }}
-          />
+          {posterUri && paused && !failed ? (
+            <Image source={{ uri: posterUri }} style={[styles.media, { aspectRatio }]} resizeMode={resizeMode} />
+          ) : (
+            <Video
+              key={`${uri}-${reloadKey}`}
+              source={{ uri }}
+              style={[styles.media, { aspectRatio }]}
+              controls={!posterUri}
+              paused={paused}
+              resizeMode={resizeMode}
+              onLoadStart={() => setLoading(true)}
+              onLoad={() => setLoading(false)}
+              onError={() => { setLoading(false); setFailed(true); setPaused(true); }}
+              onEnd={() => setPaused(true)}
+            />
+          )}
           {loading ? <View pointerEvents="none" style={styles.stateOverlay}><Text style={[styles.stateText, { color: textColor }]}>{t('resource_050')}</Text></View> : null}
           {failed ? <View pointerEvents="none" style={styles.stateOverlay}><Text style={[styles.stateText, { color: textColor }]}>{t('resource_051')}</Text></View> : null}
         </View>
@@ -127,7 +131,7 @@ const styles = StyleSheet.create({
   media: {
     width: '100%',
   },
-  stateOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', padding: tokens.spacing.md },
+  stateOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 1, alignItems: 'center', justifyContent: 'center', padding: tokens.spacing.md },
   stateText: { fontSize: tokens.typography.caption, fontWeight: '700', textAlign: 'center' },
   action: { width: '100%' },
   fallback: {
