@@ -29,3 +29,12 @@ Owner, administrador y Super Admin editan y publican. El operador consulta la pu
 
 Todos los componentes usan tokens, temas claro/oscuro, i18n y primitivas reutilizables de ViralCo. GIF real, eliminacion de fondo e impresion fisica se muestran como capacidades no disponibles.
 
+## Estado final
+
+Fase `COMPLETA`.
+
+- Acceso implementado desde el detalle del evento y regreso conservando el evento seleccionado.
+- Siete formatos, preview, editor tactil/preciso, textos, pool, favoritos, subida, animaciones, captura, entrega y runtime implementados.
+- Recuperacion AsyncStorage, conflicto explicito, validacion y publicacion cubiertos por pruebas.
+- Operador en lectura y owner/administrador/Super Admin en edicion verificados en temas oscuro y claro.
+- No quedan componentes `comp_hardcode`.
