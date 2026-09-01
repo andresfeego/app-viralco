@@ -53,7 +53,7 @@ function isNumericId(value) {
   return !text || /^\d+$/.test(text);
 }
 
-export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = false }) {
+export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = false, openCreateRequest = 0 }) {
   const { user, reloadMe } = useAuth();
   const { showToast } = useToast();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
@@ -67,8 +67,8 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
   const [selectedLogo, setSelectedLogo] = useState(null);
 
   useEffect(() => {
-    if (openCreateOnMount) setCreateModalVisible(true);
-  }, [openCreateOnMount]);
+    if (openCreateOnMount || openCreateRequest > 0) setCreateModalVisible(true);
+  }, [openCreateOnMount, openCreateRequest]);
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -157,7 +157,11 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
       setCreateModalVisible(false);
       await loadAccounts();
       await reloadMe();
-    } catch (err) { setError(err?.message || t('account_008')); }
+    } catch (err) {
+      const message = err?.message || t('account_008');
+      setError(message);
+      showToast({ message, type: 'error' });
+    }
   };
 
   const selectLogo = async () => {
@@ -266,6 +270,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
             <ScrollView contentContainerStyle={styles.modalContent}>
               <Text style={[styles.title, { color: theme.textPrimary }]}>{isSuperAdmin ? t('account_010') : t('account_024')}</Text>
               <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('account_026')}</Text>
+              {error ? <Text style={[styles.errorText, { color: theme.alert }]}>{error}</Text> : null}
               {renderFormInput({ testID: 'account-create-name-input', label: t('account_011'), value: accountForm.name, errorText: formErrors.name, onChangeText: (name) => updateFormField('name', name) })}
               {renderFormInput({ testID: 'account-create-slug-input', label: t('account_029'), value: accountForm.slug, errorText: formErrors.slug, autoCapitalize: 'none', onChangeText: (slug) => updateFormField('slug', slug) })}
               {renderFormInput({ label: t('account_041'), value: accountForm.phone, keyboardType: 'phone-pad', onChangeText: (phone) => updateFormField('phone', phone), helperAction: { label: t('account_043'), onPress: copyUserPhone } })}

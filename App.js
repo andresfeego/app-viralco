@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PaperProvider } from 'react-native-paper';
@@ -41,11 +41,11 @@ function AuthFlow() {
   return <LoginScreen onGoRegister={() => setScreen('register')} onGoForgot={() => setScreen('forgot')} />;
 }
 
-function MainFlow() {
+export function MainFlow() {
   const { initializing, isAuthenticated, user } = useAuth();
   const mode = user?.themeMode || 'dark';
   const [screen, setScreen] = useState('eventos');
-  const [accountRoute, setAccountRoute] = useState({ name: 'list', account: null });
+  const [accountRoute, setAccountRoute] = useState({ name: 'list', account: null, openCreateRequest: 0 });
   const [eventRoute, setEventRoute] = useState({ name: 'list', event: null, eventMode: null, accountId: '' });
   const [eventsHeaderConfig, setEventsHeaderConfig] = useState({
     title: t('menu_002'),
@@ -55,10 +55,10 @@ function MainFlow() {
     backLabel: 'Volver',
   });
   const theme = useMemo(() => getTheme(mode), [mode]);
-  const openAccountDetail = useCallback((account) => setAccountRoute({ name: 'detail', account }), []);
-  const closeAccountDetail = useCallback(() => setAccountRoute({ name: 'list', account: null }), []);
+  const openAccountDetail = useCallback((account) => setAccountRoute({ name: 'detail', account, openCreateRequest: 0 }), []);
+  const closeAccountDetail = useCallback(() => setAccountRoute({ name: 'list', account: null, openCreateRequest: 0 }), []);
   const openAccountCreation = useCallback(() => {
-    setAccountRoute({ name: 'list', account: null, openCreate: true });
+    setAccountRoute((current) => ({ name: 'list', account: null, openCreateRequest: (current.openCreateRequest || 0) + 1 }));
     setScreen('cuenta');
   }, []);
   const openMirrorConfig = useCallback(({ event, eventMode, accountId }) => setEventRoute({ name: 'mirror-config', event, eventMode, accountId: String(accountId || event?.accountId || '') }), []);
@@ -68,6 +68,13 @@ function MainFlow() {
     () => (user?.globalRoles || []).some((role) => role.slug === 'super_admin'),
     [user]
   );
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    setScreen('eventos');
+    setAccountRoute({ name: 'list', account: null, openCreateRequest: 0 });
+    setEventRoute({ name: 'list', event: null, eventMode: null, accountId: '' });
+  }, [isAuthenticated, user?.id]);
 
   if (initializing) {
     return (
@@ -109,7 +116,7 @@ function MainFlow() {
 
   const selectMenuItem = (key) => {
     if (key === 'cuenta') {
-      setAccountRoute({ name: 'list', account: null });
+      setAccountRoute({ name: 'list', account: null, openCreateRequest: 0 });
     }
     if (key === 'eventos') {
       setEventRoute({ name: 'list', event: null, eventMode: null, accountId: '' });
@@ -132,7 +139,7 @@ function MainFlow() {
         {selectedKey === 'cuenta' && accountRoute.name === 'list' ? (
           <AccountsScreen
             onOpenAccount={openAccountDetail}
-            openCreateOnMount={Boolean(accountRoute.openCreate)}
+            openCreateRequest={accountRoute.openCreateRequest}
           />
         ) : null}
         {selectedKey === 'cuenta' && accountRoute.name === 'detail' ? (

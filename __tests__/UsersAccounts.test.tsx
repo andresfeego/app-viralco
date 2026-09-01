@@ -155,6 +155,26 @@ test('account creation can open immediately when routed from an account-required
   expect(renderer!.root.findByType(Modal).props.visible).toBe(true);
 });
 
+test('account creation can be requested again after closing its modal', async () => {
+  mockedUseAuth.mockReturnValue({
+    user: { themeMode: 'dark', globalRoles: [] },
+    reloadMe: jest.fn().mockResolvedValue(undefined),
+  });
+  mockedListAccounts.mockResolvedValue({ accounts: [] });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<AccountsScreen openCreateRequest={1} />);
+  });
+  ReactTestRenderer.act(() => renderer!.root.findByType(Modal).props.onRequestClose());
+  expect(renderer!.root.findByType(Modal).props.visible).toBe(false);
+
+  await ReactTestRenderer.act(async () => {
+    renderer!.update(<AccountsScreen openCreateRequest={2} />);
+  });
+  expect(renderer!.root.findByType(Modal).props.visible).toBe(true);
+});
+
 test('account creation sends contracted service modes instead of a plan slug', async () => {
   mockedUseAuth.mockReturnValue({
     user: { themeMode: 'dark', globalRoles: [] },
