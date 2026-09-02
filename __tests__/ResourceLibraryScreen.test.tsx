@@ -87,7 +87,7 @@ beforeEach(() => {
   setRole('owner');
   mockedUseToast.mockReturnValue({ showToast, hideToast: jest.fn() });
   (listAccountsApi as jest.Mock).mockResolvedValue({ accounts: [account] });
-  (listEventTypesApi as jest.Mock).mockResolvedValue({ eventTypes: [{ id: '1', slug: 'boda', name: 'Boda' }] });
+  (listEventTypesApi as jest.Mock).mockResolvedValue({ types: [{ id: '1', slug: 'boda', name: 'Boda' }] });
   (listAccountLibraryApi as jest.Mock).mockResolvedValue({ library: [libraryItem], pagination: { page: 1, pageSize: 60, total: 1, pageCount: 1 } });
   (updateAccountLibraryFavoriteApi as jest.Mock).mockResolvedValue({ library: { ...libraryItem, id: '70', isFavorite: true } });
 });
@@ -106,6 +106,7 @@ test('loads only the global catalog and keeps it read-only for an operator', asy
   expect(listAccountLibraryApi).toHaveBeenCalledWith('10', expect.objectContaining({ scope: 'global', favorite: true, page: 1, pageSize: 60 }));
   expect(renderer!.root.findByType(ResourceGallery).props.canManage).toBe(false);
   expect(renderer!.root.findByType(ResourceFilters).props.showTabs).toBe(false);
+  expect(renderer!.root.findByType(ResourceFilters).props.eventTypes).toEqual([expect.objectContaining({ slug: 'boda' })]);
   expect(renderer!.root.findByType(HorizontalSubMenu).props.items.map((item: any) => item.label)).toEqual(['Favoritos', 'Global']);
 });
 

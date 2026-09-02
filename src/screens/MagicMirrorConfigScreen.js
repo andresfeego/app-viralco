@@ -125,7 +125,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
 
   useEffect(() => {
     listEventTypesApi()
-      .then((response) => setEventTypes(Array.isArray(response?.eventTypes) ? response.eventTypes : []))
+      .then((response) => setEventTypes(Array.isArray(response?.types) ? response.types : []))
       .catch(() => setEventTypes([]));
   }, []);
 

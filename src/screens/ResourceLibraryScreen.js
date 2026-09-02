@@ -77,10 +77,10 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
     try {
       const [payload, eventTypesPayload] = await Promise.all([
         listAccountsApi(),
-        listEventTypesApi().catch(() => ({ eventTypes: [] })),
+        listEventTypesApi().catch(() => ({ types: [] })),
       ]);
       const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
-      setEventTypes(Array.isArray(eventTypesPayload?.eventTypes) ? eventTypesPayload.eventTypes : []);
+      setEventTypes(Array.isArray(eventTypesPayload?.types) ? eventTypesPayload.types : []);
       setAccounts(rows);
       setAccountId((current) => rows.some((account) => String(account.id) === String(current)) ? current : String(rows[0]?.id || ''));
     } catch (loadError) {
