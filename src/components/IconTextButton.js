@@ -14,16 +14,19 @@ export function IconTextButton({
   disabled = false,
   onPress = () => {},
   accessibilityLabel,
+  backgroundColor: customBackgroundColor,
+  pressedBackgroundColor,
+  iconColor,
   testID,
   style,
 }) {
   const isTextFirst = order === 'text-first';
   const isIconOnly = !label;
   const isGhost = variant === 'ghost';
-  const backgroundColor = variant === 'filled' ? theme.buttonBg : theme.surface;
-  const pressedColor = variant === 'filled' ? theme.buttonBgPressed : theme.background;
+  const backgroundColor = customBackgroundColor ?? (variant === 'filled' ? theme.buttonBg : theme.surface);
+  const pressedColor = pressedBackgroundColor ?? (variant === 'filled' ? theme.buttonBgPressed : theme.background);
   const borderColor = variant === 'filled' ? theme.buttonBg : theme.border;
-  const contentColor = variant === 'filled' ? theme.buttonText : isGhost ? theme.primary : theme.textPrimary;
+  const contentColor = iconColor ?? (variant === 'filled' ? theme.buttonText : isGhost ? theme.primary : theme.textPrimary);
 
   const iconNode = <Icon name={icon} iconStyle={iconStyle} size={tokens.typography.caption} color={contentColor} />;
   const textNode = label ? <Text style={[styles.label, { color: contentColor }]}>{label}</Text> : null;
@@ -42,9 +45,9 @@ export function IconTextButton({
         direction === 'column' ? styles.column : styles.row,
         style,
         {
-          backgroundColor: isGhost ? undefined : pressed ? pressedColor : backgroundColor,
+          backgroundColor: isGhost && customBackgroundColor == null ? undefined : pressed ? pressedColor : backgroundColor,
           borderColor: isGhost ? undefined : borderColor,
-          opacity: disabled ? 0.6 : 1,
+          opacity: disabled ? tokens.opacity.disabled : 1,
         },
       ]}
     >
@@ -73,6 +76,10 @@ const styles = StyleSheet.create({
   },
   iconOnly: {
     width: tokens.spacing.xl + tokens.spacing.xs,
+    height: tokens.spacing.xl + tokens.spacing.xs,
+    minHeight: tokens.spacing.xl + tokens.spacing.xs,
+    borderRadius: tokens.radius.pill,
+    paddingVertical: 0,
     paddingHorizontal: tokens.spacing.xs,
   },
   ghost: {

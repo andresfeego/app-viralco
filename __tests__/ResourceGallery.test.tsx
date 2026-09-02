@@ -8,6 +8,7 @@ jest.mock('react-native-video', () => 'Video');
 
 import { ResourceGalleryTile, resourceOriginalUri, resourceThumbnailUri } from '../src/components/ResourceGalleryTile';
 import { ResourcePreviewModal } from '../src/components/ResourcePreviewModal';
+import { ResourceTypeBadge } from '../src/components/ResourceTypeBadge';
 import { MediaPreview } from '../src/design-system/components/MediaPreview';
 import { getTheme } from '../src/design-system/theme';
 
@@ -44,10 +45,27 @@ test('renders a square accessible tile with favorite and preview actions', () =>
     renderer = ReactTestRenderer.create(<ResourceGalleryTile item={imageItem} tileSize={120} theme={theme} canManage onPress={onPress} onToggleFavorite={onToggleFavorite} />);
   });
   expect(renderer!.root.findByType(Image).props.source.uri).toBe('https://assets.test/card.webp');
+  expect(renderer!.root.findByType(ResourceTypeBadge).props.type).toBe('frame');
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'resource-gallery-item-50' }).props.onPress());
   expect(onPress).toHaveBeenCalledWith(imageItem);
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'resource-gallery-favorite-50' }).props.onPress());
   expect(onToggleFavorite).toHaveBeenCalledWith(imageItem);
+});
+
+test('font previews use the generated image instead of opening the TTF binary', () => {
+  const fontItem = {
+    libraryAssetId: '52', isFavorite: false, displayName: 'Lora',
+    asset: { id: '52', name: 'Lora', type: 'font', mimeType: 'font/ttf', ownerType: 'viralco', fileSignedUrl: 'https://assets.test/lora.ttf', variants: { card: { signedUrl: 'https://assets.test/lora-card.webp' } } },
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } }}>
+        <ResourcePreviewModal item={fontItem} theme={theme} canManage onClose={jest.fn()} onToggleFavorite={jest.fn()} />
+      </SafeAreaProvider>,
+    );
+  });
+  expect(renderer!.root.findByType(MediaPreview).props).toMatchObject({ uri: 'https://assets.test/lora-card.webp', mediaType: 'image/webp' });
 });
 
 test('opens video originals with controls and contain sizing in the preview modal', () => {

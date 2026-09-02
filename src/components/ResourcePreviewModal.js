@@ -16,6 +16,8 @@ export function ResourcePreviewModal({ item, theme, canManage, onClose, onToggle
   const uri = resourceOriginalUri(item);
   const posterUri = resourceThumbnailUri(item);
   const isVideo = String(asset.mimeType || '').startsWith('video/');
+  const isFont = asset.type === 'font';
+  const previewUri = isFont ? posterUri : uri;
   return (
     <Modal visible={Boolean(item)} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView edges={['left', 'right', 'bottom']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -25,11 +27,11 @@ export function ResourcePreviewModal({ item, theme, canManage, onClose, onToggle
         </View>
         <ScrollView contentContainerStyle={styles.content}>
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            {uri ? (
+            {previewUri ? (
               <MediaPreview
-                uri={uri}
+                uri={previewUri}
                 posterUri={isVideo ? posterUri : ''}
-                mediaType={asset.mimeType || ''}
+                mediaType={isFont ? 'image/webp' : asset.mimeType || ''}
                 borderColor={theme.border}
                 textColor={theme.textSecondary}
                 resizeMode="contain"

@@ -4,12 +4,12 @@ import Icon from '@react-native-vector-icons/fontawesome6';
 import { tokens } from '../design-system/tokens';
 import { t } from '../i18n';
 import { IconTextButton } from './IconTextButton';
-import { StatusBadge } from './StatusBadge';
+import { ResourceTypeBadge } from './ResourceTypeBadge';
 
 export function resourceTypeLabel(type) {
   const labels = {
-    template: 'resource_007', frame: 'resource_008', animation: 'resource_009', gif_overlay: 'resource_010',
-    font: 'resource_011', background: 'resource_012', start_screen: 'resource_044',
+    template: 'resource_007', frame: 'resource_008', animation: 'resource_009', sticker: 'resource_053',
+    font: 'resource_011', background: 'resource_012',
   };
   return t(labels[type] || 'resource_018');
 }
@@ -64,14 +64,17 @@ export function ResourceGalleryTile({ item, tileSize, theme, canManage, onPress,
             </View>
           </View>
         ) : null}
-        <View pointerEvents="none" style={styles.typeBadge}><StatusBadge compact label={typeLabel} flag="info" /></View>
+        <View pointerEvents="none" style={styles.typeBadge}><ResourceTypeBadge type={asset.type} theme={theme} testID={`resource-type-${item.libraryAssetId}`} /></View>
       </Pressable>
-      <View style={[styles.favorite, { backgroundColor: theme.surface }]}>
+      <View style={styles.favorite}>
         <IconTextButton
           theme={theme}
           icon="star"
           iconStyle={item.isFavorite ? 'solid' : 'regular'}
           variant="ghost"
+          backgroundColor={theme.surface}
+          pressedBackgroundColor={theme.background}
+          iconColor={theme.primary}
           disabled={!canManage}
           accessibilityLabel={item.isFavorite ? t('resource_047') : t('resource_046')}
           onPress={() => onToggleFavorite(item)}
@@ -91,5 +94,5 @@ const styles = StyleSheet.create({
   playOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   playBadge: { borderRadius: tokens.radius.pill, padding: tokens.spacing.xs },
   typeBadge: { position: 'absolute', left: tokens.spacing.xxs, bottom: tokens.spacing.xxs },
-  favorite: { position: 'absolute', right: tokens.spacing.xxs, top: tokens.spacing.xxs, borderRadius: tokens.radius.pill, padding: tokens.spacing.xxs },
+  favorite: { position: 'absolute', right: tokens.spacing.xxs, top: tokens.spacing.xxs },
 });
