@@ -183,6 +183,8 @@ El flujo y los estados del configurador visual de la fase C estan definidos en [
 
 El refinamiento B.1 de fototeca global esta definido en [`docs/espejo-magico-fototeca-global-b1.md`](../docs/espejo-magico-fototeca-global-b1.md). La pantalla principal consulta el catalogo y favoritos; la subida y asociacion permanecen en el configurador. El contrato backend vive en `WEB/backend/docs/modes/espejo-magico-fototeca-global-b1.md`. B.1 y C estan completas; D permanece pausada hasta retomar el lanzamiento operativo.
 
+El refinamiento B.2 de taxonomia y filtros esta definido en [`docs/espejo-magico-taxonomia-b2.md`](../docs/espejo-magico-taxonomia-b2.md). Establece fondos, marcos, stickers, plantillas reservadas, animaciones y fuentes; añade filtros independientes por tipo de evento y movimiento. El contrato backend vive en `WEB/backend/docs/modes/espejo-magico-taxonomia-b2.md`. B.2 esta completa y D permanece pausada.
+
 ### Objetivo
 
 Construir la experiencia principal del dispositivo sin entrar todavía en toda la complejidad interna de cada módulo.

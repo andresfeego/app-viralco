@@ -18,7 +18,7 @@ Global consulta `scope=global`. Favoritos conserva ese scope y agrega `favorite=
 
 `ResourceGalleryTile` muestra preview cuadrado `cover`, tipo, estrella, indicador de video y fallback accesible. `ResourcePreviewModal` usa el original con `contain`; videos permanecen pausados y ofrecen controles, mientras fuentes y archivos sin imagen presentan metadata o fallback.
 
-Los filtros horizontales son Todos, Plantillas, Marcos, Animaciones, GIF, Fuentes, Fondos y Pantallas iniciales. `SelectableChipGroup` conserva el comportamiento anterior y añade una variante horizontal desplazable.
+La taxonomia y el orden de filtros definidos originalmente aqui fueron reemplazados por B.2. La especificacion vigente esta en [`espejo-magico-taxonomia-b2.md`](./espejo-magico-taxonomia-b2.md). `SelectableChipGroup` conserva la variante horizontal desplazable.
 
 ## Favoritos, permisos y estados
 
@@ -42,4 +42,3 @@ Todos usan tokens y temas existentes, i18n español/ingles y labels accesibles. 
 - Grilla, 19 assets, posters de video, preview y favorito verificados en simulador.
 - Temas claro y oscuro inspeccionados.
 - Bundle iOS validado contra Metro.
-
