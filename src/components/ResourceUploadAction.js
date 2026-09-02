@@ -7,13 +7,11 @@ import { SelectableChipGroup } from './SelectableChipGroup';
 
 export function ResourceUploadAction({ theme, purpose, onPurposeChange, disabled, onUpload }) {
   const purposes = [
-    { label: t('resource_007'), value: 'template' },
-    { label: t('resource_008'), value: 'frame' },
-    { label: t('resource_009'), value: 'animation' },
-    { label: t('resource_010'), value: 'gif_overlay' },
-    { label: t('resource_011'), value: 'font' },
     { label: t('resource_012'), value: 'background' },
-    { label: t('resource_044'), value: 'start_screen' },
+    { label: t('resource_008'), value: 'frame' },
+    { label: t('resource_053'), value: 'sticker' },
+    { label: t('resource_009'), value: 'animation' },
+    { label: t('resource_011'), value: 'font' },
   ];
   return (
     <View style={styles.wrap}>

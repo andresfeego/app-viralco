@@ -12,9 +12,9 @@ import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../providers/ToastProvider';
 import { t } from '../i18n';
 import { listAccountsApi } from '../services/api/accounts';
-import { listAccountLibraryApi, updateAccountLibraryFavoriteApi } from '../services/api/events';
+import { listAccountLibraryApi, listEventTypesApi, updateAccountLibraryFavoriteApi } from '../services/api/events';
 
-const INITIAL_FILTERS = { tab: 'favorites', search: '', type: '' };
+const INITIAL_FILTERS = { tab: 'favorites', search: '', type: '', eventType: '', motion: '' };
 const PAGE_SIZE = 60;
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -45,6 +45,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState('');
+  const [eventTypes, setEventTypes] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
@@ -74,8 +75,12 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
     setAccountError('');
     setAccountsLoading(true);
     try {
-      const payload = await listAccountsApi();
+      const [payload, eventTypesPayload] = await Promise.all([
+        listAccountsApi(),
+        listEventTypesApi().catch(() => ({ eventTypes: [] })),
+      ]);
       const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
+      setEventTypes(Array.isArray(eventTypesPayload?.eventTypes) ? eventTypesPayload.eventTypes : []);
       setAccounts(rows);
       setAccountId((current) => rows.some((account) => String(account.id) === String(current)) ? current : String(rows[0]?.id || ''));
     } catch (loadError) {
@@ -97,6 +102,8 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
         scope: 'global',
         favorite: filters.tab === 'favorites' ? true : '',
         type: filters.type,
+        eventType: filters.eventType,
+        motion: filters.type === 'sticker' ? filters.motion : '',
         q: debouncedSearch,
         page,
         pageSize: PAGE_SIZE,
@@ -114,7 +121,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
         setRefreshing(false);
       }
     }
-  }, [accountId, debouncedSearch, filters.tab, filters.type]);
+  }, [accountId, debouncedSearch, filters.eventType, filters.motion, filters.tab, filters.type]);
 
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
   useEffect(() => { setItems([]); setPreviewItem(null); loadLibrary(); }, [loadLibrary]);
@@ -158,7 +165,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
     loadLibrary({ page: pagination.page + 1, append: true });
   };
 
-  const hasActiveFilter = Boolean(filters.search || filters.type);
+  const hasActiveFilter = Boolean(filters.search || filters.type || filters.eventType || filters.motion);
   const header = (
     <View style={styles.header}>
       <ResourceFilters
@@ -168,7 +175,12 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
         search={filters.search}
         onSearchChange={(search) => setFilters((current) => ({ ...current, search }))}
         type={filters.type}
-        onTypeChange={(type) => setFilters((current) => ({ ...current, type }))}
+        onTypeChange={(type) => setFilters((current) => ({ ...current, type, motion: type === 'sticker' ? current.motion : '' }))}
+        eventTypes={eventTypes}
+        eventType={filters.eventType}
+        onEventTypeChange={(eventType) => setFilters((current) => ({ ...current, eventType }))}
+        motion={filters.motion}
+        onMotionChange={(motion) => setFilters((current) => ({ ...current, motion }))}
         horizontalTypes
         showTabs={false}
       />

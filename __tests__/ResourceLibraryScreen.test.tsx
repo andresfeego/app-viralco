@@ -29,6 +29,7 @@ jest.mock('../src/components/ResourcePreviewModal', () => {
 jest.mock('../src/services/api/accounts', () => ({ listAccountsApi: jest.fn() }));
 jest.mock('../src/services/api/events', () => ({
   listAccountLibraryApi: jest.fn(),
+  listEventTypesApi: jest.fn(),
   updateAccountLibraryFavoriteApi: jest.fn(),
 }));
 
@@ -41,7 +42,7 @@ import { ResourcePreviewModal } from '../src/components/ResourcePreviewModal';
 import { useAuth } from '../src/hooks/useAuth';
 import { useToast } from '../src/providers/ToastProvider';
 import { listAccountsApi } from '../src/services/api/accounts';
-import { listAccountLibraryApi, updateAccountLibraryFavoriteApi } from '../src/services/api/events';
+import { listAccountLibraryApi, listEventTypesApi, updateAccountLibraryFavoriteApi } from '../src/services/api/events';
 import { ResourceLibraryScreen } from '../src/screens/ResourceLibraryScreen';
 
 const mockedUseAuth = useAuth as unknown as jest.Mock;
@@ -86,6 +87,7 @@ beforeEach(() => {
   setRole('owner');
   mockedUseToast.mockReturnValue({ showToast, hideToast: jest.fn() });
   (listAccountsApi as jest.Mock).mockResolvedValue({ accounts: [account] });
+  (listEventTypesApi as jest.Mock).mockResolvedValue({ eventTypes: [{ id: '1', slug: 'boda', name: 'Boda' }] });
   (listAccountLibraryApi as jest.Mock).mockResolvedValue({ library: [libraryItem], pagination: { page: 1, pageSize: 60, total: 1, pageCount: 1 } });
   (updateAccountLibraryFavoriteApi as jest.Mock).mockResolvedValue({ library: { ...libraryItem, id: '70', isFavorite: true } });
 });

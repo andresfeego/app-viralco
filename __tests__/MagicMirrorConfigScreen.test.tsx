@@ -18,7 +18,7 @@ jest.mock('../src/providers/ToastProvider', () => ({ useToast: jest.fn() }));
 jest.mock('../src/services/api/events', () => ({
   createEventResourceApi: jest.fn(), deleteEventResourceApi: jest.fn(),
   getMagicMirrorConfigApi: jest.fn(), getPublishedMagicMirrorConfigApi: jest.fn(),
-  listAccountLibraryApi: jest.fn(), listEventResourcesApi: jest.fn(),
+  listAccountLibraryApi: jest.fn(), listEventResourcesApi: jest.fn(), listEventTypesApi: jest.fn(() => Promise.resolve({ eventTypes: [] })),
   publishMagicMirrorConfigApi: jest.fn(), saveMagicMirrorConfigApi: jest.fn(),
   updateAccountLibraryFavoriteApi: jest.fn(), uploadAccountLibraryFileApi: jest.fn(),
   validateMagicMirrorConfigApi: jest.fn(),

@@ -6,9 +6,9 @@ import { t } from '../i18n';
 import { ResourceCard } from './ResourceCard';
 import { ResourceFilters } from './ResourceFilters';
 
-const MIRROR_RESOURCE_TYPES = new Set(['template', 'frame', 'animation', 'gif_overlay', 'font', 'background', 'start_screen']);
+const MIRROR_RESOURCE_TYPES = new Set(['template', 'frame', 'sticker', 'animation', 'font', 'background']);
 
-export function ResourcePicker({ items, theme, canManage, loading, error, filters, onFiltersChange, selectedId, onSelect, onToggleFavorite, onRetry, pagination, onPageChange }) {
+export function ResourcePicker({ items, theme, canManage, loading, error, filters, eventTypes = [], onFiltersChange, selectedId, onSelect, onToggleFavorite, onRetry, pagination, onPageChange }) {
   return (
     <View style={styles.wrap}>
       <ResourceFilters
@@ -18,7 +18,12 @@ export function ResourcePicker({ items, theme, canManage, loading, error, filter
         search={filters.search}
         onSearchChange={(search) => onFiltersChange({ ...filters, search, page: 1 })}
         type={filters.type}
-        onTypeChange={(type) => onFiltersChange({ ...filters, type, page: 1 })}
+        onTypeChange={(type) => onFiltersChange({ ...filters, type, motion: type === 'sticker' ? filters.motion : '', page: 1 })}
+        eventTypes={eventTypes}
+        eventType={filters.eventType}
+        onEventTypeChange={(eventType) => onFiltersChange({ ...filters, eventType, page: 1 })}
+        motion={filters.motion}
+        onMotionChange={(motion) => onFiltersChange({ ...filters, motion, page: 1 })}
       />
       {loading ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('resource_022')}</Text> : null}
       {error ? (
@@ -27,7 +32,7 @@ export function ResourcePicker({ items, theme, canManage, loading, error, filter
           <AppButton label={t('resource_025')} onPress={onRetry} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
         </View>
       ) : null}
-      {!loading && !error && items.length === 0 ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{filters.search || filters.type || filters.tab === 'favorites' ? t('resource_024') : t('resource_023')}</Text> : null}
+      {!loading && !error && items.length === 0 ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{filters.search || filters.type || filters.eventType || filters.motion || filters.tab === 'favorites' ? t('resource_024') : t('resource_023')}</Text> : null}
       {items.map((item) => (
         <ResourceCard
           key={item.id}

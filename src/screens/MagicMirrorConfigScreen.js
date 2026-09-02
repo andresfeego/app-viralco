@@ -34,6 +34,7 @@ import {
   getMagicMirrorConfigApi,
   getPublishedMagicMirrorConfigApi,
   listAccountLibraryApi,
+  listEventTypesApi,
   listEventResourcesApi,
   publishMagicMirrorConfigApi,
   saveMagicMirrorConfigApi,
@@ -48,7 +49,7 @@ const SECTIONS = [
   { key: 'experience', labelKey: 'mirror_004' }, { key: 'capture', labelKey: 'mirror_005' },
   { key: 'operation', labelKey: 'mirror_006' }, { key: 'review', labelKey: 'mirror_007' },
 ];
-const RESOURCE_FIELDS = { template: 'templateResourceId', frame: 'frameResourceId', background: 'backgroundResourceId', font: 'fontResourceId', start_screen: 'startScreenResourceId' };
+const RESOURCE_FIELDS = { template: 'templateResourceId', frame: 'frameResourceId', background: 'backgroundResourceId', font: 'fontResourceId', sticker: 'gifOverlayResourceId' };
 const STATUS_KEYS = { clean: 'mirror_010', dirty: 'mirror_011', saving: 'mirror_012', saved: 'mirror_013', invalid: 'mirror_014', conflict: 'mirror_015', published: 'mirror_016', error: 'mirror_017' };
 const STATUS_FLAGS = { clean: 'info', dirty: 'warn', saving: 'info', saved: 'success', invalid: 'error', conflict: 'warn', published: 'success', error: 'error' };
 const MAX_STANDARD_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -103,7 +104,8 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
   const [library, setLibrary] = useState([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryError, setLibraryError] = useState('');
-  const [libraryFilters, setLibraryFilters] = useState({ tab: 'pool', search: '', type: '', page: 1 });
+  const [libraryFilters, setLibraryFilters] = useState({ tab: 'pool', search: '', type: '', eventType: '', motion: '', page: 1 });
+  const [eventTypes, setEventTypes] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 30, pageCount: 0, total: 0 });
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -120,6 +122,12 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
   useEffect(() => {
     onHeaderChange?.({ title: t('mirror_000'), subtitle: event?.name || '', iconName: 'wand-magic-sparkles', onBack, backLabel: t('mirror_001') });
   }, [event?.name, onBack, onHeaderChange]);
+
+  useEffect(() => {
+    listEventTypesApi()
+      .then((response) => setEventTypes(Array.isArray(response?.eventTypes) ? response.eventTypes : []))
+      .catch(() => setEventTypes([]));
+  }, []);
 
   const applyLoadedDraft = useCallback((draft, revision, nextStatus = 'clean') => {
     const normalized = normalizeMirrorConfig(draft);
@@ -316,14 +324,14 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
   const openResource = (purpose, stage = '') => {
     setResourceTarget({ purpose, field: RESOURCE_FIELDS[purpose] || '', stage });
     setSelectedAsset(null);
-    setLibraryFilters({ tab: 'pool', search: '', type: purpose, page: 1 });
+    setLibraryFilters({ tab: 'pool', search: '', type: purpose, eventType: '', motion: '', page: 1 });
   };
 
   const loadLibrary = useCallback(async () => {
     if (!resourceTarget || !accountId) return;
     setLibraryLoading(true); setLibraryError('');
     try {
-      const response = await listAccountLibraryApi(accountId, { scope: 'available', favorite: libraryFilters.tab === 'favorites' ? true : '', type: libraryFilters.type || resourceTarget.purpose, q: libraryFilters.search, page: libraryFilters.page, pageSize: 30 });
+      const response = await listAccountLibraryApi(accountId, { scope: 'available', favorite: libraryFilters.tab === 'favorites' ? true : '', type: libraryFilters.type || resourceTarget.purpose, eventType: libraryFilters.eventType, motion: libraryFilters.type === 'sticker' ? libraryFilters.motion : '', q: libraryFilters.search, page: libraryFilters.page, pageSize: 30 });
       setLibrary((response?.library || []).map(normalizeLibraryItem));
       setPagination(response?.pagination || { page: 1, pageCount: 0, total: 0, pageSize: 30 });
     } catch (error) { setLibraryError(error?.message || t('resource_028')); }
@@ -390,7 +398,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
       {uploadProgress ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('resource_042')} {uploadProgress}%</Text> : null}
       <ResourceUploadAction theme={theme} purpose={resourceTarget.purpose} onPurposeChange={(purpose) => openResource(purpose, purpose === 'animation' ? animationStage : '')} disabled={!canEdit || Boolean(uploadProgress)} onUpload={uploadResource} />
       <ResourceSelectionSummary item={selectedAsset} theme={theme} disabled={!selectedAsset || !canEdit} onClear={() => setSelectedAsset(null)} onConfirm={assignSelectedResource} />
-      <ResourcePicker items={library} theme={theme} canManage={canEdit} loading={libraryLoading} error={libraryError} filters={libraryFilters} onFiltersChange={setLibraryFilters} selectedId={selectedAsset?.id || ''} onSelect={setSelectedAsset} onToggleFavorite={toggleFavorite} onRetry={loadLibrary} pagination={pagination} onPageChange={(page) => setLibraryFilters((current) => ({ ...current, page }))} />
+      <ResourcePicker items={library} theme={theme} canManage={canEdit} loading={libraryLoading} error={libraryError} filters={libraryFilters} eventTypes={eventTypes} onFiltersChange={setLibraryFilters} selectedId={selectedAsset?.id || ''} onSelect={setSelectedAsset} onToggleFavorite={toggleFavorite} onRetry={loadLibrary} pagination={pagination} onPageChange={(page) => setLibraryFilters((current) => ({ ...current, page }))} />
       <AppButton label={t('account_028')} onPress={() => setResourceTarget(null)} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} />
     </SurfaceCard>
   ) : null;
@@ -441,7 +449,6 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
           <MirrorToggleRow label={t('mirror_081')} value={config.experience.virtualAssistantEnabled} onChange={(virtualAssistantEnabled) => mutate({ ...config, experience: { ...config.experience, virtualAssistantEnabled } })} theme={theme} disabled={!canEdit} />
           <SelectableChipGroup theme={theme} label={t('mirror_082')} options={[{ value: 'video-vertical', label: t('mirror_083') }, { value: 'minimal', label: t('mirror_084') }, { value: 'party', label: t('mirror_085') }]} value={config.experience.style} disabled={!canEdit} onChange={(value) => mutate({ ...config, experience: { ...config.experience, style: value || config.experience.style } })} />
         </SurfaceCard>
-        {resourceAction('start_screen', 'resource_044')}
         <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
           <SelectableChipGroup theme={theme} label={t('mirror_086')} options={MIRROR_ANIMATION_STAGES.map((stage) => ({ value: stage, label: t(`mirror_stage_${stage}`) }))} value={animationStage} onChange={(value) => setAnimationStage(value || animationStage)} />
           <MirrorToggleRow label={t('mirror_087')} value={Boolean(config.experience.randomByStage?.[animationStage])} onChange={(enabled) => mutate({ ...config, experience: { ...config.experience, randomByStage: { ...config.experience.randomByStage, [animationStage]: enabled } } })} theme={theme} disabled={!canEdit} />
