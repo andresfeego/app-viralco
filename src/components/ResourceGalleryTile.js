@@ -69,7 +69,7 @@ export function ResourceGalleryTile({ item, tileSize, theme, canManage, onPress,
       <View style={styles.favorite}>
         <IconTextButton
           theme={theme}
-          icon="star"
+          icon="heart"
           iconStyle={item.isFavorite ? 'solid' : 'regular'}
           variant="ghost"
           backgroundColor={theme.surface}
@@ -79,6 +79,7 @@ export function ResourceGalleryTile({ item, tileSize, theme, canManage, onPress,
           accessibilityLabel={item.isFavorite ? t('resource_047') : t('resource_046')}
           onPress={() => onToggleFavorite(item)}
           testID={`resource-gallery-favorite-${item.libraryAssetId}`}
+          style={styles.favoriteButton}
         />
       </View>
     </View>
@@ -86,13 +87,20 @@ export function ResourceGalleryTile({ item, tileSize, theme, canManage, onPress,
 }
 
 const styles = StyleSheet.create({
-  tile: { overflow: 'hidden', borderRadius: tokens.radius.sm },
+  tile: { overflow: 'hidden' },
   previewButton: { flex: 1 },
   image: { width: '100%', height: '100%' },
   fallback: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: tokens.spacing.xxs, padding: tokens.spacing.xs },
   fallbackText: { fontSize: tokens.typography.caption, fontWeight: '700', textAlign: 'center' },
   playOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   playBadge: { borderRadius: tokens.radius.pill, padding: tokens.spacing.xs },
-  typeBadge: { position: 'absolute', left: tokens.spacing.xxs, bottom: tokens.spacing.xxs },
+  typeBadge: { position: 'absolute', left: tokens.spacing.none, bottom: tokens.spacing.none },
   favorite: { position: 'absolute', right: tokens.spacing.xxs, top: tokens.spacing.xxs },
+  favoriteButton: {
+    width: tokens.spacing.xl,
+    height: tokens.spacing.xl,
+    minHeight: tokens.spacing.xl,
+    paddingVertical: tokens.spacing.none,
+    paddingHorizontal: tokens.spacing.none,
+  },
 });

@@ -25,7 +25,7 @@ export function ResourceTypeBadge({ type, theme, testID }) {
       accessible
       accessibilityRole="image"
       accessibilityLabel={t(definition.label)}
-      style={[styles.badge, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      style={[styles.badge, { backgroundColor: theme.surface }]}
     >
       <Icon name={definition.icon} iconStyle="solid" size={tokens.typography.caption} color={theme.primary} />
     </View>
@@ -36,8 +36,7 @@ const styles = StyleSheet.create({
   badge: {
     width: tokens.spacing.xl,
     height: tokens.spacing.xl,
-    borderRadius: tokens.radius.pill,
-    borderWidth: 1,
+    borderTopRightRadius: tokens.radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },

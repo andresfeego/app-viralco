@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image } from 'react-native';
+import { Image, StyleSheet } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -11,6 +11,7 @@ import { ResourcePreviewModal } from '../src/components/ResourcePreviewModal';
 import { ResourceTypeBadge } from '../src/components/ResourceTypeBadge';
 import { MediaPreview } from '../src/design-system/components/MediaPreview';
 import { getTheme } from '../src/design-system/theme';
+import { tokens } from '../src/design-system/tokens';
 
 const theme = getTheme('dark');
 const imageItem = {
@@ -46,6 +47,18 @@ test('renders a square accessible tile with favorite and preview actions', () =>
   });
   expect(renderer!.root.findByType(Image).props.source.uri).toBe('https://assets.test/card.webp');
   expect(renderer!.root.findByType(ResourceTypeBadge).props.type).toBe('frame');
+  const typeBadge = renderer!.root.findAllByProps({ testID: 'resource-type-50' }).at(-1)!;
+  const typeBadgeStyle = StyleSheet.flatten(typeBadge.props.style);
+  expect(typeBadgeStyle).toMatchObject({
+    width: tokens.spacing.xl,
+    height: tokens.spacing.xl,
+    borderTopRightRadius: tokens.radius.sm,
+    backgroundColor: theme.surface,
+  });
+  expect(typeBadgeStyle.borderRadius).toBeUndefined();
+  const favorite = renderer!.root.findByProps({ testID: 'resource-gallery-favorite-50' });
+  expect(favorite.props.icon).toBe('heart');
+  expect(favorite.props.style).toMatchObject({ width: tokens.spacing.xl, height: tokens.spacing.xl });
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'resource-gallery-item-50' }).props.onPress());
   expect(onPress).toHaveBeenCalledWith(imageItem);
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'resource-gallery-favorite-50' }).props.onPress());
