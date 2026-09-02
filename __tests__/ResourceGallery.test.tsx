@@ -8,7 +8,7 @@ jest.mock('react-native-video', () => 'Video');
 
 import { ResourceGalleryTile, resourceOriginalUri, resourceThumbnailUri } from '../src/components/ResourceGalleryTile';
 import { ResourcePreviewModal } from '../src/components/ResourcePreviewModal';
-import { ResourceTypeBadge } from '../src/components/ResourceTypeBadge';
+import { ResourceTypeBadge, resourceTypeDefinition } from '../src/components/ResourceTypeBadge';
 import { MediaPreview } from '../src/design-system/components/MediaPreview';
 import { getTheme } from '../src/design-system/theme';
 import { tokens } from '../src/design-system/tokens';
@@ -36,6 +36,16 @@ test('uses lightweight variants in the grid and originals in the preview', () =>
   expect(resourceThumbnailUri(imageItem)).toBe('https://assets.test/card.webp');
   expect(resourceThumbnailUri(videoItem)).toBe('https://assets.test/poster.webp');
   expect(resourceOriginalUri(videoItem)).toBe('https://assets.test/video.mp4');
+});
+
+test('maps each resource type and animated stickers to the approved icon', () => {
+  expect(resourceTypeDefinition('background', null)).toMatchObject({ icon: 'panorama', iconStyle: 'solid' });
+  expect(resourceTypeDefinition('frame', null)).toMatchObject({ icon: 'expand', iconStyle: 'solid' });
+  expect(resourceTypeDefinition('sticker', 'static')).toMatchObject({ icon: 'note-sticky', iconStyle: 'solid' });
+  expect(resourceTypeDefinition('sticker', 'animated')).toMatchObject({ icon: 'person-running', iconStyle: 'solid' });
+  expect(resourceTypeDefinition('template', null)).toMatchObject({ icon: 'delicious', iconStyle: 'brand' });
+  expect(resourceTypeDefinition('animation', null).icon).toBe('film');
+  expect(resourceTypeDefinition('font', null).icon).toBe('font');
 });
 
 test('renders a square accessible tile with favorite and preview actions', () => {

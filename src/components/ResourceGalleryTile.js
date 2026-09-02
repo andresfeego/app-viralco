@@ -64,7 +64,7 @@ export function ResourceGalleryTile({ item, tileSize, theme, canManage, onPress,
             </View>
           </View>
         ) : null}
-        <View pointerEvents="none" style={styles.typeBadge}><ResourceTypeBadge type={asset.type} theme={theme} testID={`resource-type-${item.libraryAssetId}`} /></View>
+        <View pointerEvents="none" style={styles.typeBadge}><ResourceTypeBadge type={asset.type} motionType={asset.motionType} theme={theme} testID={`resource-type-${item.libraryAssetId}`} /></View>
       </Pressable>
       <View style={styles.favorite}>
         <IconTextButton
