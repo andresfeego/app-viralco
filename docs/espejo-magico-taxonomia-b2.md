@@ -12,6 +12,8 @@ La pantalla conserva `Favoritos` y `Global` y presenta filtros independientes en
 
 Busqueda y filtros se conservan al cambiar de submenu. Cada cambio reinicia la paginacion; la grilla continua deduplicando por `libraryAssetId`.
 
+El filtro de evento es estricto: un tipo concreto muestra solo recursos asociados explicitamente. Los recursos universales aparecen en `Todos` y no se agregan automaticamente a cada resultado especifico.
+
 ## Componentes
 
 `ResourceTypeBadge` representa el tipo mediante un icono circular y mantiene el nombre completo como etiqueta accesible. `IconTextButton` admite colores de fondo, estado presionado e icono; sin texto usa ancho y alto iguales, radio circular y area tactil estable. La celda ya no envuelve el favorito en un contenedor con padding.
