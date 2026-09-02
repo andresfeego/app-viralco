@@ -50,14 +50,15 @@ test('renders a square accessible tile with favorite and preview actions', () =>
   const typeBadge = renderer!.root.findAllByProps({ testID: 'resource-type-50' }).at(-1)!;
   const typeBadgeStyle = StyleSheet.flatten(typeBadge.props.style);
   expect(typeBadgeStyle).toMatchObject({
-    width: tokens.spacing.xl,
-    height: tokens.spacing.xl,
+    width: tokens.spacing.lg,
+    height: tokens.spacing.lg,
     borderTopRightRadius: tokens.radius.sm,
     backgroundColor: theme.surface,
   });
   expect(typeBadgeStyle.borderRadius).toBeUndefined();
   const favorite = renderer!.root.findByProps({ testID: 'resource-gallery-favorite-50' });
   expect(favorite.props.icon).toBe('heart');
+  expect(favorite.props.iconSize).toBe(tokens.typography.body);
   expect(favorite.props.style).toMatchObject({ width: tokens.spacing.xl, height: tokens.spacing.xl });
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'resource-gallery-item-50' }).props.onPress());
   expect(onPress).toHaveBeenCalledWith(imageItem);

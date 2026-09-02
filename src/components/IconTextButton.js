@@ -17,6 +17,7 @@ export function IconTextButton({
   backgroundColor: customBackgroundColor,
   pressedBackgroundColor,
   iconColor,
+  iconSize = tokens.typography.caption,
   testID,
   style,
 }) {
@@ -28,7 +29,7 @@ export function IconTextButton({
   const borderColor = variant === 'filled' ? theme.buttonBg : theme.border;
   const contentColor = iconColor ?? (variant === 'filled' ? theme.buttonText : isGhost ? theme.primary : theme.textPrimary);
 
-  const iconNode = <Icon name={icon} iconStyle={iconStyle} size={tokens.typography.caption} color={contentColor} />;
+  const iconNode = <Icon name={icon} iconStyle={iconStyle} size={iconSize} color={contentColor} />;
   const textNode = label ? <Text style={[styles.label, { color: contentColor }]}>{label}</Text> : null;
 
   return (
@@ -83,11 +84,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: tokens.spacing.xs,
   },
   ghost: {
-    borderWidth: 0,
-    borderRadius: 0,
-    minHeight: 0,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
+    borderWidth: tokens.spacing.none,
+    borderRadius: tokens.spacing.none,
+    minHeight: tokens.spacing.none,
+    paddingVertical: tokens.spacing.none,
+    paddingHorizontal: tokens.spacing.none,
   },
   label: {
     fontSize: tokens.typography.caption,

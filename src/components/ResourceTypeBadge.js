@@ -34,8 +34,8 @@ export function ResourceTypeBadge({ type, theme, testID }) {
 
 const styles = StyleSheet.create({
   badge: {
-    width: tokens.spacing.xl,
-    height: tokens.spacing.xl,
+    width: tokens.spacing.lg,
+    height: tokens.spacing.lg,
     borderTopRightRadius: tokens.radius.sm,
     alignItems: 'center',
     justifyContent: 'center',

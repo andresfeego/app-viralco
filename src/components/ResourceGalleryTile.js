@@ -75,6 +75,7 @@ export function ResourceGalleryTile({ item, tileSize, theme, canManage, onPress,
           backgroundColor={theme.surface}
           pressedBackgroundColor={theme.background}
           iconColor={theme.primary}
+          iconSize={tokens.typography.body}
           disabled={!canManage}
           accessibilityLabel={item.isFavorite ? t('resource_047') : t('resource_046')}
           onPress={() => onToggleFavorite(item)}
