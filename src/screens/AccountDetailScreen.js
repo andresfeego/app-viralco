@@ -5,6 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { HelperText, TextInput as PaperTextInput } from 'react-native-paper';
 import { AccountLogoPicker } from '../components/AccountLogoPicker';
 import { AccountLogoPreview } from '../components/AccountLogoPreview';
+import { DestructiveConfirmationModal } from '../components/DestructiveConfirmationModal';
 import { AppButton } from '../design-system/components/AppButton';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { StatusBadge } from '../components/StatusBadge';
@@ -13,6 +14,7 @@ import { t } from '../i18n';
 import {
   addAccountMemberApi,
   createAccountLogoAssetApi,
+  deleteAccountApi,
   getAccountApi,
   getAccountMembersApi,
   removeAccountMemberApi,
@@ -69,7 +71,7 @@ function DetailRow({ label, value, theme }) {
   );
 }
 
-export function AccountDetailScreen({ accountId, initialAccount = null, onAccountUpdated = NOOP }) {
+export function AccountDetailScreen({ accountId, initialAccount = null, onAccountUpdated = NOOP, onAccountDeleted = NOOP }) {
   const { user, reloadMe } = useAuth();
   const { showToast } = useToast();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
@@ -82,6 +84,12 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
   const [editErrors, setEditErrors] = useState({});
   const [memberForm, setMemberForm] = useState({ userId: '', roleSlug: 'cliente' });
   const [memberErrors, setMemberErrors] = useState({});
+  const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
+  const isOwner = (user?.accounts || []).some((membership) => String(membership.account?.id) === String(accountId) && membership.status === 'active' && membership.role?.slug === 'owner');
+  const canDeleteAccount = Boolean(account && !account.isSystem && (isSuperAdmin || isOwner));
 
   const loadAccount = useCallback(async () => {
     if (!accountId) return;
@@ -254,6 +262,23 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
     }
   };
 
+  const removeAccount = async () => {
+    setDeleting(true);
+    setError('');
+    try {
+      const result = await deleteAccountApi(accountId, deleteConfirmation);
+      setDeleteModalVisible(false);
+      setDeleteConfirmation('');
+      await reloadMe();
+      showToast({ message: result?.archived ? t('account_081') : t('account_080'), type: 'success' });
+      onAccountDeleted(result);
+    } catch (err) {
+      const message = err?.message || t('account_082');
+      setError(message);
+      showToast({ message, type: 'error' });
+    } finally { setDeleting(false); }
+  };
+
   const renderFormInput = ({ testID, label, value, onChangeText, keyboardType = 'default', autoCapitalize = 'sentences', errorText = '' }) => (
     <View style={styles.inputGroup}>
       <PaperTextInput
@@ -310,6 +335,17 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
           <DetailRow label={t('account_073')} value={account?.subscription ? `${account.subscription.totalAmount ?? '-'} ${account.subscription.currency || ''}` : t('account_039')} theme={theme} />
           <DetailRow label={t('event_010')} value={account?.subscription?.statusLabel || account?.subscription?.status || t('account_039')} theme={theme} />
         </SurfaceCard>
+
+        {canDeleteAccount ? (
+          <AppButton
+            testID="account-delete-open"
+            label={t('account_077')}
+            onPress={() => setDeleteModalVisible(true)}
+            backgroundColor={theme.alert}
+            pressedColor={theme.alert}
+            textColor={theme.buttonText}
+          />
+        ) : null}
 
         <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
           <View style={styles.cardHeader}>
@@ -400,6 +436,22 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
           <ToastViewport theme={theme} topOffset={MODAL_TOAST_TOP_OFFSET} />
         </View>
       </Modal>
+      <DestructiveConfirmationModal
+        visible={isDeleteModalVisible}
+        theme={theme}
+        title={t('account_077')}
+        message={t('account_078')}
+        cancelLabel={t('common_cancel')}
+        confirmLabel={t('common_confirm')}
+        confirmationLabel={t('account_079')}
+        confirmationValue={deleteConfirmation}
+        expectedValue={account?.name || ''}
+        onChangeConfirmation={setDeleteConfirmation}
+        onCancel={() => { setDeleteModalVisible(false); setDeleteConfirmation(''); }}
+        onConfirm={removeAccount}
+        busy={deleting}
+        testID="account-delete"
+      />
     </View>
   );
 }

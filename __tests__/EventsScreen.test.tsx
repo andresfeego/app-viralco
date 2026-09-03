@@ -22,6 +22,7 @@ jest.mock('../src/services/api/accounts', () => ({ listAccountsApi: jest.fn() })
 jest.mock('../src/services/api/events', () => ({
   createAccountLibraryAssetApi: jest.fn(),
   createEventApi: jest.fn(),
+  deleteEventApi: jest.fn(),
   createEventResourceApi: jest.fn(),
   getEventDetailApi: jest.fn(),
   listAccountLibraryApi: jest.fn(),
@@ -41,7 +42,7 @@ jest.mock('../src/services/media/imagePicker', () => ({
 import { useAuth } from '../src/hooks/useAuth';
 import { useToast } from '../src/providers/ToastProvider';
 import { listAccountsApi } from '../src/services/api/accounts';
-import { createEventApi, getEventDetailApi, listEventModesApi, listEventsApi, listEventTypesApi } from '../src/services/api/events';
+import { createEventApi, deleteEventApi, getEventDetailApi, listEventModesApi, listEventsApi, listEventTypesApi } from '../src/services/api/events';
 import { EventListCard } from '../src/components/EventListCard';
 import { AccountRequiredEmptyState } from '../src/components/AccountRequiredEmptyState';
 import { HorizontalSubMenu } from '../src/components/HorizontalSubMenu';
@@ -51,6 +52,7 @@ const mockedUseAuth = useAuth as jest.Mock;
 const mockedUseToast = useToast as jest.Mock;
 const mockedListAccounts = listAccountsApi as jest.Mock;
 const mockedCreateEvent = createEventApi as jest.Mock;
+const mockedDeleteEvent = deleteEventApi as jest.Mock;
 const mockedGetEventDetail = getEventDetailApi as jest.Mock;
 const mockedListEvents = listEventsApi as jest.Mock;
 const mockedListEventTypes = listEventTypesApi as jest.Mock;
@@ -71,6 +73,7 @@ beforeEach(() => {
   mockedListEventTypes.mockResolvedValue({ types: [{ id: '1', slug: 'boda', name: 'Boda', isActive: true }] });
   mockedListModes.mockResolvedValue({ modes: [{ id: '1', slug: 'espejo', name: 'Espejo', isDefault: true }] });
   mockedListEvents.mockResolvedValue({ events: [] });
+  mockedDeleteEvent.mockResolvedValue({ deleted: true, archived: false, eventId: '10' });
 });
 
 afterEach(() => {
@@ -171,4 +174,21 @@ test('opens the mirror configurator from event detail', async () => {
   await ReactTestRenderer.act(async () => { await Promise.resolve(); await Promise.resolve(); });
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-configure-mirror' }).props.onPress());
   expect(onConfigureMirror).toHaveBeenCalledWith(expect.objectContaining({ event: expect.objectContaining({ id: '10' }), eventMode: expect.objectContaining({ id: '30' }), accountId: '1', canEdit: true }));
+});
+
+test('confirms and deletes an event from its detail', async () => {
+  const event = { id: '10', accountId: '1', name: 'Evento eliminable', status: 'draft', modes: [] };
+  mockedListAccounts.mockResolvedValue({ accounts: [{ id: '1', name: 'Cuenta Uno', slug: 'cuenta-uno' }] });
+  mockedListEvents.mockResolvedValue({ events: [event] });
+  mockedGetEventDetail.mockResolvedValue({ event });
+  const showToast = jest.fn();
+  mockedUseToast.mockReturnValue({ showToast, hideToast: jest.fn() });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<EventsScreen allowedSections={['list', 'detail']} />); });
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(EventListCard).props.onPress());
+  await ReactTestRenderer.act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-delete-open' }).props.onPress());
+  await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'event-delete-confirm' }).props.onPress());
+  expect(mockedDeleteEvent).toHaveBeenCalledWith('10');
+  expect(showToast).toHaveBeenCalledWith(expect.objectContaining({ message: 'Evento eliminado', type: 'success' }));
 });

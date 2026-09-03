@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { t } from '../i18n';
 import { AccountRequiredEmptyState } from '../components/AccountRequiredEmptyState';
 import { CompactAccountSelector } from '../components/CompactAccountSelector';
+import { DestructiveConfirmationModal } from '../components/DestructiveConfirmationModal';
 import { EventHeroHeader } from '../components/EventHeroHeader';
 import { EventListCard } from '../components/EventListCard';
 import { IconTextButton } from '../components/IconTextButton';
@@ -23,6 +24,7 @@ import { listAccountsApi } from '../services/api/accounts';
 import {
   createAccountLibraryAssetApi,
   createEventApi,
+  deleteEventApi,
   createEventResourceApi,
   createProcessedAccountImageAssetApi,
   getEventDetailApi,
@@ -146,6 +148,7 @@ export function EventsScreen({
   const [eventFormErrors, setEventFormErrors] = useState({});
   const [editEventVisible, setEditEventVisible] = useState(false);
   const [editModesVisible, setEditModesVisible] = useState(false);
+  const [deleteEventVisible, setDeleteEventVisible] = useState(false);
   const [visualMenuPurpose, setVisualMenuPurpose] = useState('');
   const [libraryForm, setLibraryForm] = useState({ name: '', purpose: 'overlay', key: '', fileUrl: '', mimeType: 'image/png', sizeBytes: '1' });
   const [resourceForm, setResourceForm] = useState({ libraryAssetId: '', purpose: 'overlay', placement: '', orderIndex: '0', isActive: true });
@@ -446,6 +449,31 @@ export function EventsScreen({
     finally { setSaving(false); }
   };
 
+  const onDeleteEvent = async () => {
+    if (!selectedEventId) return;
+    setSaving(true); clearMessages();
+    try {
+      const result = await deleteEventApi(selectedEventId);
+      setDeleteEventVisible(false);
+      if (result?.archived) {
+        const archivedEvent = normalizeEvent(result.event);
+        setSelectedEvent(archivedEvent);
+        setEvents((current) => current.map((event) => event.id === archivedEvent.id ? archivedEvent : event));
+        showToast({ message: t('event_123'), type: 'success' });
+      } else {
+        setSelectedEventId('');
+        setSelectedEvent(null);
+        setSection('list');
+        await loadEvents();
+        showToast({ message: t('event_122'), type: 'success' });
+      }
+    } catch (err) {
+      const message = err?.message || t('event_124');
+      setError(message);
+      showToast({ message, type: 'error' });
+    } finally { setSaving(false); }
+  };
+
   const selectAccount = (nextAccountId) => {
     setAccountId(String(nextAccountId || ''));
     setSelectedEventId('');
@@ -622,6 +650,16 @@ export function EventsScreen({
             </View>
           )) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
         </SurfaceCard>
+        {canEdit ? (
+          <AppButton
+            testID="event-delete-open"
+            label={t('event_120')}
+            onPress={() => setDeleteEventVisible(true)}
+            backgroundColor={theme.alert}
+            pressedColor={theme.alert}
+            textColor={theme.buttonText}
+          />
+        ) : null}
       </View>
     );
   };
@@ -749,6 +787,18 @@ export function EventsScreen({
       )}
       {renderEditEventModal()}
       {renderEditModesModal()}
+      <DestructiveConfirmationModal
+        visible={deleteEventVisible}
+        theme={theme}
+        title={t('event_120')}
+        message={t('event_121')}
+        cancelLabel={t('common_cancel')}
+        confirmLabel={t('common_confirm')}
+        onCancel={() => setDeleteEventVisible(false)}
+        onConfirm={onDeleteEvent}
+        busy={saving}
+        testID="event-delete"
+      />
     </View>
   );
 }

@@ -20,6 +20,7 @@ jest.mock('../src/services/api/accounts', () => ({
   addAccountMemberApi: jest.fn(),
   createAccountApi: jest.fn(),
   createAccountLogoAssetApi: jest.fn(),
+  deleteAccountApi: jest.fn(),
   getAccountApi: jest.fn(),
   getAccountMembersApi: jest.fn(),
   listAccountsApi: jest.fn(),
@@ -36,6 +37,7 @@ import {
   addAccountMemberApi,
   createAccountApi,
   createAccountLogoAssetApi,
+  deleteAccountApi,
   getAccountApi,
   getAccountMembersApi,
   listAccountsApi,
@@ -52,6 +54,7 @@ const mockedGetMembers = getAccountMembersApi as jest.Mock;
 const mockedAddMember = addAccountMemberApi as jest.Mock;
 const mockedCreateAccount = createAccountApi as jest.Mock;
 const mockedCreateLogoAsset = createAccountLogoAssetApi as jest.Mock;
+const mockedDeleteAccount = deleteAccountApi as jest.Mock;
 const mockedUpdateAccount = updateAccountApi as jest.Mock;
 const mockedUpdateMember = updateAccountMemberApi as jest.Mock;
 const mockedPickLogoImage = pickLogoImage as jest.Mock;
@@ -59,6 +62,7 @@ const mockedListEventModes = listEventModesApi as jest.Mock;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockedDeleteAccount.mockResolvedValue({ deleted: true, archived: false, accountId: '10' });
   mockedListEventModes.mockResolvedValue({
     modes: [
       { id: '1', slug: 'espejo', name: 'Espejo', description: 'Experiencia tipo espejo', priceAmount: 50, priceCurrency: 'USD', isDefault: true },
@@ -370,4 +374,40 @@ test('account detail uploads selected logo and assigns it to the account', async
     email: 'old@example.com',
     logoAssetId: '99',
   });
+});
+
+test('account owner must type the exact name before deleting the account', async () => {
+  const reloadMe = jest.fn().mockResolvedValue(undefined);
+  const onAccountDeleted = jest.fn();
+  mockedUseAuth.mockReturnValue({
+    user: { themeMode: 'dark', globalRoles: [], accounts: [{ account: { id: '10' }, status: 'active', role: { slug: 'owner' } }] },
+    reloadMe,
+  });
+  mockedGetAccount.mockResolvedValue({ account: { id: '10', name: 'ViralCo', slug: 'viralco', status: 'active', isSystem: false } });
+  mockedGetMembers.mockResolvedValue({ members: [] });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<AccountDetailScreen accountId="10" onAccountDeleted={onAccountDeleted} />);
+  });
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'account-delete-open' }).props.onPress());
+  expect(renderer!.root.findByProps({ testID: 'account-delete-confirm' }).props.disabled).toBe(true);
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'account-delete-input' }).props.onChangeText('ViralCo'));
+  await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'account-delete-confirm' }).props.onPress());
+
+  expect(mockedDeleteAccount).toHaveBeenCalledWith('10', 'ViralCo');
+  expect(reloadMe).toHaveBeenCalled();
+  expect(onAccountDeleted).toHaveBeenCalledWith(expect.objectContaining({ deleted: true }));
+});
+
+test('system account never exposes the delete action', async () => {
+  mockedUseAuth.mockReturnValue({
+    user: { themeMode: 'light', globalRoles: [{ slug: 'super_admin' }], accounts: [] },
+    reloadMe: jest.fn().mockResolvedValue(undefined),
+  });
+  mockedGetAccount.mockResolvedValue({ account: { id: '10', name: 'ViralCo Platform', slug: 'viralco_platform', status: 'active', isSystem: true } });
+  mockedGetMembers.mockResolvedValue({ members: [] });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<AccountDetailScreen accountId="10" />); });
+  expect(renderer!.root.findAllByProps({ testID: 'account-delete-open' })).toHaveLength(0);
 });

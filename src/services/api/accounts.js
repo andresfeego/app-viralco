@@ -3,6 +3,7 @@ import { apiRequest } from './http';
 export const listAccountsApi = () => apiRequest('/api/accounts', { method: 'GET' });
 export const getAccountApi = (accountId) => apiRequest(`/api/accounts/${accountId}`, { method: 'GET' });
 export const updateAccountApi = (accountId, input) => apiRequest(`/api/accounts/${accountId}`, { method: 'PATCH', body: JSON.stringify(input) });
+export const deleteAccountApi = (accountId, confirmationName) => apiRequest(`/api/accounts/${accountId}`, { method: 'DELETE', body: JSON.stringify({ confirmationName }) });
 export const prepareAccountLibraryUploadApi = (accountId, input) => apiRequest(`/api/accounts/${accountId}/library/uploads`, { method: 'POST', body: JSON.stringify(input) });
 export const createAccountLibraryAssetApi = (accountId, input) => apiRequest(`/api/accounts/${accountId}/library/assets`, { method: 'POST', body: JSON.stringify(input) });
 export const getAccountMembersApi = (accountId) => apiRequest(`/api/accounts/${accountId}/members`, { method: 'GET' });

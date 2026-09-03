@@ -147,6 +147,7 @@ export function MainFlow() {
             accountId={accountRoute.account?.id}
             initialAccount={accountRoute.account}
             onAccountUpdated={openAccountDetail}
+            onAccountDeleted={closeAccountDetail}
           />
         ) : null}
         {selectedKey === 'eventos' && eventRoute.name !== 'mirror-config' ? (

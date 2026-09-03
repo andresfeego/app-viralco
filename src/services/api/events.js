@@ -24,6 +24,10 @@ export function updateEventApi(eventId, input) {
   return apiRequest(`/api/events/${eventId}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
 
+export function deleteEventApi(eventId) {
+  return apiRequest(`/api/events/${eventId}`, { method: 'DELETE' });
+}
+
 export function updateEventBrandingApi(eventId, input) {
   return apiRequest(`/api/events/${eventId}/branding`, { method: 'PATCH', body: JSON.stringify(input) });
 }
