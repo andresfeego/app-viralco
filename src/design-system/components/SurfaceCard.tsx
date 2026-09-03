@@ -61,7 +61,8 @@ const styles = StyleSheet.create({
   },
   gradientBorder: {
     borderRadius: tokens.radius.md,
-    padding: tokens.border.thin,
+    padding: tokens.border.medium,
+    overflow: 'hidden',
   },
   gradientCard: {
     borderRadius: tokens.radius.md,

@@ -143,6 +143,7 @@ export const tokens = {
   },
   border: {
     thin: 1,
+    medium: 2,
   },
   typography: {
     hero: 32,
