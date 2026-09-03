@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AccountLogoPreview } from './AccountLogoPreview';
 import { AppButton } from '../design-system/components/AppButton';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
@@ -20,6 +21,7 @@ function accountLogoPreviewUrl(account) {
 }
 
 export function CompactAccountSelector({ accounts, value, onChange, theme, roleLabel = '' }) {
+  const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const selected = useMemo(
     () => (accounts || []).find((account) => String(account.id) === String(value)),
@@ -48,8 +50,8 @@ export function CompactAccountSelector({ accounts, value, onChange, theme, roleL
         />
       </View>
       <Modal visible={visible} transparent animationType="slide" onRequestClose={() => setVisible(false)}>
-        <View style={styles.overlay}>
-          <View style={[styles.modal, { backgroundColor: theme.background, borderColor: theme.border }]}>
+        <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.overlay}>
+          <View style={[styles.modal, { backgroundColor: theme.background, borderColor: theme.border, paddingTop: insets.top + tokens.spacing.xl }]}>
             <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>{t('event_096')}</Text>
             <ScrollView contentContainerStyle={[styles.list, styles.editModalList]}>
               {(accounts || []).map((account) => {
@@ -84,7 +86,7 @@ export function CompactAccountSelector({ accounts, value, onChange, theme, roleL
               textColor={theme.textPrimary}
             />
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
     </>
   );

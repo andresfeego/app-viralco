@@ -148,6 +148,7 @@ export function EventsScreen({
   const [ok, setOk] = useState('');
   const [eventForm, setEventForm] = useState(EMPTY_EVENT_FORM);
   const [eventFormErrors, setEventFormErrors] = useState({});
+  const [eventStatus, setEventStatus] = useState('');
   const [createEventVisible, setCreateEventVisible] = useState(initialSection === 'create' && normalizedSections.includes('create'));
   const [editEventVisible, setEditEventVisible] = useState(false);
   const [editModesVisible, setEditModesVisible] = useState(false);
@@ -166,11 +167,16 @@ export function EventsScreen({
   );
   const canCreateEvent = normalizedSections.includes('create');
 
-  const stats = useMemo(() => ({
-    active: events.filter((event) => event.status === 'active').length,
-    draft: events.filter((event) => event.status === 'draft').length,
-    archived: events.filter((event) => event.status === 'archived').length,
-  }), [events]);
+  const filteredEvents = useMemo(
+    () => (eventStatus ? events.filter((event) => event.status === eventStatus) : events),
+    [eventStatus, events]
+  );
+  const eventStatusOptions = useMemo(() => [
+    { label: t('resource_006'), value: '' },
+    { label: t('event_125'), value: 'active' },
+    { label: t('event_126'), value: 'draft' },
+    { label: t('event_127'), value: 'archived' },
+  ], []);
 
   const clearMessages = () => { setError(''); setOk(''); };
 
@@ -580,7 +586,7 @@ export function EventsScreen({
             {
               backgroundColor: theme.background,
               borderColor: theme.border,
-              paddingTop: insets.top + tokens.spacing.md,
+              paddingTop: insets.top + tokens.spacing.xl,
             },
           ]}
         >
@@ -656,8 +662,8 @@ export function EventsScreen({
 
   const renderEditEventModal = () => (
     <Modal visible={editEventVisible} animationType="slide" transparent onRequestClose={() => setEditEventVisible(false)}>
-      <SafeAreaView edges={['top']} style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+      <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border, paddingTop: insets.top + tokens.spacing.xl }]}>
           <ScrollView contentContainerStyle={[styles.modalList, styles.editModalList]}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_117')}</Text>
             {renderEventTypePicker()}
@@ -685,8 +691,8 @@ export function EventsScreen({
 
   const renderEditModesModal = () => (
     <Modal visible={editModesVisible} animationType="slide" transparent onRequestClose={() => setEditModesVisible(false)}>
-      <SafeAreaView edges={['top']} style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+      <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border, paddingTop: insets.top + tokens.spacing.xl }]}>
           <ScrollView contentContainerStyle={styles.modalList}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_118')}</Text>
             <SelectableChipGroup
@@ -800,7 +806,6 @@ export function EventsScreen({
 
         {section === 'list' ? (
           <View style={styles.sectionWrap}>
-            {showKpi ? <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}><View style={styles.kpiRow}><Text style={[styles.kpiText, { color: theme.textPrimary }]}>Activos {stats.active}</Text><Text style={[styles.kpiText, { color: theme.textPrimary }]}>Draft {stats.draft}</Text><Text style={[styles.kpiText, { color: theme.textPrimary }]}>Archivados {stats.archived}</Text></View></SurfaceCard> : null}
             {canCreateEvent ? (
               <AppButton
                 testID="event-create-open"
@@ -809,10 +814,22 @@ export function EventsScreen({
                 backgroundColor={theme.buttonBg}
                 pressedColor={theme.buttonBgPressed}
                 textColor={theme.buttonText}
+                style={styles.compactCreateButton}
               />
             ) : null}
-            {events.length === 0 ? <Text style={{ color: theme.textSecondary }}>{t('event_022')}</Text> : null}
-            <FlatList data={events} keyExtractor={(item) => item.id} scrollEnabled={false} contentContainerStyle={styles.listContent} renderItem={({ item }) => <EventListCard item={item} selected={item.id === selectedEventId} theme={theme} onPress={() => { setSelectedEventId(item.id); setSelectedEvent(item); setSection('detail'); }} />} />
+            {showKpi ? (
+              <SelectableChipGroup
+                testID="event-status-filter"
+                theme={theme}
+                label={t('event_010')}
+                options={eventStatusOptions}
+                value={eventStatus}
+                onChange={setEventStatus}
+                horizontal
+              />
+            ) : null}
+            {filteredEvents.length === 0 ? <Text style={{ color: theme.textSecondary }}>{events.length === 0 ? t('event_022') : t('event_128')}</Text> : null}
+            <FlatList data={filteredEvents} keyExtractor={(item) => item.id} scrollEnabled={false} contentContainerStyle={styles.listContent} renderItem={({ item }) => <EventListCard item={item} selected={item.id === selectedEventId} theme={theme} onPress={() => { setSelectedEventId(item.id); setSelectedEvent(item); setSection('detail'); }} />} />
           </View>
         ) : null}
 
@@ -905,14 +922,13 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { padding: tokens.spacing.md, gap: tokens.spacing.md },
   sectionWrap: { gap: tokens.spacing.sm },
+  compactCreateButton: { alignSelf: 'flex-start', minWidth: tokens.spacing.none },
   sectionTitle: { fontSize: tokens.typography.heading, fontWeight: '700' },
   fieldLabel: { fontSize: tokens.typography.caption, fontWeight: '700' },
   pickerWrap: { borderWidth: 1, borderRadius: tokens.radius.sm, overflow: 'hidden' },
   helper: { fontSize: tokens.typography.caption },
   feedback: { fontSize: tokens.typography.caption, fontWeight: '700' },
   listContent: { gap: tokens.spacing.sm },
-  kpiRow: { flexDirection: 'row', justifyContent: 'space-between', gap: tokens.spacing.xs },
-  kpiText: { fontSize: tokens.typography.caption, fontWeight: '700' },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   cardTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
   cardMeta: { fontSize: tokens.typography.caption },

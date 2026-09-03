@@ -44,6 +44,7 @@ import {
   validateMagicMirrorConfigApi,
 } from '../src/services/api/events';
 import { MagicMirrorConfigScreen } from '../src/screens/MagicMirrorConfigScreen';
+import { tokens } from '../src/design-system/tokens';
 
 const account = { id: '10', name: 'Cuenta' };
 const event = { id: '20', accountId: '10', name: 'Boda', eventDate: '2026-09-01' };
@@ -118,7 +119,7 @@ test('starts in design without an event tab and opens the transversal preview mo
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'mirror-preview-open' }).props.onPress());
 
   expect(renderer!.root.findByProps({ testID: 'mirror-preview-modal' })).toBeTruthy();
-  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'mirror-preview-header' }).props.style).paddingTop).toBe(63);
+  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'mirror-preview-header' }).props.style).paddingTop).toBe(safeAreaMetrics.insets.top + tokens.spacing.xl);
   const text = renderer!.root.findAllByType(Text).map((node) => node.props.children).flat(Infinity).join(' ');
   expect(text).toContain('Asi quedaria');
   expect(text).toContain('Dimensiones');

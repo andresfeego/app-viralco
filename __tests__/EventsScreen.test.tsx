@@ -52,6 +52,7 @@ import { listAccountsApi } from '../src/services/api/accounts';
 import { createEventApi, deleteEventApi, getEventDetailApi, listEventModesApi, listEventsApi, listEventTypesApi } from '../src/services/api/events';
 import { EventListCard } from '../src/components/EventListCard';
 import { AccountRequiredEmptyState } from '../src/components/AccountRequiredEmptyState';
+import { SelectableChipGroup } from '../src/components/SelectableChipGroup';
 import { AppButton } from '../src/design-system/components/AppButton';
 import { EventsScreen } from '../src/screens/EventsScreen';
 
@@ -147,6 +148,35 @@ test('events list shows account switcher when user has multiple accounts', async
   ReactTestRenderer.act(() => {
     renderer!.unmount();
   });
+});
+
+test('filters the event list by status', async () => {
+  mockedListAccounts.mockResolvedValue({ accounts: [{ id: '1', name: 'Cuenta Uno', slug: 'cuenta-uno' }] });
+  mockedListEvents.mockResolvedValue({
+    events: [
+      { id: '10', name: 'Evento activo', status: 'active' },
+      { id: '11', name: 'Evento borrador', status: 'draft' },
+      { id: '12', name: 'Evento archivado', status: 'archived' },
+    ],
+  });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<EventsScreen allowedSections={['list', 'create']} />);
+  });
+
+  expect(renderer!.root.findAllByType(EventListCard)).toHaveLength(3);
+  const statusFilter = renderer!.root
+    .findAllByType(SelectableChipGroup)
+    .find((node) => node.props.testID === 'event-status-filter');
+  expect(statusFilter?.props.options.map((option: any) => option.value)).toEqual(['', 'active', 'draft', 'archived']);
+
+  ReactTestRenderer.act(() => {
+    statusFilter!.props.onChange('draft');
+  });
+
+  expect(renderer!.root.findAllByType(EventListCard)).toHaveLength(1);
+  expect(renderer!.root.findByType(EventListCard).props.item.id).toBe('11');
 });
 
 test('event creation uses the selected account even when selector is hidden', async () => {

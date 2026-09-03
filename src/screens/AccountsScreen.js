@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AccountLogoPicker } from '../components/AccountLogoPicker';
 import { AccountLogoPreview } from '../components/AccountLogoPreview';
 import { PaperFormInput } from '../components/PaperFormInput';
@@ -56,6 +57,7 @@ function isNumericId(value) {
 export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = false, openCreateRequest = 0 }) {
   const { user, reloadMe } = useAuth();
   const { showToast } = useToast();
+  const insets = useSafeAreaInsets();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
   const [accounts, setAccounts] = useState([]);
@@ -236,10 +238,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: theme.textPrimary }]}>{t('account_000')}</Text>
-          <AppButton testID="account-create-open" label={t('account_024')} onPress={() => setCreateModalVisible(true)} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.headerButton} />
-        </View>
+        <AppButton testID="account-create-open" label={t('account_024')} onPress={() => setCreateModalVisible(true)} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.compactCreateButton} />
         {error ? <Text style={[styles.errorText, { color: theme.alert }]}>{error}</Text> : null}
 
         {accounts.length === 0 ? (
@@ -269,9 +268,9 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
       </ScrollView>
 
       <Modal visible={isCreateModalVisible} animationType="slide" transparent onRequestClose={closeCreateModal}>
-        <View style={styles.modalOverlay}>
+        <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
-            <ScrollView contentContainerStyle={styles.modalContent}>
+            <ScrollView contentContainerStyle={[styles.modalContent, { paddingTop: insets.top + tokens.spacing.xl }]}>
               <Text style={[styles.title, { color: theme.textPrimary }]}>{isSuperAdmin ? t('account_010') : t('account_024')}</Text>
               <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('account_026')}</Text>
               {error ? <Text style={[styles.errorText, { color: theme.alert }]}>{error}</Text> : null}
@@ -298,7 +297,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
             </ScrollView>
           </View>
           <ToastViewport theme={theme} topOffset={MODAL_TOAST_TOP_OFFSET} />
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );
@@ -308,8 +307,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, width: '100%' },
   container: { flex: 1, width: '100%' },
   content: { flexGrow: 1, gap: tokens.spacing.sm, padding: tokens.spacing.sm, paddingBottom: tokens.spacing.xl },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
-  headerButton: { minWidth: 0 },
+  compactCreateButton: { alignSelf: 'flex-start', minWidth: tokens.spacing.none },
   title: { fontSize: tokens.typography.heading, fontWeight: '700' },
   pressableCard: { width: '100%' },
   accountCardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
