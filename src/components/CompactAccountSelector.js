@@ -51,7 +51,7 @@ export function CompactAccountSelector({ accounts, value, onChange, theme, roleL
       </View>
       <Modal visible={visible} transparent animationType="slide" onRequestClose={() => setVisible(false)}>
         <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.overlay}>
-          <View style={[styles.modal, { backgroundColor: theme.background, borderColor: theme.border, paddingTop: insets.top + tokens.spacing.xl }]}>
+          <View style={[styles.modal, { backgroundColor: theme.background, borderColor: theme.border, marginTop: Math.max(tokens.spacing.xl * 2, insets.top + tokens.spacing.xs) }]}>
             <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>{t('event_096')}</Text>
             <ScrollView contentContainerStyle={[styles.list, styles.editModalList]}>
               {(accounts || []).map((account) => {
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
   helper: { fontSize: tokens.typography.caption },
   changeButton: { minWidth: 0, paddingRight: tokens.spacing.md },
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  modal: { flex: 1, marginTop: tokens.spacing.xl, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg, padding: tokens.spacing.md, gap: tokens.spacing.sm },
+  modal: { flex: 1, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg, padding: tokens.spacing.md, gap: tokens.spacing.sm },
   modalTitle: { fontSize: tokens.typography.heading, fontWeight: '700' },
   list: { gap: tokens.spacing.sm, paddingBottom: tokens.spacing.md },
   editModalList: { paddingTop: tokens.spacing.lg },

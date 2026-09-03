@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
@@ -54,6 +55,7 @@ import { EventListCard } from '../src/components/EventListCard';
 import { AccountRequiredEmptyState } from '../src/components/AccountRequiredEmptyState';
 import { SelectableChipGroup } from '../src/components/SelectableChipGroup';
 import { AppButton } from '../src/design-system/components/AppButton';
+import { tokens } from '../src/design-system/tokens';
 import { EventsScreen } from '../src/screens/EventsScreen';
 
 const mockedUseAuth = useAuth as jest.Mock;
@@ -126,6 +128,7 @@ test('event creation opens in a modal and shows the account-required state when 
     createButton!.props.onPress();
   });
 
+  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'event-create-modal-card' }).props.style).marginTop).toBe(tokens.spacing.xl * 2);
   expect(renderer!.root.findAllByType(AccountRequiredEmptyState)).toHaveLength(1);
   ReactTestRenderer.act(() => renderer!.root.findByType(AccountRequiredEmptyState).props.onCreateAccount());
   expect(onCreateAccount).toHaveBeenCalledTimes(1);

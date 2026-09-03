@@ -581,12 +581,13 @@ export function EventsScreen({
     >
       <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.modalOverlay}>
         <View
+          testID="event-create-modal-card"
           style={[
             styles.modalCard,
             {
               backgroundColor: theme.background,
               borderColor: theme.border,
-              paddingTop: insets.top + tokens.spacing.xl,
+              marginTop: Math.max(tokens.spacing.xl * 2, insets.top + tokens.spacing.xs),
             },
           ]}
         >
@@ -663,7 +664,7 @@ export function EventsScreen({
   const renderEditEventModal = () => (
     <Modal visible={editEventVisible} animationType="slide" transparent onRequestClose={() => setEditEventVisible(false)}>
       <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border, paddingTop: insets.top + tokens.spacing.xl }]}>
+        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border, marginTop: Math.max(tokens.spacing.xl * 2, insets.top + tokens.spacing.xs) }]}>
           <ScrollView contentContainerStyle={[styles.modalList, styles.editModalList]}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_117')}</Text>
             {renderEventTypePicker()}
@@ -692,7 +693,7 @@ export function EventsScreen({
   const renderEditModesModal = () => (
     <Modal visible={editModesVisible} animationType="slide" transparent onRequestClose={() => setEditModesVisible(false)}>
       <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border, paddingTop: insets.top + tokens.spacing.xl }]}>
+        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border, marginTop: Math.max(tokens.spacing.xl * 2, insets.top + tokens.spacing.xs) }]}>
           <ScrollView contentContainerStyle={styles.modalList}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_118')}</Text>
             <SelectableChipGroup
@@ -922,7 +923,7 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { padding: tokens.spacing.md, gap: tokens.spacing.md },
   sectionWrap: { gap: tokens.spacing.sm },
-  compactCreateButton: { alignSelf: 'flex-start', minWidth: tokens.spacing.none },
+  compactCreateButton: { alignSelf: 'flex-end', minWidth: tokens.spacing.none },
   sectionTitle: { fontSize: tokens.typography.heading, fontWeight: '700' },
   fieldLabel: { fontSize: tokens.typography.caption, fontWeight: '700' },
   pickerWrap: { borderWidth: 1, borderRadius: tokens.radius.sm, overflow: 'hidden' },
@@ -939,7 +940,7 @@ const styles = StyleSheet.create({
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   smallButton: { flex: 1 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalCard: { flex: 1, marginTop: tokens.spacing.xl, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg, padding: tokens.spacing.md, gap: tokens.spacing.sm },
+  modalCard: { flex: 1, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg, padding: tokens.spacing.md, gap: tokens.spacing.sm },
   modalList: { gap: tokens.spacing.sm, paddingBottom: tokens.spacing.md },
   editModalList: { paddingTop: tokens.spacing.lg },
 });

@@ -119,7 +119,7 @@ test('starts in design without an event tab and opens the transversal preview mo
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'mirror-preview-open' }).props.onPress());
 
   expect(renderer!.root.findByProps({ testID: 'mirror-preview-modal' })).toBeTruthy();
-  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'mirror-preview-header' }).props.style).paddingTop).toBe(safeAreaMetrics.insets.top + tokens.spacing.xl);
+  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'mirror-preview-header' }).props.style).paddingTop).toBe(safeAreaMetrics.insets.top + tokens.spacing.md);
   const text = renderer!.root.findAllByType(Text).map((node) => node.props.children).flat(Infinity).join(' ');
   expect(text).toContain('Asi quedaria');
   expect(text).toContain('Dimensiones');

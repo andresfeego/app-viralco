@@ -25,7 +25,7 @@ export function MirrorPreviewModal({ visible, config, theme, resourcesById = {},
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView edges={['left', 'right', 'bottom']} testID="mirror-preview-modal" accessibilityViewIsModal style={[styles.safeArea, { backgroundColor: theme.background }]}>
-        <View testID="mirror-preview-header" style={[styles.header, { borderBottomColor: theme.border, paddingTop: insets.top + tokens.spacing.xl }]}>
+        <View testID="mirror-preview-header" style={[styles.header, { borderBottomColor: theme.border, paddingTop: insets.top + tokens.spacing.md }]}>
           <Text style={[styles.title, { color: theme.textPrimary }]}>{t('mirror_030')}</Text>
           <IconTextButton
             testID="mirror-preview-close"

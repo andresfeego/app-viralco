@@ -21,7 +21,7 @@ export function ResourcePreviewModal({ item, theme, canManage, onClose, onToggle
   return (
     <Modal visible={Boolean(item)} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView edges={['left', 'right', 'bottom']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
-        <View style={[styles.header, { borderBottomColor: theme.border, paddingTop: insets.top + tokens.spacing.xl }]}>
+        <View style={[styles.header, { borderBottomColor: theme.border, paddingTop: insets.top + tokens.spacing.md }]}>
           <Text numberOfLines={1} style={[styles.title, { color: theme.textPrimary }]}>{name}</Text>
           <AppButton label={t('resource_048')} onPress={onClose} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} style={styles.closeButton} />
         </View>
