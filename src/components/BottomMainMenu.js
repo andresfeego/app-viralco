@@ -8,7 +8,7 @@ export function BottomMainMenu({ items, selectedKey, onSelect, theme }) {
     <View style={[styles.wrap, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
       {items.map((item) => {
         const active = item.key === selectedKey;
-        const color = active ? theme.secondary : theme.textSecondary;
+        const color = active ? theme.primary : theme.textSecondary;
         return (
           <Pressable key={item.key} style={styles.item} onPress={() => onSelect(item.key)}>
             <Icon name={item.iconName} iconStyle="solid" size={19} color={color} />
