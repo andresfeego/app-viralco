@@ -23,6 +23,7 @@ test('exposes the three 45 degree brand gradients in both themes', () => {
     primaryToSecondary: {
       angle: 45,
       angleCenter: { x: 0.5, y: 0.5 },
+      locations: [0.35, 0.65],
       start: { x: 0, y: 1 },
       end: { x: 1, y: 0 },
       colors: [tokens.colors.primary, tokens.colors.secondary],
@@ -30,6 +31,7 @@ test('exposes the three 45 degree brand gradients in both themes', () => {
     primaryToTertiary: {
       angle: 45,
       angleCenter: { x: 0.5, y: 0.5 },
+      locations: [0.35, 0.65],
       start: { x: 0, y: 1 },
       end: { x: 1, y: 0 },
       colors: [tokens.colors.primary, tokens.colors.tertiary],
@@ -37,6 +39,7 @@ test('exposes the three 45 degree brand gradients in both themes', () => {
     secondaryToPrimary: {
       angle: 45,
       angleCenter: { x: 0.5, y: 0.5 },
+      locations: [0.35, 0.65],
       start: { x: 0, y: 1 },
       end: { x: 1, y: 0 },
       colors: [tokens.colors.secondary, tokens.colors.primary],

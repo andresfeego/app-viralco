@@ -13,6 +13,7 @@ interface AppButtonGradient {
   colors: readonly (string | number)[];
   angle?: number;
   angleCenter?: { readonly x: number; readonly y: number };
+  locations?: readonly number[];
   start: { readonly x: number; readonly y: number };
   end: { readonly x: number; readonly y: number };
 }
@@ -66,6 +67,7 @@ export function AppButton({
               useAngle={typeof gradient.angle === 'number'}
               angle={gradient.angle}
               angleCenter={gradient.angleCenter}
+              locations={gradient.locations ? [...gradient.locations] : undefined}
               start={gradient.start}
               end={gradient.end}
               style={StyleSheet.absoluteFill}

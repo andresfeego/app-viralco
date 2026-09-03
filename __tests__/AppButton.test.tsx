@@ -29,4 +29,5 @@ test('renders the requested token gradient', () => {
   expect(nativeGradient.props.useAngle).toBe(true);
   expect(nativeGradient.props.angle).toBe(45);
   expect(nativeGradient.props.angleCenter).toEqual({ x: 0.5, y: 0.5 });
+  expect(nativeGradient.props.locations).toEqual([0.35, 0.65]);
 });
