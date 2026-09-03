@@ -7,6 +7,7 @@ export function getTheme(mode: ThemeMode) {
   return {
     primary: tokens.colors.primary,
     secondary: tokens.colors.secondary,
+    tertiary: tokens.colors.tertiary,
     alert: tokens.colors.alert,
     background: isDark ? tokens.colors.backgroundDark : tokens.colors.backgroundLight,
     surface: isDark ? tokens.colors.surfaceDark : tokens.colors.surfaceLight,
