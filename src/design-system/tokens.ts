@@ -1,8 +1,18 @@
+const brandColors = {
+  primary: '#1d4ed8',
+  secondary: '#C303FD',
+  tertiary: '#03FAFF',
+} as const;
+
+const gradient45 = {
+  angle: 45,
+  start: { x: 0, y: 1 },
+  end: { x: 1, y: 0 },
+} as const;
+
 export const tokens = {
   colors: {
-    primary: '#1d4ed8',
-    secondary: '#C303FD',
-    tertiary: '#03FAFF',
+    ...brandColors,
     alert: '#dc2626',
     blue: {
       50: '#edf4ff',
@@ -99,6 +109,20 @@ export const tokens = {
     actionPrimary: '#1d4ed8',
     actionPrimaryPressed: '#1d4ed8',
     actionPrimaryText: '#ffffff',
+  },
+  gradients: {
+    primaryToSecondary: {
+      ...gradient45,
+      colors: [brandColors.primary, brandColors.secondary],
+    },
+    primaryToTertiary: {
+      ...gradient45,
+      colors: [brandColors.primary, brandColors.tertiary],
+    },
+    secondaryToPrimary: {
+      ...gradient45,
+      colors: [brandColors.secondary, brandColors.primary],
+    },
   },
   spacing: {
     none: 0,
