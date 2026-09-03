@@ -16,8 +16,7 @@ import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
 import { ENABLE_DEBUG_LOGIN_PRESETS } from '../config/debug';
 
-const logoViralco = require('../assets/branding/logo_viralco_alpha.png');
-const logoViralcoWhite = require('../assets/branding/logo_white_viralco_alpha.png');
+const logoKaptura = require('../assets/branding/logo_kaptura.png');
 const QUICK_CREDENTIALS = {
   SA: { email: 'superadmin@viralco.local', password: 'superadmin1234' },
   AUA: { email: 'adminuseractivo@viralco.local', password: 'adminuseractivo1234' },
@@ -64,7 +63,6 @@ export function LoginScreen({ onGoRegister, onGoForgot }) {
   const { login } = useAuth();
   const mode = 'dark';
   const theme = useMemo(() => getTheme(mode), [mode]);
-  const logoSource = mode === 'dark' ? logoViralcoWhite : logoViralco;
 
   const [email, setEmail] = useState('superadmin@viralco.local');
   const [password, setPassword] = useState('superadmin1234');
@@ -119,7 +117,7 @@ export function LoginScreen({ onGoRegister, onGoForgot }) {
           </View>
         ) : null}
         <View style={styles.brandHeader}>
-          <Image source={logoSource} resizeMode="contain" style={styles.logo} />
+          <Image source={logoKaptura} resizeMode="contain" accessibilityLabel="Kaptura" style={styles.logo} />
         </View>
 
         <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
@@ -212,8 +210,9 @@ const styles = StyleSheet.create({
     gap: tokens.spacing.sm,
   },
   logo: {
-    width: 320,
-    height: 196,
+    width: '100%',
+    maxWidth: tokens.spacing.xl * 10,
+    aspectRatio: 3 / 2,
   },
   formWrap: {
     gap: tokens.spacing.md,
