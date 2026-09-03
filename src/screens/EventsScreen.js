@@ -469,7 +469,6 @@ export function EventsScreen({
       }
     } catch (err) {
       const message = err?.message || t('event_124');
-      setError(message);
       showToast({ message, type: 'error' });
     } finally { setSaving(false); }
   };

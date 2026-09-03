@@ -274,7 +274,6 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
       onAccountDeleted(result);
     } catch (err) {
       const message = err?.message || t('account_082');
-      setError(message);
       showToast({ message, type: 'error' });
     } finally { setDeleting(false); }
   };

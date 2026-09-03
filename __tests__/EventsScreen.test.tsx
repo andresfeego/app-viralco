@@ -17,7 +17,7 @@ jest.mock('@react-native-picker/picker', () => {
   return { Picker };
 });
 jest.mock('../src/hooks/useAuth', () => ({ useAuth: jest.fn() }));
-jest.mock('../src/providers/ToastProvider', () => ({ useToast: jest.fn() }));
+jest.mock('../src/providers/ToastProvider', () => ({ ToastViewport: () => null, useToast: jest.fn() }));
 jest.mock('../src/services/api/accounts', () => ({ listAccountsApi: jest.fn() }));
 jest.mock('../src/services/api/events', () => ({
   createAccountLibraryAssetApi: jest.fn(),
