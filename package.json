@@ -8,7 +8,7 @@
     "ios:run": "react-native run-ios --terminal \"Terminal\"",
     "ios:run:no-packager": "react-native run-ios --no-packager",
     "ios:metro": "react-native start --host 0.0.0.0 --port 8081",
-    "ios:logs": "xcrun simctl spawn booted log stream --level debug --style compact --predicate 'process == \"mobile\" OR process == \"mobile.debug.dylib\" OR eventMessage CONTAINS[c] \"No script URL\" OR eventMessage CONTAINS[c] \"RCTFatal\" OR eventMessage CONTAINS[c] \"Unable to load script\"'",
+    "ios:logs": "xcrun simctl spawn booted log stream --level debug --style compact --predicate 'process == \"kaptura\" OR process == \"kaptura.debug.dylib\" OR eventMessage CONTAINS[c] \"No script URL\" OR eventMessage CONTAINS[c] \"RCTFatal\" OR eventMessage CONTAINS[c] \"Unable to load script\"'",
     "ios:screenshot": "bash ./scripts/ios_screenshot.sh",
     "lint": "eslint .",
     "start": "react-native start --host 0.0.0.0",

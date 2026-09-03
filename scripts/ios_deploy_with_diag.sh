@@ -23,7 +23,7 @@ start_metro_if_needed() {
 
 capture_if_redbox() {
   local redbox_log redbox_hits
-  redbox_log="$(xcrun simctl spawn booted log show --last 45s --style compact --predicate 'process == "mobile" AND (eventMessage CONTAINS[c] "No script URL provided" OR eventMessage CONTAINS[c] "Unable to load script" OR eventMessage CONTAINS[c] "RCTFatal")' || true)"
+  redbox_log="$(xcrun simctl spawn booted log show --last 45s --style compact --predicate 'process == "kaptura" AND (eventMessage CONTAINS[c] "No script URL provided" OR eventMessage CONTAINS[c] "Unable to load script" OR eventMessage CONTAINS[c] "RCTFatal")' || true)"
   redbox_hits="$(printf '%s\n' "$redbox_log" | rg -n 'No script URL provided|Unable to load script|RCTFatal' || true)"
 
   if [[ -n "${redbox_hits// }" ]]; then

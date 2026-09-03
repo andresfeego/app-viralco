@@ -3,7 +3,7 @@
 Fecha de referencia: 2026-08-19  
 Equipo usado: Mac mini de Andres  
 Dispositivo fisico usado: iPhone de Andres  
-Bundle ID instalado: `com.viralco.mobile.andres`
+Bundle ID instalado: `com.viralco.kaptura`
 
 ## Objetivo
 
@@ -86,7 +86,7 @@ HTTP/1.1 200 OK
 Archivo:
 
 ```text
-APP/mobile/ios/mobile/AppDelegate.swift
+APP/mobile/ios/kaptura/AppDelegate.swift
 ```
 
 Configuracion esperada:
@@ -120,8 +120,8 @@ Nota: en esta app `process.env.VIRALCO_API_URL` no queda inyectado automaticamen
 Target iOS:
 
 ```text
-APP/mobile/ios/mobile.xcworkspace
-Target: mobile
+APP/mobile/ios/kaptura.xcworkspace
+Target: kaptura
 Signing & Capabilities
 ```
 
@@ -130,7 +130,7 @@ Valores actuales detectados con `xcodebuild -showBuildSettings`:
 ```text
 CODE_SIGN_STYLE = Automatic
 DEVELOPMENT_TEAM = 8L7LMDPVN7
-PRODUCT_BUNDLE_IDENTIFIER = com.viralco.mobile.andres
+PRODUCT_BUNDLE_IDENTIFIER = com.viralco.kaptura
 CODE_SIGN_IDENTITY = iPhone Developer
 ```
 
@@ -148,7 +148,7 @@ TeamIdentifier = 8L7LMDPVN7
 El bundle original no funciono:
 
 ```text
-org.reactjs.native.example.mobile
+org.reactjs.native.example.kaptura
 ```
 
 Error:
@@ -160,7 +160,7 @@ Failed Registering Bundle Identifier
 Solucion aplicada:
 
 ```text
-com.viralco.mobile.andres
+com.viralco.kaptura
 ```
 
 ### Certificado Apple Root CA no confiado para codesign
@@ -277,4 +277,4 @@ modes: foto, video-360, videoblog
   - `ios:device`
 - Evitar hardcodear IP LAN en codigo fuente con una configuracion de entorno real para React Native.
 - Definir un bundle id definitivo de producto, por ejemplo `com.viralco.app`, cuando exista cuenta Apple Developer formal.
-- Cambiar display name de la app de `mobile` a `ViralCo` cuando se decida branding final.
+- La identidad tecnica y el nombre visible definitivos son `kaptura` y `Kaptura`.
