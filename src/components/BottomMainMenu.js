@@ -3,9 +3,19 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Icon from '@react-native-vector-icons/fontawesome6';
 import { tokens } from '../design-system/tokens';
 
-export function BottomMainMenu({ items, selectedKey, onSelect, theme }) {
+export function BottomMainMenu({ items, selectedKey, onSelect, theme, bottomInset = 0 }) {
   return (
-    <View style={[styles.wrap, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+    <View
+      style={[
+        styles.wrap,
+        {
+          height: tokens.layout.bottomMainMenuContentHeight + bottomInset,
+          paddingBottom: bottomInset,
+          backgroundColor: theme.surface,
+          borderTopColor: theme.border,
+        },
+      ]}
+    >
       {items.map((item) => {
         const active = item.key === selectedKey;
         const color = active ? theme.primary : theme.textSecondary;
@@ -22,7 +32,6 @@ export function BottomMainMenu({ items, selectedKey, onSelect, theme }) {
 
 const styles = StyleSheet.create({
   wrap: {
-    height: 88,
     borderTopWidth: 1,
     flexDirection: 'row',
     alignItems: 'flex-start',

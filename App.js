@@ -41,7 +41,7 @@ function AuthFlow() {
   return <LoginScreen onGoRegister={() => setScreen('register')} onGoForgot={() => setScreen('forgot')} />;
 }
 
-export function MainFlow() {
+export function MainFlow({ bottomInset = 0 }) {
   const { initializing, isAuthenticated, user } = useAuth();
   const mode = user?.themeMode || 'dark';
   const [screen, setScreen] = useState('eventos');
@@ -174,7 +174,13 @@ export function MainFlow() {
         ) : null}
         {selectedKey === 'configuracion' ? <ConfigurationScreen onCreateAccount={openAccountCreation} /> : null}
       </View>
-      <BottomMainMenu items={menuItems} selectedKey={selectedKey} onSelect={selectMenuItem} theme={theme} />
+      <BottomMainMenu
+        items={menuItems}
+        selectedKey={selectedKey}
+        onSelect={selectMenuItem}
+        theme={theme}
+        bottomInset={bottomInset}
+      />
     </View>
   );
 }
@@ -184,13 +190,17 @@ function AppContainer() {
   const insets = useSafeAreaInsets();
   const mode = isAuthenticated ? user?.themeMode || 'dark' : 'dark';
   const theme = useMemo(() => getTheme(mode), [mode]);
+  const hasMainNavigation = isAuthenticated && user?.status?.slug === 'active';
 
   return (
     <View style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <View style={{ height: insets.top, backgroundColor: theme.primary }} />
-      <SafeAreaView edges={['left', 'right', 'bottom']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
-      <MainFlow />
+      <SafeAreaView
+        edges={hasMainNavigation ? ['left', 'right'] : ['left', 'right', 'bottom']}
+        style={[styles.safeArea, { backgroundColor: theme.background }]}
+      >
+        <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
+        <MainFlow bottomInset={hasMainNavigation ? insets.bottom : 0} />
       </SafeAreaView>
     </View>
   );
