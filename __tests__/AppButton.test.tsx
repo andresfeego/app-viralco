@@ -21,7 +21,12 @@ test('renders the requested token gradient', () => {
     );
   });
 
-  expect(renderer!.root.findByType('LinearGradient').props.colors).toEqual(
+  const nativeGradient = renderer!.root.findByType('LinearGradient');
+
+  expect(nativeGradient.props.colors).toEqual(
     theme.gradients.primaryToSecondary.colors,
   );
+  expect(nativeGradient.props.useAngle).toBe(true);
+  expect(nativeGradient.props.angle).toBe(45);
+  expect(nativeGradient.props.angleCenter).toEqual({ x: 0.5, y: 0.5 });
 });

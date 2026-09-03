@@ -6,6 +6,7 @@ const brandColors = {
 
 const gradient45 = {
   angle: 45,
+  angleCenter: { x: 0.5, y: 0.5 },
   start: { x: 0, y: 1 },
   end: { x: 1, y: 0 },
 } as const;

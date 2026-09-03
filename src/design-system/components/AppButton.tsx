@@ -11,6 +11,8 @@ import { tokens } from '../tokens';
 
 interface AppButtonGradient {
   colors: readonly (string | number)[];
+  angle?: number;
+  angleCenter?: { readonly x: number; readonly y: number };
   start: { readonly x: number; readonly y: number };
   end: { readonly x: number; readonly y: number };
 }
@@ -61,6 +63,9 @@ export function AppButton({
               colors={
                 pressed ? [pressedColor, pressedColor] : [...gradient.colors]
               }
+              useAngle={typeof gradient.angle === 'number'}
+              angle={gradient.angle}
+              angleCenter={gradient.angleCenter}
               start={gradient.start}
               end={gradient.end}
               style={StyleSheet.absoluteFill}

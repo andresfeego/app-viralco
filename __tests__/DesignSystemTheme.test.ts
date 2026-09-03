@@ -22,18 +22,21 @@ test('exposes the three 45 degree brand gradients in both themes', () => {
   expect(tokens.gradients).toEqual({
     primaryToSecondary: {
       angle: 45,
+      angleCenter: { x: 0.5, y: 0.5 },
       start: { x: 0, y: 1 },
       end: { x: 1, y: 0 },
       colors: [tokens.colors.primary, tokens.colors.secondary],
     },
     primaryToTertiary: {
       angle: 45,
+      angleCenter: { x: 0.5, y: 0.5 },
       start: { x: 0, y: 1 },
       end: { x: 1, y: 0 },
       colors: [tokens.colors.primary, tokens.colors.tertiary],
     },
     secondaryToPrimary: {
       angle: 45,
+      angleCenter: { x: 0.5, y: 0.5 },
       start: { x: 0, y: 1 },
       end: { x: 1, y: 0 },
       colors: [tokens.colors.secondary, tokens.colors.primary],
