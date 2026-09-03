@@ -151,7 +151,7 @@ export const tokens = {
     wideScreenMinWidth: 768,
     resourceGridPhoneColumns: 3,
     resourceGridWideColumns: 5,
-    bottomMainMenuContentHeight: 88,
+    bottomMainMenuContentHeight: 56,
   },
   opacity: {
     disabled: 0.6,
