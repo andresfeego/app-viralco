@@ -4,6 +4,7 @@ import Icon from '@react-native-vector-icons/fontawesome6';
 import { useAuth } from '../hooks/useAuth';
 import { createAdminUserApi, listAdminUsersApi, listBitacoraApi, updateUserStatusApi } from '../services/api/admin';
 import { ProtectedScreen } from '../components/ProtectedScreen';
+import { ModalSafeArea } from '../design-system/components/ModalSafeArea';
 import { HorizontalSubMenu } from '../components/HorizontalSubMenu';
 import { StatusBadge } from '../components/StatusBadge';
 import { tokens } from '../design-system/tokens';
@@ -391,7 +392,7 @@ export function SuperAdminUsersScreen() {
           animationType="slide"
           onRequestClose={() => setSelectedBitacora(null)}
         >
-          <View style={styles.modalBackdrop}>
+          <ModalSafeArea style={styles.modalBackdrop}>
             <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <View style={styles.cardTopRow}>
                 <Text style={[styles.sectionTitle, { color: theme.textPrimary, fontSize: 18 }]}>Detalle bitacora</Text>
@@ -407,7 +408,7 @@ export function SuperAdminUsersScreen() {
                 ) : null}
               </ScrollView>
             </View>
-          </View>
+          </ModalSafeArea>
         </Modal>
       </View>
     </ProtectedScreen>

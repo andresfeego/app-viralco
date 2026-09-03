@@ -128,7 +128,8 @@ test('event creation opens in a modal and shows the account-required state when 
     createButton!.props.onPress();
   });
 
-  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'event-create-modal-card' }).props.style).marginTop).toBe(tokens.spacing.xl * 2);
+  const modalSafeAreaNodes = renderer!.root.findAllByProps({ testID: 'event-create-modal-safe-area' });
+  expect(modalSafeAreaNodes.some((node) => StyleSheet.flatten(node.props.style)?.paddingTop === tokens.spacing.xl * 2)).toBe(true);
   expect(renderer!.root.findAllByType(AccountRequiredEmptyState)).toHaveLength(1);
   ReactTestRenderer.act(() => renderer!.root.findByType(AccountRequiredEmptyState).props.onCreateAccount());
   expect(onCreateAccount).toHaveBeenCalledTimes(1);

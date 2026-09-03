@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Menu } from 'react-native-paper';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppButton } from '../design-system/components/AppButton';
+import { ModalSafeArea } from '../design-system/components/ModalSafeArea';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
@@ -126,7 +126,6 @@ export function EventsScreen({
 }) {
   const { user } = useAuth();
   const { showToast } = useToast();
-  const insets = useSafeAreaInsets();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
   const normalizedSections = allowedSections.filter((key) => ['list', 'create', 'detail', 'resources', 'overlays'].includes(key)).map((key) => (key === 'overlays' ? 'resources' : key));
@@ -579,7 +578,7 @@ export function EventsScreen({
       transparent
       onRequestClose={closeCreateEventModal}
     >
-      <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.modalOverlay}>
+      <ModalSafeArea testID="event-create-modal-safe-area" style={styles.modalOverlay}>
         <View
           testID="event-create-modal-card"
           style={[
@@ -587,7 +586,6 @@ export function EventsScreen({
             {
               backgroundColor: theme.background,
               borderColor: theme.border,
-              marginTop: Math.max(tokens.spacing.xl * 2, insets.top + tokens.spacing.xs),
             },
           ]}
         >
@@ -657,14 +655,14 @@ export function EventsScreen({
           )}
         </View>
         <ToastViewport theme={theme} topOffset={MODAL_TOAST_TOP_OFFSET} />
-      </SafeAreaView>
+      </ModalSafeArea>
     </Modal>
   );
 
   const renderEditEventModal = () => (
     <Modal visible={editEventVisible} animationType="slide" transparent onRequestClose={() => setEditEventVisible(false)}>
-      <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border, marginTop: Math.max(tokens.spacing.xl * 2, insets.top + tokens.spacing.xs) }]}>
+      <ModalSafeArea style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
           <ScrollView contentContainerStyle={[styles.modalList, styles.editModalList]}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_117')}</Text>
             {renderEventTypePicker()}
@@ -686,14 +684,14 @@ export function EventsScreen({
             </View>
           </ScrollView>
         </View>
-      </SafeAreaView>
+      </ModalSafeArea>
     </Modal>
   );
 
   const renderEditModesModal = () => (
     <Modal visible={editModesVisible} animationType="slide" transparent onRequestClose={() => setEditModesVisible(false)}>
-      <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border, marginTop: Math.max(tokens.spacing.xl * 2, insets.top + tokens.spacing.xs) }]}>
+      <ModalSafeArea style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
           <ScrollView contentContainerStyle={styles.modalList}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_118')}</Text>
             <SelectableChipGroup
@@ -713,7 +711,7 @@ export function EventsScreen({
             </View>
           </ScrollView>
         </View>
-      </SafeAreaView>
+      </ModalSafeArea>
     </Modal>
   );
 

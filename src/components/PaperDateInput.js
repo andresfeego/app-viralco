@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { AppButton } from '../design-system/components/AppButton';
+import { ModalSafeArea } from '../design-system/components/ModalSafeArea';
 import { tokens } from '../design-system/tokens';
 import { PaperFormInput } from './PaperFormInput';
 
@@ -79,7 +80,7 @@ export function PaperDateInput({
         />
       </Pressable>
       <Modal transparent visible={visible} animationType="slide" onRequestClose={() => setVisible(false)}>
-        <View style={styles.modalOverlay}>
+        <ModalSafeArea style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <DateTimePicker
               testID={`${testID}-picker`}
@@ -95,7 +96,7 @@ export function PaperDateInput({
               </View>
             ) : null}
           </View>
-        </View>
+        </ModalSafeArea>
       </Modal>
     </View>
   );

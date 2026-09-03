@@ -7,6 +7,7 @@ import { AccountLogoPicker } from '../components/AccountLogoPicker';
 import { AccountLogoPreview } from '../components/AccountLogoPreview';
 import { DestructiveConfirmationModal } from '../components/DestructiveConfirmationModal';
 import { AppButton } from '../design-system/components/AppButton';
+import { ModalSafeArea } from '../design-system/components/ModalSafeArea';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../hooks/useAuth';
@@ -387,7 +388,7 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
       </ScrollView>
 
       <Modal visible={isEditModalVisible} animationType="slide" transparent onRequestClose={closeEditModal}>
-        <View style={styles.modalOverlay}>
+        <ModalSafeArea style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <View style={styles.modalContent}>
               <Text style={[styles.title, { color: theme.textPrimary }]}>{t('account_048')}</Text>
@@ -409,11 +410,11 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
             </View>
           </View>
           <ToastViewport theme={theme} topOffset={MODAL_TOAST_TOP_OFFSET} />
-        </View>
+        </ModalSafeArea>
       </Modal>
 
       <Modal visible={isMemberModalVisible} animationType="slide" transparent onRequestClose={closeMemberModal}>
-        <View style={styles.modalOverlay}>
+        <ModalSafeArea style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <View style={styles.modalContent}>
               <Text style={[styles.title, { color: theme.textPrimary }]}>{t('account_003')}</Text>
@@ -433,7 +434,7 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
             </View>
           </View>
           <ToastViewport theme={theme} topOffset={MODAL_TOAST_TOP_OFFSET} />
-        </View>
+        </ModalSafeArea>
       </Modal>
       <DestructiveConfirmationModal
         visible={isDeleteModalVisible}

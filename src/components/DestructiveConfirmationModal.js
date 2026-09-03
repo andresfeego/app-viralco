@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, StyleSheet, Text, View } from 'react-native';
 import { AppButton } from '../design-system/components/AppButton';
+import { ModalSafeArea } from '../design-system/components/ModalSafeArea';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { tokens } from '../design-system/tokens';
 import { ToastViewport } from '../providers/ToastProvider';
@@ -26,7 +27,7 @@ export function DestructiveConfirmationModal({
   const canConfirm = !busy && (!requiresText || confirmationValue === expectedValue);
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onCancel}>
-      <View style={[styles.overlay, { backgroundColor: theme.background }]}>
+      <ModalSafeArea style={[styles.overlay, { backgroundColor: theme.background }]}>
         <View style={styles.sheet}>
           <SurfaceCard surfaceColor={theme.background} borderColor={theme.border}>
             <Text style={[styles.title, { color: theme.textPrimary }]}>{title}</Text>
@@ -49,7 +50,7 @@ export function DestructiveConfirmationModal({
           </SurfaceCard>
         </View>
         <ToastViewport theme={theme} />
-      </View>
+      </ModalSafeArea>
     </Modal>
   );
 }

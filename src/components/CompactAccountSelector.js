@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AccountLogoPreview } from './AccountLogoPreview';
 import { AppButton } from '../design-system/components/AppButton';
+import { ModalSafeArea } from '../design-system/components/ModalSafeArea';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { tokens } from '../design-system/tokens';
 import { t } from '../i18n';
@@ -21,7 +21,6 @@ function accountLogoPreviewUrl(account) {
 }
 
 export function CompactAccountSelector({ accounts, value, onChange, theme, roleLabel = '' }) {
-  const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const selected = useMemo(
     () => (accounts || []).find((account) => String(account.id) === String(value)),
@@ -50,8 +49,8 @@ export function CompactAccountSelector({ accounts, value, onChange, theme, roleL
         />
       </View>
       <Modal visible={visible} transparent animationType="slide" onRequestClose={() => setVisible(false)}>
-        <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.overlay}>
-          <View style={[styles.modal, { backgroundColor: theme.background, borderColor: theme.border, marginTop: Math.max(tokens.spacing.xl * 2, insets.top + tokens.spacing.xs) }]}>
+        <ModalSafeArea style={styles.overlay}>
+          <View style={[styles.modal, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>{t('event_096')}</Text>
             <ScrollView contentContainerStyle={[styles.list, styles.editModalList]}>
               {(accounts || []).map((account) => {
@@ -86,7 +85,7 @@ export function CompactAccountSelector({ accounts, value, onChange, theme, roleL
               textColor={theme.textPrimary}
             />
           </View>
-        </SafeAreaView>
+        </ModalSafeArea>
       </Modal>
     </>
   );

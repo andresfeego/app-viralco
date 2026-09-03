@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { AccountLogoPicker } from '../components/AccountLogoPicker';
 import { AccountLogoPreview } from '../components/AccountLogoPreview';
 import { PaperFormInput } from '../components/PaperFormInput';
 import { AppButton } from '../design-system/components/AppButton';
+import { ModalSafeArea } from '../design-system/components/ModalSafeArea';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { useAuth } from '../hooks/useAuth';
 import { t } from '../i18n';
@@ -267,7 +267,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
       </ScrollView>
 
       <Modal visible={isCreateModalVisible} animationType="slide" transparent onRequestClose={closeCreateModal}>
-        <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.modalOverlay}>
+        <ModalSafeArea style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <ScrollView contentContainerStyle={styles.modalContent}>
               <Text style={[styles.title, { color: theme.textPrimary }]}>{isSuperAdmin ? t('account_010') : t('account_024')}</Text>
@@ -296,7 +296,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
             </ScrollView>
           </View>
           <ToastViewport theme={theme} topOffset={MODAL_TOAST_TOP_OFFSET} />
-        </SafeAreaView>
+        </ModalSafeArea>
       </Modal>
     </View>
   );

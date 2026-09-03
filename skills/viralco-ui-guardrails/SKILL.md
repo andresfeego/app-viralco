@@ -72,6 +72,7 @@ Use this skill for any UI work in `WEB/front` or `APP/mobile` of the ViralCo pro
 For `APP/mobile`, always consider these components before creating new UI:
 
 - `AppButton` for primary reusable actions.
+- `ModalSafeArea` for every transparent popup or bottom sheet so its surface clears the status bar and Dynamic Island.
 - `SurfaceCard` for bordered/surface containers.
 - `MediaPreview` for image/video previews.
 - `BottomMainMenu` for bottom navigation.
@@ -104,7 +105,7 @@ For `APP/mobile` UI work:
 11. Screens scoped by account must follow the shared hierarchy: `HorizontalSubMenu`, then the reusable account selector bar, then screen content. Do not place the account selector inside a list, card, filter header, or scrollable gallery header.
 12. When an account-dependent action has no active account, do not render its dependent filters, forms, uploads, or assignment controls. Render the reusable account-required empty state with a direct action that opens account creation. Apply this at the narrowest product section: a read-only parent such as the event list may remain visible while only `Crear evento` is replaced by the empty state.
 13. Account selectors must reuse the same compact bar and selection modal across Events, Resources, configuration, and future account-scoped screens. Do not create screen-specific picker variants.
-14. Full-screen React Native modals must explicitly clear the status bar, notch, and Dynamic Island. For a rounded popup or sheet, move the entire modal surface down: its top edge must use at least `Math.max(tokens.spacing.xl * 2, insets.top + tokens.spacing.xs)`. Keep the title's internal padding at the normal token spacing; never simulate safe-area clearance by adding the inset to the title or content padding because that leaves the popup edge over the Dynamic Island. For a true edge-to-edge modal without a separate rounded surface, use `insets.top + tokens.spacing.md` on its header. Preserve the bottom safe area as well. Before delivery, statically verify the inset wiring and ask the user to check the modal on a notched/Dynamic Island simulator or device unless simulator control was explicitly authorized.
+14. Every transparent React Native popup or bottom sheet must use the shared `ModalSafeArea`; do not calculate its top clearance inside a screen. The component moves the available modal surface below the status bar, notch, and Dynamic Island using at least `Math.max(tokens.spacing.xl * 2, insets.top + tokens.spacing.xs)`. Keep the title's internal padding at the normal token spacing. For a true edge-to-edge modal without a separate rounded surface, use `insets.top + tokens.spacing.md` on its header. Preserve the bottom safe area as well. Before delivery, statically verify the shared wrapper and ask the user to check the modal on a notched/Dynamic Island simulator or device unless simulator control was explicitly authorized.
 
 ## Anti-regression rules
 
