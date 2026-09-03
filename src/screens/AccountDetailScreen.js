@@ -389,7 +389,7 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
 
       <Modal visible={isEditModalVisible} animationType="slide" transparent onRequestClose={closeEditModal}>
         <ModalSafeArea style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+          <View testID="account-edit-modal-card" style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <View style={styles.modalContent}>
               <Text style={[styles.title, { color: theme.textPrimary }]}>{t('account_048')}</Text>
               {renderFormInput({ testID: 'account-edit-name-input', label: t('account_011'), value: editForm.name, errorText: editErrors.name, onChangeText: (name) => updateEditField('name', name) })}
@@ -415,7 +415,7 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
 
       <Modal visible={isMemberModalVisible} animationType="slide" transparent onRequestClose={closeMemberModal}>
         <ModalSafeArea style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+          <View testID="account-member-modal-card" style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <View style={styles.modalContent}>
               <Text style={[styles.title, { color: theme.textPrimary }]}>{t('account_003')}</Text>
               {renderFormInput({ testID: 'account-add-member-user-input', label: t('account_004'), value: memberForm.userId, errorText: memberErrors.userId, keyboardType: 'number-pad', onChangeText: (userId) => updateMemberField('userId', userId) })}
@@ -481,6 +481,6 @@ const styles = StyleSheet.create({
   paperInput: { fontSize: tokens.typography.body },
   fieldError: { marginVertical: 0, paddingVertical: 0 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalCard: { maxHeight: '86%', borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg },
+  modalCard: { flex: 1, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg },
   modalContent: { gap: tokens.spacing.sm, padding: tokens.spacing.md, paddingBottom: tokens.spacing.lg },
 });

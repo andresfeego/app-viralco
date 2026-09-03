@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, TextInput } from 'react-native';
+import { Modal, StyleSheet, TextInput } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
@@ -142,6 +142,7 @@ test('account creation blocks invalid required fields before api call', async ()
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'account-empty-create-open' }).props.onPress();
   });
+  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'account-create-modal-card' }).props.style).flex).toBe(1);
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'account-create-email-input' }).props.onChangeText('correo-invalido');
   });
@@ -263,6 +264,7 @@ test('account detail adds an existing user as member', async () => {
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'account-add-member-open' }).props.onPress();
   });
+  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'account-member-modal-card' }).props.style).flex).toBe(1);
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'account-add-member-user-input' }).props.onChangeText('77');
   });
@@ -311,6 +313,7 @@ test('account detail edits account business data', async () => {
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'account-detail-edit-open' }).props.onPress();
   });
+  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'account-edit-modal-card' }).props.style).flex).toBe(1);
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'account-edit-name-input' }).props.onChangeText('ViralCo Pro');
   });

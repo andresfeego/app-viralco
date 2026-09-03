@@ -268,7 +268,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
 
       <Modal visible={isCreateModalVisible} animationType="slide" transparent onRequestClose={closeCreateModal}>
         <ModalSafeArea style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+          <View testID="account-create-modal-card" style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <ScrollView contentContainerStyle={styles.modalContent}>
               <Text style={[styles.title, { color: theme.textPrimary }]}>{isSuperAdmin ? t('account_010') : t('account_024')}</Text>
               <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('account_026')}</Text>
@@ -324,6 +324,6 @@ const styles = StyleSheet.create({
   fullButton: { width: '100%' },
   cardTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalCard: { maxHeight: '86%', borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg },
+  modalCard: { flex: 1, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg },
   modalContent: { gap: tokens.spacing.sm, padding: tokens.spacing.md, paddingBottom: tokens.spacing.lg },
 });
