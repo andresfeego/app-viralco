@@ -53,9 +53,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   title: {
-    fontSize: 18,
+    fontSize: tokens.typography.heading,
     fontWeight: '700',
-    lineHeight: 21,
     marginLeft: 6,
   },
   subtitle: {
