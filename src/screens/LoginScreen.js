@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -19,8 +20,14 @@ import { ENABLE_DEBUG_LOGIN_PRESETS } from '../config/debug';
 const logoKaptura = require('../assets/branding/logo_kaptura.png');
 const QUICK_CREDENTIALS = {
   SA: { email: 'superadmin@viralco.local', password: 'superadmin1234' },
-  AUA: { email: 'adminuseractivo@viralco.local', password: 'adminuseractivo1234' },
-  AUP: { email: 'useradminpendiente@viralco.local', password: 'useradminpendiente1234' },
+  AUA: {
+    email: 'adminuseractivo@viralco.local',
+    password: 'adminuseractivo1234',
+  },
+  AUP: {
+    email: 'useradminpendiente@viralco.local',
+    password: 'useradminpendiente1234',
+  },
 };
 
 function LoginField({
@@ -36,7 +43,9 @@ function LoginField({
 }) {
   return (
     <View style={styles.fieldWrap}>
-      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+        {label}
+      </Text>
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -68,7 +77,7 @@ export function LoginScreen({ onGoRegister, onGoForgot }) {
   const [password, setPassword] = useState('superadmin1234');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const applyQuickCredentials = (key) => {
+  const applyQuickCredentials = key => {
     const preset = QUICK_CREDENTIALS[key];
     if (!preset) {
       return;
@@ -96,76 +105,116 @@ export function LoginScreen({ onGoRegister, onGoForgot }) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={[styles.keyboardWrap, { backgroundColor: theme.background }]}
     >
-      <View style={styles.shell}>
-        {ENABLE_DEBUG_LOGIN_PRESETS ? (
-          <View
-            testID="debug-login-presets-container"
-            accessibilityLabel="debug-login-presets-container"
-            style={[styles.debugQuickAccessWrap, { borderColor: theme.border, backgroundColor: tokens.colors.yellow[500] }]}
-          >
-            {Object.keys(QUICK_CREDENTIALS).map((key) => (
-              <Pressable
-                key={key}
-                testID={`debug-login-preset-${key.toLowerCase()}`}
-                accessibilityLabel={`debug-login-preset-${key.toLowerCase()}`}
-                onPress={() => applyQuickCredentials(key)}
-                style={[styles.debugQuickAccessButton, { borderColor: theme.border, backgroundColor: tokens.colors.yellow[500] }]}
-              >
-                <Text style={[styles.debugQuickAccessLabel, { color: tokens.colors.gray[9] }]}>{key}</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-        <View style={styles.brandHeader}>
-          <Image source={logoKaptura} resizeMode="contain" accessibilityLabel="Kaptura" style={styles.logo} />
-        </View>
-
-        <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-          <View style={styles.formWrap}>
-            <LoginField
-              label="Correo"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="tu@correo.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              theme={theme}
-            />
-
-            <LoginField
-              label="Contrasena"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Tu contrasena"
-              secureTextEntry
-              autoCapitalize="none"
-              autoComplete="password"
-              theme={theme}
-            />
-
-            {error ? <Text style={[styles.errorText, { color: theme.buttonBgPressed }]}>{error}</Text> : null}
-
-            <AppButton
-              label={loading ? 'Ingresando...' : 'Iniciar sesion'}
-              onPress={onSubmit}
-              backgroundColor={theme.buttonBg}
-              pressedColor={theme.buttonBgPressed}
-              textColor={theme.buttonText}
-              style={styles.submitButton}
-            />
-
-            <View style={styles.actionsRow}>
-              <Pressable onPress={onGoForgot}>
-                <Text style={[styles.linkText, { color: theme.buttonBg }]}>Olvide mi contrasena</Text>
-              </Pressable>
-              <Pressable onPress={onGoRegister}>
-                <Text style={[styles.linkText, { color: theme.buttonBg }]}>Crear cuenta</Text>
-              </Pressable>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.shell}>
+          {ENABLE_DEBUG_LOGIN_PRESETS ? (
+            <View
+              testID="debug-login-presets-container"
+              accessibilityLabel="debug-login-presets-container"
+              style={[
+                styles.debugQuickAccessWrap,
+                {
+                  borderColor: theme.border,
+                  backgroundColor: tokens.colors.yellow[500],
+                },
+              ]}
+            >
+              {Object.keys(QUICK_CREDENTIALS).map(key => (
+                <Pressable
+                  key={key}
+                  testID={`debug-login-preset-${key.toLowerCase()}`}
+                  accessibilityLabel={`debug-login-preset-${key.toLowerCase()}`}
+                  onPress={() => applyQuickCredentials(key)}
+                  style={[
+                    styles.debugQuickAccessButton,
+                    {
+                      borderColor: theme.border,
+                      backgroundColor: tokens.colors.yellow[500],
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.debugQuickAccessLabel,
+                      { color: tokens.colors.gray[9] },
+                    ]}
+                  >
+                    {key}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
+          ) : null}
+          <View style={styles.brandHeader}>
+            <Image
+              source={logoKaptura}
+              resizeMode="contain"
+              accessibilityLabel="Kaptura"
+              style={styles.logo}
+            />
           </View>
-        </SurfaceCard>
-      </View>
+
+          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+            <View style={styles.formWrap}>
+              <LoginField
+                label="Correo"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="tu@correo.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                theme={theme}
+              />
+
+              <LoginField
+                label="Contrasena"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Tu contrasena"
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="password"
+                theme={theme}
+              />
+
+              {error ? (
+                <Text
+                  style={[styles.errorText, { color: theme.buttonBgPressed }]}
+                >
+                  {error}
+                </Text>
+              ) : null}
+
+              <AppButton
+                label={loading ? 'Ingresando...' : 'Iniciar sesion'}
+                onPress={onSubmit}
+                backgroundColor={theme.buttonBg}
+                pressedColor={theme.buttonBgPressed}
+                textColor={theme.buttonText}
+                style={styles.submitButton}
+              />
+
+              <View style={styles.actionsRow}>
+                <Pressable onPress={onGoForgot}>
+                  <Text style={[styles.linkText, { color: theme.buttonBg }]}>
+                    Olvide mi contrasena
+                  </Text>
+                </Pressable>
+                <Pressable onPress={onGoRegister}>
+                  <Text style={[styles.linkText, { color: theme.buttonBg }]}>
+                    Crear cuenta
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </SurfaceCard>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -174,18 +223,16 @@ const styles = StyleSheet.create({
   keyboardWrap: {
     flex: 1,
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   shell: {
-    flex: 1,
-    justifyContent: 'center',
+    flexGrow: 1,
+    justifyContent: 'flex-start',
     padding: tokens.spacing.xl,
     gap: tokens.spacing.lg,
   },
   debugQuickAccessWrap: {
-    position: 'absolute',
-    top: tokens.spacing.md,
-    left: tokens.spacing.xl,
-    right: tokens.spacing.xl,
-    zIndex: 20,
     borderWidth: 1,
     borderRadius: tokens.radius.md,
     padding: tokens.spacing.xs,
@@ -210,9 +257,8 @@ const styles = StyleSheet.create({
     gap: tokens.spacing.sm,
   },
   logo: {
-    width: '100%',
-    maxWidth: tokens.spacing.xl * 10,
-    aspectRatio: 3 / 2,
+    width: tokens.spacing.xl * 8,
+    height: tokens.spacing.xl * 5,
   },
   formWrap: {
     gap: tokens.spacing.md,
