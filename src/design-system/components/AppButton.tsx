@@ -1,6 +1,19 @@
 import React from 'react';
-import { Pressable, StyleProp, StyleSheet, Text, ViewStyle } from 'react-native';
+import {
+  Pressable,
+  StyleProp,
+  StyleSheet,
+  Text,
+  ViewStyle,
+} from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { tokens } from '../tokens';
+
+interface AppButtonGradient {
+  colors: readonly (string | number)[];
+  start: { readonly x: number; readonly y: number };
+  end: { readonly x: number; readonly y: number };
+}
 
 interface AppButtonProps {
   label: string;
@@ -10,6 +23,7 @@ interface AppButtonProps {
   textColor: string;
   testID?: string;
   disabled?: boolean;
+  gradient?: AppButtonGradient;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -21,6 +35,7 @@ export function AppButton({
   textColor,
   testID,
   disabled = false,
+  gradient,
   style,
 }: AppButtonProps) {
   return (
@@ -32,10 +47,28 @@ export function AppButton({
       style={({ pressed }) => [
         styles.button,
         style,
-        { backgroundColor: pressed ? pressedColor : backgroundColor, opacity: disabled ? tokens.opacity.disabled : 1 },
+        {
+          backgroundColor: pressed ? pressedColor : backgroundColor,
+          opacity: disabled ? tokens.opacity.disabled : 1,
+        },
       ]}
     >
-      <Text style={[styles.label, { color: textColor }]}>{label}</Text>
+      {({ pressed }) => (
+        <>
+          {gradient ? (
+            <LinearGradient
+              pointerEvents="none"
+              colors={
+                pressed ? [pressedColor, pressedColor] : [...gradient.colors]
+              }
+              start={gradient.start}
+              end={gradient.end}
+              style={StyleSheet.absoluteFill}
+            />
+          ) : null}
+          <Text style={[styles.label, { color: textColor }]}>{label}</Text>
+        </>
+      )}
     </Pressable>
   );
 }
@@ -45,6 +78,7 @@ const styles = StyleSheet.create({
     minWidth: 160,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     borderRadius: tokens.radius.pill,
     paddingVertical: tokens.spacing.sm,
     paddingHorizontal: tokens.spacing.lg,
