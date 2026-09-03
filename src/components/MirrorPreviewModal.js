@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { tokens } from '../design-system/tokens';
 import { formatDefinition } from '../domain/magicMirrorConfig';
@@ -18,13 +18,14 @@ function DetailRow({ label, value, theme }) {
 }
 
 export function MirrorPreviewModal({ visible, config, theme, resourcesById = {}, onClose }) {
+  const insets = useSafeAreaInsets();
   const format = formatDefinition(config.layout.format);
   const output = config.layout.output;
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView testID="mirror-preview-modal" accessibilityViewIsModal style={[styles.safeArea, { backgroundColor: theme.background }]}>
-        <View style={[styles.header, { borderBottomColor: theme.border }]}>
+      <SafeAreaView edges={['left', 'right', 'bottom']} testID="mirror-preview-modal" accessibilityViewIsModal style={[styles.safeArea, { backgroundColor: theme.background }]}>
+        <View testID="mirror-preview-header" style={[styles.header, { borderBottomColor: theme.border, paddingTop: insets.top + tokens.spacing.md }]}>
           <Text style={[styles.title, { color: theme.textPrimary }]}>{t('mirror_030')}</Text>
           <IconTextButton
             testID="mirror-preview-close"
@@ -57,7 +58,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: tokens.spacing.sm,
-    padding: tokens.spacing.md,
+    paddingHorizontal: tokens.spacing.md,
+    paddingBottom: tokens.spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   title: { flex: 1, fontSize: tokens.typography.heading, fontWeight: '700' },

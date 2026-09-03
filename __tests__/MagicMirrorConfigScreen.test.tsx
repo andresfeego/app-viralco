@@ -1,7 +1,8 @@
 import React from 'react';
-import { Alert, Text } from 'react-native';
+import { Alert, StyleSheet, Text } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
 jest.mock('react-native-video', () => 'Video');
@@ -49,6 +50,15 @@ const event = { id: '20', accountId: '10', name: 'Boda', eventDate: '2026-09-01'
 const eventMode = { id: '30', mode: { slug: 'espejo' }, isActive: true };
 const mockedAuth = useAuth as jest.Mock;
 const mockedToast = useToast as jest.Mock;
+const safeAreaMetrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
+
+function screen() {
+  return (
+    <SafeAreaProvider initialMetrics={safeAreaMetrics}>
+      <MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />
+    </SafeAreaProvider>
+  );
+}
 
 async function flush() {
   await ReactTestRenderer.act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
@@ -75,7 +85,7 @@ beforeEach(() => {
 
 test('owner changes a prototype format and saves with the expected revision', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
   ReactTestRenderer.act(() => renderer!.root.findByType(MirrorFormatSelector).props.onChange('collage'));
   ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
@@ -85,7 +95,7 @@ test('owner changes a prototype format and saves with the expected revision', as
 
 test('a real tab press reveals the selected configurator section', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
 
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'horizontal-submenu-design' }).props.onPress());
@@ -97,7 +107,7 @@ test('a real tab press reveals the selected configurator section', async () => {
 
 test('starts in design without an event tab and opens the transversal preview modal', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
 
   expect(renderer!.root.findAllByProps({ testID: 'horizontal-submenu-event' })).toHaveLength(0);
@@ -108,6 +118,7 @@ test('starts in design without an event tab and opens the transversal preview mo
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'mirror-preview-open' }).props.onPress());
 
   expect(renderer!.root.findByProps({ testID: 'mirror-preview-modal' })).toBeTruthy();
+  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'mirror-preview-header' }).props.style).paddingTop).toBe(63);
   const text = renderer!.root.findAllByType(Text).map((node) => node.props.children).flat(Infinity).join(' ');
   expect(text).toContain('Asi quedaria');
   expect(text).toContain('Dimensiones');
@@ -117,7 +128,7 @@ test('starts in design without an event tab and opens the transversal preview mo
 test('operator sees only the active publication', async () => {
   mockedAuth.mockReturnValue({ user: { themeMode: 'dark', globalRoles: [], accounts: [{ account, status: 'active', role: { slug: 'operator' } }] } });
   let renderer: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
   expect(getPublishedMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30');
   expect(getMagicMirrorConfigApi).not.toHaveBeenCalled();
@@ -127,7 +138,7 @@ test('operator sees only the active publication', async () => {
 test('revision conflict exposes both explicit recovery actions', async () => {
   (saveMagicMirrorConfigApi as jest.Mock).mockRejectedValue(Object.assign(new Error('CONFIG_REVISION_CONFLICT'), { status: 409, payload: { error: 'CONFIG_REVISION_CONFLICT', details: { currentRevision: 3 } } }));
   let renderer: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
   ReactTestRenderer.act(() => renderer!.root.findByType(MirrorFormatSelector).props.onChange('postal'));
   ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
@@ -140,7 +151,7 @@ test('revision conflict exposes both explicit recovery actions', async () => {
 test('publish saves dirty state, validates and creates an immutable version after confirmation', async () => {
   const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => { buttons?.[1]?.onPress?.(); });
   let renderer: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
   ReactTestRenderer.act(() => renderer!.root.findByType(MirrorFormatSelector).props.onChange('doble'));
   ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
@@ -157,7 +168,7 @@ test('restores a local draft after an app restart when the base revision still m
   await AsyncStorage.setItem('mirror-config-draft:v1:10:20:30', JSON.stringify({ baseRevision: 2, config: localConfig }));
   const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => { buttons?.[1]?.onPress?.(); });
   let renderer: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
   expect(renderer!.root.findByType(MirrorFormatSelector).props.value).toBe('collage');
   alert.mockRestore();
@@ -169,7 +180,7 @@ test('rolls back a newly associated resource when saving conflicts', async () =>
   (createEventResourceApi as jest.Mock).mockResolvedValue({ resource: { id: '60', libraryAssetId: '50', purpose: 'template', asset: item.asset } });
   (saveMagicMirrorConfigApi as jest.Mock).mockRejectedValue(Object.assign(new Error('CONFIG_REVISION_CONFLICT'), { status: 409, payload: { error: 'CONFIG_REVISION_CONFLICT' } }));
   let renderer: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
   const openButtons = renderer!.root.findAll((node) => node.props.label === 'Seleccionar recurso');
   await ReactTestRenderer.act(async () => openButtons[0].props.onPress());
