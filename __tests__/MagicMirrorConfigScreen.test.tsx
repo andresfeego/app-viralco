@@ -78,7 +78,7 @@ test('owner changes a prototype format and saves with the expected revision', as
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
   await flush();
   ReactTestRenderer.act(() => renderer!.root.findByType(MirrorFormatSelector).props.onChange('collage'));
-  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'event' }).props.onSelect('review'));
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
   await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-save' }).props.onPress());
   expect(saveMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30', expect.objectContaining({ expectedRevision: 2, config: expect.objectContaining({ layout: expect.objectContaining({ format: 'collage', shotCount: 4 }) }) }));
 });
@@ -93,6 +93,25 @@ test('a real tab press reveals the selected configurator section', async () => {
   expect(renderer!.root.findByProps({ testID: 'horizontal-submenu-design' }).props.accessibilityState).toEqual({ selected: true });
   const text = renderer!.root.findAllByType(Text).map((node) => node.props.children).flat(Infinity).join(' ');
   expect(text).toContain('Seleccion multiple');
+});
+
+test('starts in design without an event tab and opens the transversal preview modal', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
+  await flush();
+
+  expect(renderer!.root.findAllByProps({ testID: 'horizontal-submenu-event' })).toHaveLength(0);
+  expect(renderer!.root.findByProps({ testID: 'horizontal-submenu-design' }).props.accessibilityState).toEqual({ selected: true });
+  expect(renderer!.root.findByType(MirrorFormatSelector)).toBeTruthy();
+  expect(renderer!.root.findAllByProps({ testID: 'mirror-preview-modal' })).toHaveLength(0);
+
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'mirror-preview-open' }).props.onPress());
+
+  expect(renderer!.root.findByProps({ testID: 'mirror-preview-modal' })).toBeTruthy();
+  const text = renderer!.root.findAllByType(Text).map((node) => node.props.children).flat(Infinity).join(' ');
+  expect(text).toContain('Asi quedaria');
+  expect(text).toContain('Dimensiones');
+  expect(text).toContain('Numero de tomas');
 });
 
 test('operator sees only the active publication', async () => {
@@ -111,7 +130,7 @@ test('revision conflict exposes both explicit recovery actions', async () => {
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
   await flush();
   ReactTestRenderer.act(() => renderer!.root.findByType(MirrorFormatSelector).props.onChange('postal'));
-  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'event' }).props.onSelect('review'));
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
   await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-save' }).props.onPress());
   const text = renderer!.root.findAllByType(Text).map((node) => node.props.children).flat(Infinity).join(' ');
   expect(text).toContain('Cargar servidor');
@@ -124,7 +143,7 @@ test('publish saves dirty state, validates and creates an immutable version afte
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<MagicMirrorConfigScreen event={event} eventMode={eventMode} accountId="10" onBack={jest.fn()} />); });
   await flush();
   ReactTestRenderer.act(() => renderer!.root.findByType(MirrorFormatSelector).props.onChange('doble'));
-  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'event' }).props.onSelect('review'));
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
   await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-publish' }).props.onPress());
   await flush();
   expect(saveMagicMirrorConfigApi).toHaveBeenCalled();
@@ -157,7 +176,7 @@ test('rolls back a newly associated resource when saving conflicts', async () =>
   await flush();
   ReactTestRenderer.act(() => renderer!.root.findByType(ResourcePicker).props.onSelect(item));
   await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceSelectionSummary).props.onConfirm());
-  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'event' }).props.onSelect('review'));
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
   await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-save' }).props.onPress());
   expect(deleteEventResourceApi).toHaveBeenCalledWith('20', '60');
 });

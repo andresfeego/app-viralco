@@ -32,7 +32,7 @@ function CanvasContent({ config, theme, resourcesById, compact = false }) {
   );
 }
 
-export function MirrorConfigPreview({ config, theme, resourcesById = {}, compact = false }) {
+export function MirrorConfigPreview({ config, theme, resourcesById = {}, compact = false, showMeta = true }) {
   const ratio = Number(config.layout.output?.width || 1) / Number(config.layout.output?.height || 1);
   const duplicate = Boolean(config.layout.duplicateStrip);
   return (
@@ -45,7 +45,7 @@ export function MirrorConfigPreview({ config, theme, resourcesById = {}, compact
           </>
         ) : <CanvasContent config={config} theme={theme} resourcesById={resourcesById} compact={compact} />}
       </View>
-      <Text style={[styles.meta, { color: theme.textSecondary }]}>{config.layout.output.width} × {config.layout.output.height} · {config.layout.shotCount} {t('mirror_027')}</Text>
+      {showMeta ? <Text style={[styles.meta, { color: theme.textSecondary }]}>{config.layout.output.width} × {config.layout.output.height} · {config.layout.shotCount} {t('mirror_027')}</Text> : null}
     </View>
   );
 }

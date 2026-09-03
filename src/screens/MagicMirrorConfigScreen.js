@@ -6,9 +6,10 @@ import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
 import { HorizontalSubMenu } from '../components/HorizontalSubMenu';
-import { MirrorConfigPreview } from '../components/MirrorConfigPreview';
+import { IconTextButton } from '../components/IconTextButton';
 import { MirrorFormatSelector } from '../components/MirrorFormatSelector';
 import { MirrorLayoutEditor } from '../components/MirrorLayoutEditor';
+import { MirrorPreviewModal } from '../components/MirrorPreviewModal';
 import { MirrorTextLayerEditor } from '../components/MirrorTextLayerEditor';
 import { MirrorToggleRow } from '../components/MirrorToggleRow';
 import { ResourcePicker } from '../components/ResourcePicker';
@@ -45,7 +46,7 @@ import {
 import { pickLibraryResourceFile } from '../services/media/documentPicker';
 
 const SECTIONS = [
-  { key: 'event', labelKey: 'mirror_002' }, { key: 'design', labelKey: 'mirror_003' },
+  { key: 'design', labelKey: 'mirror_003' },
   { key: 'experience', labelKey: 'mirror_004' }, { key: 'capture', labelKey: 'mirror_005' },
   { key: 'operation', labelKey: 'mirror_006' }, { key: 'review', labelKey: 'mirror_007' },
 ];
@@ -92,7 +93,8 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
   const eventModeId = String(eventMode?.id || '');
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
   const canEdit = isSuperAdmin || ['owner', 'admin'].includes(roleForAccount(user, accountId));
-  const [section, setSection] = useState('event');
+  const [section, setSection] = useState('design');
+  const [previewVisible, setPreviewVisible] = useState(false);
   const [config, setConfig] = useState(defaultMirrorConfig());
   const [serverRevision, setServerRevision] = useState(0);
   const [status, setStatus] = useState('loading');
@@ -418,7 +420,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     );
   };
 
-  const renderEventSection = () => (
+  const renderDesignSection = () => (
     <View style={styles.section}>
       <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
         <Text style={[styles.title, { color: theme.textPrimary }]}>{t('mirror_031')}</Text>
@@ -427,12 +429,6 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
       {resourceAction('template', 'resource_007')}
       {resourceAction('frame', 'resource_008')}
       {resourceAction('background', 'resource_012')}
-      {renderResourcePicker()}
-    </View>
-  );
-
-  const renderDesignSection = () => (
-    <View style={styles.section}>
       <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}><MirrorLayoutEditor config={config} onChange={mutate} theme={theme} disabled={!canEdit} /></SurfaceCard>
       <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}><MirrorTextLayerEditor config={config} onChange={mutate} theme={theme} disabled={!canEdit} event={event} /></SurfaceCard>
       {resourceAction('font', 'resource_011')}
@@ -521,14 +517,12 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
       <ScrollView ref={contentScrollRef} contentContainerStyle={styles.content}>
         <View style={styles.statusRow}><StatusBadge label={t(STATUS_KEYS[status] || 'mirror_017')} flag={STATUS_FLAGS[status] || 'error'} /><Text style={[styles.meta, { color: theme.textSecondary }]}>r{serverRevision}</Text></View>
         {message ? <Text style={[styles.feedback, { color: status === 'error' || status === 'invalid' ? theme.alert : theme.textSecondary }]}>{message}</Text> : null}
-        <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}><Text style={[styles.title, { color: theme.textPrimary }]}>{t('mirror_030')}</Text><MirrorConfigPreview config={config} theme={theme} resourcesById={resourcesById} compact /></SurfaceCard>
         <View
           key={section}
           onLayout={(layoutEvent) => {
             sectionContentY.current = layoutEvent.nativeEvent.layout.y;
           }}
         >
-          {section === 'event' ? renderEventSection() : null}
           {section === 'design' ? renderDesignSection() : null}
           {section === 'experience' ? renderExperienceSection() : null}
           {section === 'capture' ? renderCaptureSection() : null}
@@ -536,6 +530,19 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
           {section === 'review' ? renderReviewSection() : null}
         </View>
       </ScrollView>
+      <IconTextButton
+        testID="mirror-preview-open"
+        theme={theme}
+        icon="eye"
+        iconSize={tokens.typography.body}
+        accessibilityLabel={t('mirror_121')}
+        backgroundColor={theme.buttonBg}
+        pressedBackgroundColor={theme.buttonBgPressed}
+        iconColor={theme.buttonText}
+        onPress={() => setPreviewVisible(true)}
+        style={styles.previewButton}
+      />
+      {previewVisible ? <MirrorPreviewModal visible config={config} theme={theme} resourcesById={resourcesById} onClose={() => setPreviewVisible(false)} /> : null}
     </View>
   );
 }
@@ -554,4 +561,5 @@ const styles = StyleSheet.create({
   stepperGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   resourceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   rowButton: { minWidth: tokens.spacing.xl * 3 },
+  previewButton: { position: 'absolute', right: tokens.spacing.md, bottom: tokens.spacing.md },
 });
