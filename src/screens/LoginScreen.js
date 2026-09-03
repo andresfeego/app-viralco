@@ -196,7 +196,7 @@ export function LoginScreen({ onGoRegister, onGoForgot }) {
                 backgroundColor={theme.buttonBg}
                 pressedColor={theme.buttonBgPressed}
                 textColor={theme.buttonText}
-                gradient={theme.gradients.primaryToSecondary}
+                gradient={theme.gradients.primaryToTertiary}
                 style={styles.submitButton}
               />
 
