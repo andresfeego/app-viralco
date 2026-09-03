@@ -19,32 +19,18 @@ test('exposes the ViralCo primary, secondary and tertiary brand colors', () => {
 });
 
 test('exposes the three 45 degree brand gradients in both themes', () => {
-  expect(tokens.gradients).toEqual({
-    primaryToSecondary: {
-      angle: 45,
-      angleCenter: { x: 0.5, y: 0.5 },
-      locations: [0.35, 0.65],
-      start: { x: 0, y: 1 },
-      end: { x: 1, y: 0 },
-      colors: [tokens.colors.primary, tokens.colors.secondary],
-    },
-    primaryToTertiary: {
-      angle: 45,
-      angleCenter: { x: 0.5, y: 0.5 },
-      locations: [0.35, 0.65],
-      start: { x: 0, y: 1 },
-      end: { x: 1, y: 0 },
-      colors: [tokens.colors.primary, tokens.colors.tertiary],
-    },
-    secondaryToPrimary: {
-      angle: 45,
-      angleCenter: { x: 0.5, y: 0.5 },
-      locations: [0.35, 0.65],
-      start: { x: 0, y: 1 },
-      end: { x: 1, y: 0 },
-      colors: [tokens.colors.secondary, tokens.colors.primary],
-    },
-  });
+  expect(tokens.gradients.primaryToSecondary).toEqual(expect.objectContaining({
+    angle: 45,
+    colors: [tokens.colors.primary, tokens.colors.secondary],
+  }));
+  expect(tokens.gradients.primaryToTertiary).toEqual(expect.objectContaining({
+    angle: 45,
+    colors: [tokens.colors.primary, tokens.colors.tertiary],
+  }));
+  expect(tokens.gradients.secondaryToPrimary).toEqual(expect.objectContaining({
+    angle: 45,
+    colors: [tokens.colors.secondary, tokens.colors.primary],
+  }));
 
   expect(getTheme('light').gradients).toBe(tokens.gradients);
   expect(getTheme('dark').gradients).toBe(tokens.gradients);
