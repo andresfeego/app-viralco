@@ -212,7 +212,11 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
         const selectedMode = accountForm.modeSlugs.includes(mode.slug);
         return (
           <Pressable key={mode.slug} onPress={() => updateFormField('modeSlugs', selectedMode ? accountForm.modeSlugs.filter((slug) => slug !== mode.slug) : [...accountForm.modeSlugs, mode.slug])} style={styles.pressableCard}>
-            <SurfaceCard surfaceColor={theme.surface} borderColor={selectedMode ? theme.primary : theme.border}>
+            <SurfaceCard
+              surfaceColor={theme.surface}
+              borderColor={theme.border}
+              gradientBorder={selectedMode ? theme.gradients.primaryToSecondary : undefined}
+            >
               <View style={styles.planHeader}>
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{mode.name}</Text>
                 <Text style={[styles.planPrice, { color: selectedMode ? theme.primary : theme.textSecondary }]}>{formatModePrice(mode)}</Text>

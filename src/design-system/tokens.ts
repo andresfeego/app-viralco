@@ -6,8 +6,8 @@ const brandColors = {
 
 const gradient45 = {
   angle: 45,
-  angleCenter: { x: 0.5, y: 0.5 },
-  locations: [0.35, 0.65],
+  angleCenter: { x: 0.9, y: 0.5 },
+  locations: [0.15, 0.65],
   start: { x: 0, y: 1 },
   end: { x: 1, y: 0 },
 } as const;
@@ -140,6 +140,9 @@ export const tokens = {
     md: 12,
     lg: 16,
     pill: 999,
+  },
+  border: {
+    thin: 1,
   },
   typography: {
     hero: 32,
