@@ -2,6 +2,13 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
+jest.mock('react-native-safe-area-context', () => {
+  const { View } = require('react-native');
+  return {
+    SafeAreaView: View,
+    useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+  };
+});
 jest.mock('react-native-paper', () => {
   const ReactModule = require('react');
   const { View } = require('react-native');
@@ -45,7 +52,7 @@ import { listAccountsApi } from '../src/services/api/accounts';
 import { createEventApi, deleteEventApi, getEventDetailApi, listEventModesApi, listEventsApi, listEventTypesApi } from '../src/services/api/events';
 import { EventListCard } from '../src/components/EventListCard';
 import { AccountRequiredEmptyState } from '../src/components/AccountRequiredEmptyState';
-import { HorizontalSubMenu } from '../src/components/HorizontalSubMenu';
+import { AppButton } from '../src/design-system/components/AppButton';
 import { EventsScreen } from '../src/screens/EventsScreen';
 
 const mockedUseAuth = useAuth as jest.Mock;
@@ -97,24 +104,30 @@ test('events list hides account selector when user has one account', async () =>
   });
 });
 
-test('only event creation shows the account-required empty state and routes to account creation', async () => {
+test('event creation opens in a modal and shows the account-required state when needed', async () => {
   mockedListAccounts.mockResolvedValue({ accounts: [] });
   const onCreateAccount = jest.fn();
   let renderer: ReactTestRenderer.ReactTestRenderer;
 
   await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(<EventsScreen initialSection="create" allowedSections={['list', 'create']} onCreateAccount={onCreateAccount} />);
+    renderer = ReactTestRenderer.create(<EventsScreen allowedSections={['list', 'create']} onCreateAccount={onCreateAccount} />);
   });
 
   expect(renderer!.root.findAllByProps({ testID: 'event-name-input' })).toHaveLength(0);
   expect(renderer!.root.findAllByProps({ testID: 'event-create-save' })).toHaveLength(0);
-  expect(renderer!.root.findAllByType(HorizontalSubMenu)).toHaveLength(1);
+  const createButton = renderer!.root
+    .findAllByType(AppButton)
+    .find((node) => node.props.testID === 'event-create-open');
+  expect(createButton).toBeDefined();
+  expect(renderer!.root.findAllByType(AccountRequiredEmptyState)).toHaveLength(0);
+
+  ReactTestRenderer.act(() => {
+    createButton!.props.onPress();
+  });
+
+  expect(renderer!.root.findAllByType(AccountRequiredEmptyState)).toHaveLength(1);
   ReactTestRenderer.act(() => renderer!.root.findByType(AccountRequiredEmptyState).props.onCreateAccount());
   expect(onCreateAccount).toHaveBeenCalledTimes(1);
-
-  ReactTestRenderer.act(() => renderer!.root.findByType(HorizontalSubMenu).props.onSelect('list'));
-  expect(renderer!.root.findAllByType(AccountRequiredEmptyState)).toHaveLength(0);
-  expect(renderer!.root.findByType(HorizontalSubMenu).props.selectedKey).toBe('list');
 });
 
 test('events list shows account switcher when user has multiple accounts', async () => {

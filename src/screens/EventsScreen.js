@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Menu } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppButton } from '../design-system/components/AppButton';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { getTheme } from '../design-system/theme';
@@ -18,8 +18,7 @@ import { IconTextButton } from '../components/IconTextButton';
 import { PaperDateInput } from '../components/PaperDateInput';
 import { PaperFormInput } from '../components/PaperFormInput';
 import { SelectableChipGroup } from '../components/SelectableChipGroup';
-import { HorizontalSubMenu } from '../components/HorizontalSubMenu';
-import { useToast } from '../providers/ToastProvider';
+import { ToastViewport, useToast } from '../providers/ToastProvider';
 import { listAccountsApi } from '../services/api/accounts';
 import {
   createAccountLibraryAssetApi,
@@ -42,6 +41,7 @@ import { pickEventResourceImage } from '../services/media/imagePicker';
 
 const RESOURCE_PURPOSES = ['frame', 'overlay', 'intro', 'outro', 'music', 'logo', 'background', 'template', 'branding', 'other'];
 const EMPTY_EVENT_FORM = { name: '', eventTypeSlug: '', startDate: '', status: 'draft', timezone: 'America/Bogota', description: '', modeSlugs: [] };
+const MODAL_TOAST_TOP_OFFSET = tokens.spacing.xl * 3;
 
 function normalizeEvent(item) {
   if (!item) return null;
@@ -126,10 +126,12 @@ export function EventsScreen({
 }) {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const insets = useSafeAreaInsets();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
   const normalizedSections = allowedSections.filter((key) => ['list', 'create', 'detail', 'resources', 'overlays'].includes(key)).map((key) => (key === 'overlays' ? 'resources' : key));
-  const [section, setSection] = useState(normalizedSections.includes(initialSection) ? initialSection : normalizedSections[0] || 'list');
+  const initialContentSection = initialSection === 'create' ? 'list' : initialSection;
+  const [section, setSection] = useState(normalizedSections.includes(initialContentSection) ? initialContentSection : normalizedSections.find((key) => key !== 'create') || 'list');
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState('');
   const [accountsLoading, setAccountsLoading] = useState(true);
@@ -146,6 +148,7 @@ export function EventsScreen({
   const [ok, setOk] = useState('');
   const [eventForm, setEventForm] = useState(EMPTY_EVENT_FORM);
   const [eventFormErrors, setEventFormErrors] = useState({});
+  const [createEventVisible, setCreateEventVisible] = useState(initialSection === 'create' && normalizedSections.includes('create'));
   const [editEventVisible, setEditEventVisible] = useState(false);
   const [editModesVisible, setEditModesVisible] = useState(false);
   const [deleteEventVisible, setDeleteEventVisible] = useState(false);
@@ -161,10 +164,7 @@ export function EventsScreen({
     () => (contractedModeSlugs.length ? modes.filter((mode) => contractedModeSlugs.includes(mode.slug)) : modes),
     [contractedModeSlugs, modes]
   );
-  const eventMenu = [
-    { key: 'list', label: t('event_000') },
-    { key: 'create', label: t('event_001') },
-  ].filter((item) => normalizedSections.includes(item.key));
+  const canCreateEvent = normalizedSections.includes('create');
 
   const stats = useMemo(() => ({
     active: events.filter((event) => event.status === 'active').length,
@@ -295,6 +295,29 @@ export function EventsScreen({
     setEventForm((current) => ({ ...current, [field]: value }));
   };
 
+  const openCreateEventModal = () => {
+    const defaultModeSlugs = availableModes
+      .filter((mode) => mode.isDefault)
+      .map((mode) => mode.slug);
+    setEventForm({
+      ...EMPTY_EVENT_FORM,
+      modeSlugs: defaultModeSlugs.length
+        ? defaultModeSlugs
+        : availableModes[0]?.slug
+          ? [availableModes[0].slug]
+          : [],
+    });
+    setEventFormErrors({});
+    clearMessages();
+    setCreateEventVisible(true);
+  };
+
+  const closeCreateEventModal = () => {
+    setCreateEventVisible(false);
+    setEventFormErrors({});
+    clearMessages();
+  };
+
   const validateEvent = () => {
     const nextErrors = {};
     if (!accountId) nextErrors.accountId = t('event_097');
@@ -321,10 +344,11 @@ export function EventsScreen({
         status: 'draft',
       });
       const event = normalizeEvent(payload?.event || payload);
-      setOk(t('event_061'));
       setEventForm(EMPTY_EVENT_FORM);
       setEventFormErrors({});
       await loadEvents();
+      setCreateEventVisible(false);
+      setOk(t('event_061'));
       if (event?.id) { setSelectedEventId(event.id); setSection('detail'); }
     } catch (err) {
       const message = err?.message || t('event_062');
@@ -475,6 +499,7 @@ export function EventsScreen({
 
   const selectAccount = (nextAccountId) => {
     setAccountId(String(nextAccountId || ''));
+    setCreateEventVisible(false);
     setSelectedEventId('');
     setSelectedEvent(null);
     setEvents([]);
@@ -539,6 +564,94 @@ export function EventsScreen({
       <Menu.Item onPress={() => onPickEventVisualResource(purpose, 'camera')} title={t('event_115')} />
       <Menu.Item onPress={() => onPickEventVisualResource(purpose, 'gallery')} title={t('event_116')} />
     </Menu>
+  );
+
+  const renderCreateEventModal = () => (
+    <Modal
+      visible={createEventVisible}
+      animationType="slide"
+      transparent
+      onRequestClose={closeCreateEventModal}
+    >
+      <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.modalOverlay}>
+        <View
+          style={[
+            styles.modalCard,
+            {
+              backgroundColor: theme.background,
+              borderColor: theme.border,
+              paddingTop: insets.top + tokens.spacing.md,
+            },
+          ]}
+        >
+          {accounts.length === 0 ? (
+            <AccountRequiredEmptyState
+              theme={theme}
+              onCreateAccount={onCreateAccount}
+              testID="events-account-required"
+            />
+          ) : (
+            <ScrollView contentContainerStyle={styles.modalList}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+                {t('event_001')}
+              </Text>
+              {error ? (
+                <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text>
+              ) : null}
+              {eventFormErrors.accountId ? (
+                <Text style={[styles.feedback, { color: theme.alert }]}>
+                  {eventFormErrors.accountId}
+                </Text>
+              ) : null}
+              {renderEventTypePicker()}
+              {renderEventInput({
+                testID: 'event-name-input',
+                label: t('event_071'),
+                field: 'name',
+                value: eventForm.name,
+              })}
+              <SelectableChipGroup
+                testID="event-mode-selector"
+                theme={theme}
+                label={t('event_111')}
+                options={availableModes.map((mode) => ({
+                  label: mode.name,
+                  value: mode.slug,
+                }))}
+                values={eventForm.modeSlugs}
+                multiple
+                disabled={!canEdit}
+                errorText={eventFormErrors.modeSlugs}
+                onChange={(modeSlugs) =>
+                  updateEventFormField('modeSlugs', modeSlugs)
+                }
+              />
+              <View style={styles.row}>
+                <AppButton
+                  label={t('account_028')}
+                  onPress={closeCreateEventModal}
+                  backgroundColor={theme.surface}
+                  pressedColor={theme.surface}
+                  textColor={theme.textPrimary}
+                  style={styles.smallButton}
+                />
+                <AppButton
+                  testID="event-create-save"
+                  label={t('event_076')}
+                  onPress={onCreateEvent}
+                  backgroundColor={theme.buttonBg}
+                  pressedColor={theme.buttonBgPressed}
+                  textColor={theme.buttonText}
+                  disabled={saving || !canEdit}
+                  style={styles.smallButton}
+                />
+              </View>
+            </ScrollView>
+          )}
+        </View>
+        <ToastViewport theme={theme} topOffset={MODAL_TOAST_TOP_OFFSET} />
+      </SafeAreaView>
+    </Modal>
   );
 
   const renderEditEventModal = () => (
@@ -673,7 +786,6 @@ export function EventsScreen({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {eventMenu.length > 1 ? <HorizontalSubMenu items={eventMenu} selectedKey={section} onSelect={setSection} theme={theme} /> : null}
       <CompactAccountSelector
         accounts={accounts}
         value={accountId}
@@ -681,9 +793,6 @@ export function EventsScreen({
         theme={theme}
         roleLabel={isSuperAdmin ? 'super_admin' : roleSlug || ''}
       />
-      {section === 'create' && accounts.length === 0 ? (
-        <AccountRequiredEmptyState theme={theme} onCreateAccount={onCreateAccount} testID="events-account-required" />
-      ) : (
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {error ? <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text> : null}
         {ok ? <Text style={[styles.feedback, { color: theme.secondary }]}>{ok}</Text> : null}
@@ -692,30 +801,19 @@ export function EventsScreen({
         {section === 'list' ? (
           <View style={styles.sectionWrap}>
             {showKpi ? <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}><View style={styles.kpiRow}><Text style={[styles.kpiText, { color: theme.textPrimary }]}>Activos {stats.active}</Text><Text style={[styles.kpiText, { color: theme.textPrimary }]}>Draft {stats.draft}</Text><Text style={[styles.kpiText, { color: theme.textPrimary }]}>Archivados {stats.archived}</Text></View></SurfaceCard> : null}
+            {canCreateEvent ? (
+              <AppButton
+                testID="event-create-open"
+                label={t('event_001')}
+                onPress={openCreateEventModal}
+                backgroundColor={theme.buttonBg}
+                pressedColor={theme.buttonBgPressed}
+                textColor={theme.buttonText}
+              />
+            ) : null}
             {events.length === 0 ? <Text style={{ color: theme.textSecondary }}>{t('event_022')}</Text> : null}
             <FlatList data={events} keyExtractor={(item) => item.id} scrollEnabled={false} contentContainerStyle={styles.listContent} renderItem={({ item }) => <EventListCard item={item} selected={item.id === selectedEventId} theme={theme} onPress={() => { setSelectedEventId(item.id); setSelectedEvent(item); setSection('detail'); }} />} />
           </View>
-        ) : null}
-
-        {section === 'create' ? (
-          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_001')}</Text>
-            {eventFormErrors.accountId ? <Text style={[styles.feedback, { color: theme.alert }]}>{eventFormErrors.accountId}</Text> : null}
-            {renderEventTypePicker()}
-            {renderEventInput({ testID: 'event-name-input', label: t('event_071'), field: 'name', value: eventForm.name })}
-            <SelectableChipGroup
-              testID="event-mode-selector"
-              theme={theme}
-              label={t('event_111')}
-              options={availableModes.map((mode) => ({ label: mode.name, value: mode.slug }))}
-              values={eventForm.modeSlugs}
-              multiple
-              disabled={!canEdit}
-              errorText={eventFormErrors.modeSlugs}
-              onChange={(modeSlugs) => updateEventFormField('modeSlugs', modeSlugs)}
-            />
-            {accounts.length > 0 ? <AppButton testID="event-create-save" label={t('event_076')} onPress={onCreateEvent} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} /> : null}
-          </SurfaceCard>
         ) : null}
 
         {section === 'detail' ? renderEventDetail() : null}
@@ -783,7 +881,7 @@ export function EventsScreen({
           </View>
         ) : null}
       </ScrollView>
-      )}
+      {renderCreateEventModal()}
       {renderEditEventModal()}
       {renderEditModesModal()}
       <DestructiveConfirmationModal
