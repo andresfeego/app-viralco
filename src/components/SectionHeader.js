@@ -1,28 +1,36 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Icon from '@react-native-vector-icons/fontawesome6';
 import { tokens } from '../design-system/tokens';
+import { IconTextButton } from './IconTextButton';
 
 export function SectionHeader({ title, subtitle = '', iconName, theme, onBack = null, backLabel = 'Volver' }) {
   return (
     <View style={[styles.wrap, { borderBottomColor: theme.primary, backgroundColor: theme.primary }]}>
-      <View style={styles.leftCol}>
+      <View testID="section-header-content" style={styles.leftCol}>
         {onBack ? (
-          <Pressable onPress={onBack} style={styles.backButton}>
-            <Text style={[styles.backText, { color: theme.buttonText }]}>{'<'} {backLabel}</Text>
-          </Pressable>
+          <IconTextButton
+            testID="section-header-back"
+            theme={theme}
+            label={backLabel}
+            icon="arrow-left"
+            variant="ghost"
+            iconColor={theme.buttonText}
+            onPress={onBack}
+            style={styles.backButton}
+          />
         ) : null}
-        <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.title, { color: theme.buttonText }]}>
+        <Text testID="section-header-title" numberOfLines={1} ellipsizeMode="tail" style={[styles.title, { color: theme.buttonText }]}>
           {title}
         </Text>
         {subtitle ? (
-          <Text numberOfLines={1} style={[styles.subtitle, { color: theme.textSecondary }]}>
+          <Text testID="section-header-subtitle" numberOfLines={1} ellipsizeMode="tail" style={[styles.subtitle, { color: theme.tertiary }]}>
             {subtitle}
           </Text>
         ) : null}
       </View>
       <View style={styles.iconWrap}>
-        <Icon name={iconName} iconStyle="solid" size={20} color={theme.buttonText} />
+        <Icon name={iconName} iconStyle="solid" size={tokens.typography.heading} color={theme.buttonText} />
       </View>
     </View>
   );
@@ -30,32 +38,27 @@ export function SectionHeader({ title, subtitle = '', iconName, theme, onBack = 
 
 const styles = StyleSheet.create({
   wrap: {
-    minHeight: 78,
-    borderBottomWidth: 1,
+    minHeight: tokens.spacing.xl * 2 + tokens.typography.caption,
+    borderBottomWidth: tokens.border.thin,
     paddingHorizontal: tokens.spacing.md,
     paddingVertical: tokens.spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: tokens.spacing.sm,
   },
   leftCol: {
-    width: '55%',
-    paddingLeft: 4,
-    gap: 2,
+    flex: 1,
+    minWidth: tokens.spacing.none,
+    paddingLeft: tokens.spacing.xxs,
+    gap: tokens.spacing.xxs,
   },
   backButton: {
     alignSelf: 'flex-start',
-    paddingVertical: 1,
-    marginBottom: 1,
-  },
-  backText: {
-    fontSize: tokens.typography.caption,
-    fontWeight: '700',
   },
   title: {
     fontSize: tokens.typography.heading,
     fontWeight: '700',
-    marginLeft: 6,
   },
   subtitle: {
     fontSize: tokens.typography.caption,
@@ -65,7 +68,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: 44,
-    minWidth: 24,
+    minHeight: tokens.spacing.xl + tokens.spacing.sm,
+    minWidth: tokens.spacing.lg,
   },
 });

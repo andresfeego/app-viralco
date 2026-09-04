@@ -215,10 +215,12 @@ test('opens the mirror configurator from event detail', async () => {
   mockedListEvents.mockResolvedValue({ events: [mirrorEvent] });
   mockedGetEventDetail.mockResolvedValue({ event: mirrorEvent });
   const onConfigureMirror = jest.fn();
+  const onHeaderChange = jest.fn();
   let renderer: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<EventsScreen allowedSections={['list', 'detail']} onConfigureMirror={onConfigureMirror} />); });
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<EventsScreen allowedSections={['list', 'detail']} onConfigureMirror={onConfigureMirror} onHeaderChange={onHeaderChange} />); });
   await ReactTestRenderer.act(async () => renderer!.root.findByType(EventListCard).props.onPress());
   await ReactTestRenderer.act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  expect(onHeaderChange).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Evento Espejo', subtitle: 'Detalle de evento' }));
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-configure-mirror' }).props.onPress());
   expect(onConfigureMirror).toHaveBeenCalledWith(expect.objectContaining({ event: expect.objectContaining({ id: '10' }), eventMode: expect.objectContaining({ id: '30' }), accountId: '1', canEdit: true }));
 });

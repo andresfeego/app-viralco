@@ -280,7 +280,7 @@ export function EventsScreen({
       return;
     }
     if (section === 'detail') {
-      onHeaderChange({ title: t('event_002'), subtitle: selectedEvent?.name || '', iconName: 'calendar-check', onBack: () => setSection('list'), backLabel: t('event_109') });
+      onHeaderChange({ title: selectedEvent?.name || t('event_002'), subtitle: t('event_129'), iconName: 'calendar-check', onBack: () => setSection('list'), backLabel: t('event_109') });
       return;
     }
     onHeaderChange({ title: t('menu_002'), subtitle: '', iconName: 'champagne-glasses', onBack: null, backLabel: 'Volver' });

@@ -108,8 +108,8 @@ export function MainFlow({ bottomInset = 0 }) {
 
   const isAccountDetail = selectedKey === 'cuenta' && accountRoute.name === 'detail';
   const usesEventsHeader = selectedKey === 'eventos' || selectedKey === 'recursos';
-  const headerTitle = isAccountDetail ? t('account_054') : usesEventsHeader ? eventsHeaderConfig.title : selectedItem.headerTitle;
-  const headerSubtitle = isAccountDetail ? accountRoute.account?.name || '' : usesEventsHeader ? eventsHeaderConfig.subtitle : '';
+  const headerTitle = isAccountDetail ? accountRoute.account?.name || t('account_054') : usesEventsHeader ? eventsHeaderConfig.title : selectedItem.headerTitle;
+  const headerSubtitle = isAccountDetail ? t('account_054') : usesEventsHeader ? eventsHeaderConfig.subtitle : '';
   const headerIconName = isAccountDetail ? 'building' : usesEventsHeader ? eventsHeaderConfig.iconName : selectedItem.iconName;
   const headerOnBack = isAccountDetail ? closeAccountDetail : usesEventsHeader ? eventsHeaderConfig.onBack : null;
   const headerBackLabel = isAccountDetail ? t('account_055') : usesEventsHeader ? eventsHeaderConfig.backLabel : 'Volver';

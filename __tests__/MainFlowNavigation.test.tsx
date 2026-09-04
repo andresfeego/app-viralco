@@ -20,8 +20,15 @@ jest.mock('../src/screens/EventsScreen', () => {
   return { EventsScreen: ({ onCreateAccount }: any) => <MockPressable testID="events-create-account" onPress={onCreateAccount}><MockText>Eventos</MockText></MockPressable> };
 });
 jest.mock('../src/screens/AccountsScreen', () => {
-  const { Text: MockText } = require('react-native');
-  return { AccountsScreen: ({ openCreateRequest }: any) => <MockText testID="accounts-open-request">{String(openCreateRequest)}</MockText> };
+  const { Pressable: MockPressable, Text: MockText, View: MockView } = require('react-native');
+  return {
+    AccountsScreen: ({ openCreateRequest, onOpenAccount }: any) => (
+      <MockView>
+        <MockText testID="accounts-open-request">{String(openCreateRequest)}</MockText>
+        <MockPressable testID="account-open-detail" onPress={() => onOpenAccount({ id: '10', name: 'Cuenta de celebraciones empresariales' })} />
+      </MockView>
+    ),
+  };
 });
 jest.mock('../src/screens/SuperAdminUsersScreen', () => {
   const { Text: MockText } = require('react-native');
@@ -45,6 +52,8 @@ jest.mock('../src/screens/MagicMirrorConfigScreen', () => {
 });
 
 import { MainFlow } from '../App';
+import { BottomMainMenu } from '../src/components/BottomMainMenu';
+import { SectionHeader } from '../src/components/SectionHeader';
 import { useAuth } from '../src/hooks/useAuth';
 
 const mockedUseAuth = useAuth as jest.Mock;
@@ -78,4 +87,23 @@ test('the account-required action routes to account creation', async () => {
   });
 
   expect(renderer!.root.findByProps({ testID: 'accounts-open-request' }).props.children).toBe('1');
+});
+
+test('account detail shows the account name as heading and the detail label as subtitle', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MainFlow />);
+  });
+
+  ReactTestRenderer.act(() => {
+    renderer!.root.findByType(BottomMainMenu).props.onSelect('cuenta');
+  });
+  ReactTestRenderer.act(() => {
+    renderer!.root.findByProps({ testID: 'account-open-detail' }).props.onPress();
+  });
+
+  expect(renderer!.root.findByType(SectionHeader).props).toEqual(expect.objectContaining({
+    title: 'Cuenta de celebraciones empresariales',
+    subtitle: 'Detalle de cuenta',
+  }));
 });
