@@ -31,12 +31,12 @@ export function EventHeroHeader({ theme, title, subtitle, backgroundImageUrl = '
           style={[styles.hero, { backgroundColor: theme.surfaceSoft }]}
         >
           {heroContent}
-          {backgroundAction ? <View testID="event-hero-background-action" style={styles.mediaAction}>{backgroundAction}</View> : null}
+          {backgroundAction ? <View testID="event-hero-background-action" style={styles.backgroundAction}>{backgroundAction}</View> : null}
         </ImageBackground>
       ) : (
         <View style={[styles.hero, { backgroundColor: theme.surfaceSoft, borderColor: theme.border }]}>
           {heroContent}
-          {backgroundAction ? <View testID="event-hero-background-action" style={styles.mediaAction}>{backgroundAction}</View> : null}
+          {backgroundAction ? <View testID="event-hero-background-action" style={styles.backgroundAction}>{backgroundAction}</View> : null}
         </View>
       )}
       <View style={[styles.logoWrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -47,7 +47,7 @@ export function EventHeroHeader({ theme, title, subtitle, backgroundImageUrl = '
             <Icon name="image" iconStyle="regular" size={24} color={theme.textSecondary} />
           </View>
         )}
-        {logoAction ? <View testID="event-hero-logo-action" style={styles.mediaAction}>{logoAction}</View> : null}
+        {logoAction ? <View testID="event-hero-logo-action" style={styles.logoAction}>{logoAction}</View> : null}
       </View>
     </View>
   );
@@ -63,6 +63,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: tokens.typography.caption, fontWeight: '700', textAlign: 'center' },
   logoWrap: { position: 'absolute', left: '50%', bottom: 0, width: LOGO_SIZE, height: LOGO_SIZE, marginLeft: -LOGO_OFFSET, borderRadius: tokens.radius.lg, borderWidth: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   logoImage: { width: '100%', height: '100%' },
-  mediaAction: { position: 'absolute', right: tokens.spacing.xs, top: tokens.spacing.xs },
+  backgroundAction: { position: 'absolute', right: tokens.spacing.xs, top: tokens.spacing.xs },
+  logoAction: { position: 'absolute', right: tokens.spacing.xs, bottom: tokens.spacing.xs },
   placeholderIconWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
 });

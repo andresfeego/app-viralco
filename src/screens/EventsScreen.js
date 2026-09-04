@@ -561,6 +561,7 @@ export function EventsScreen({
           theme={theme}
           icon="pencil"
           variant="ghost"
+          compactIconOnly
           onPress={() => setVisualMenuPurpose(purpose)}
           testID={`event-${purpose}-edit`}
         />
@@ -731,42 +732,50 @@ export function EventsScreen({
           backgroundAction={canEdit ? renderVisualResourceMenu('background') : null}
           logoAction={canEdit ? renderVisualResourceMenu('logo') : null}
         />
-        <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-          <View style={styles.cardHeaderRow}>
+        <View style={styles.editableCardWrap}>
+          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_108')}</Text>
-            {canEdit ? <IconTextButton theme={theme} icon="pencil" variant="ghost" onPress={() => setEditEventVisible(true)} testID="event-details-edit" /> : null}
-          </View>
-          <View style={styles.detailRows}>
-            <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_105')}: {event?.eventType?.name || '-'}</Text>
-            <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_073')}: {event?.eventDate || '-'}</Text>
-            <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_010')}: {event?.status || '-'}</Text>
-            <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_103')}: {event?.timezone || '-'}</Text>
-            <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>Slug: {event?.slug || '-'}</Text>
-            {event?.description ? <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{event.description}</Text> : null}
-          </View>
-        </SurfaceCard>
-        <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-          <View style={styles.cardHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_111')}</Text>
-            {canEdit ? <IconTextButton theme={theme} icon="pencil" variant="ghost" onPress={() => setEditModesVisible(true)} testID="event-modes-edit" /> : null}
-          </View>
-          {event?.modes?.length ? event.modes.map((item) => (
-            <View key={item.id || item.mode?.slug} style={styles.modeRow}>
-              <Text style={[styles.cardMeta, styles.modeName, { color: theme.textSecondary }]}>{item.mode?.name || item.mode?.slug || '-'}</Text>
-              {item.mode?.slug === 'espejo' && item.isActive !== false && onConfigureMirror ? (
-                <AppButton
-                  testID="event-configure-mirror"
-                  label={t('mirror_008')}
-                  onPress={() => onConfigureMirror({ event, eventMode: item, accountId, canEdit })}
-                  backgroundColor={theme.buttonBg}
-                  pressedColor={theme.buttonBgPressed}
-                  textColor={theme.buttonText}
-                  style={styles.modeButton}
-                />
-              ) : null}
+            <View style={styles.detailRows}>
+              <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_105')}: {event?.eventType?.name || '-'}</Text>
+              <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_073')}: {event?.eventDate || '-'}</Text>
+              <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_010')}: {event?.status || '-'}</Text>
+              <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_103')}: {event?.timezone || '-'}</Text>
+              <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>Slug: {event?.slug || '-'}</Text>
+              {event?.description ? <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{event.description}</Text> : null}
             </View>
-          )) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
-        </SurfaceCard>
+          </SurfaceCard>
+          {canEdit ? (
+            <View style={styles.cardEditAction}>
+              <IconTextButton theme={theme} icon="pencil" variant="ghost" compactIconOnly onPress={() => setEditEventVisible(true)} testID="event-details-edit" />
+            </View>
+          ) : null}
+        </View>
+        <View style={styles.editableCardWrap}>
+          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_111')}</Text>
+            {event?.modes?.length ? event.modes.map((item) => (
+              <View key={item.id || item.mode?.slug} style={styles.modeRow}>
+                <Text style={[styles.cardMeta, styles.modeName, { color: theme.textSecondary }]}>{item.mode?.name || item.mode?.slug || '-'}</Text>
+                {item.mode?.slug === 'espejo' && item.isActive !== false && onConfigureMirror ? (
+                  <AppButton
+                    testID="event-configure-mirror"
+                    label={t('mirror_008')}
+                    onPress={() => onConfigureMirror({ event, eventMode: item, accountId, canEdit })}
+                    backgroundColor={theme.buttonBg}
+                    pressedColor={theme.buttonBgPressed}
+                    textColor={theme.buttonText}
+                    style={styles.modeButton}
+                  />
+                ) : null}
+              </View>
+            )) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
+          </SurfaceCard>
+          {canEdit ? (
+            <View style={styles.cardEditAction}>
+              <IconTextButton theme={theme} icon="pencil" variant="ghost" compactIconOnly onPress={() => setEditModesVisible(true)} testID="event-modes-edit" />
+            </View>
+          ) : null}
+        </View>
         {canEdit ? (
           <AppButton
             testID="event-delete-open"
@@ -935,7 +944,8 @@ const styles = StyleSheet.create({
   modeName: { flex: 1 },
   modeButton: { minWidth: tokens.spacing.xl * 3 },
   row: { flexDirection: 'row', gap: tokens.spacing.xs },
-  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
+  editableCardWrap: { position: 'relative' },
+  cardEditAction: { position: 'absolute', right: tokens.spacing.xs, top: tokens.spacing.xs },
   smallButton: { flex: 1 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalCard: { flex: 1, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg, padding: tokens.spacing.md, gap: tokens.spacing.sm },

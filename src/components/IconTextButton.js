@@ -18,6 +18,7 @@ export function IconTextButton({
   pressedBackgroundColor,
   iconColor,
   iconSize = tokens.typography.caption,
+  compactIconOnly = false,
   testID,
   style,
 }) {
@@ -37,12 +38,14 @@ export function IconTextButton({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || label || undefined}
+      hitSlop={isIconOnly && compactIconOnly ? tokens.spacing.md : undefined}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
         isGhost ? styles.ghost : null,
         isIconOnly ? styles.iconOnly : null,
+        isIconOnly && compactIconOnly ? styles.compactIconOnly : null,
         direction === 'column' ? styles.column : styles.row,
         style,
         {
@@ -82,6 +85,13 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radius.pill,
     paddingVertical: 0,
     paddingHorizontal: tokens.spacing.xs,
+  },
+  compactIconOnly: {
+    width: tokens.typography.caption,
+    height: tokens.typography.caption,
+    minHeight: tokens.typography.caption,
+    paddingVertical: tokens.spacing.none,
+    paddingHorizontal: tokens.spacing.none,
   },
   ghost: {
     borderWidth: tokens.spacing.none,

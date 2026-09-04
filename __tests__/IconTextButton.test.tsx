@@ -51,3 +51,20 @@ test('icon-only mode is circular and accepts explicit theme colors', () => {
   expect(style.borderRadius).toBe(tokens.radius.pill);
   expect(style.backgroundColor).toBe(theme.surface);
 });
+
+test('compact icon-only mode aligns the glyph while preserving a larger hit area', () => {
+  const theme = getTheme('dark');
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <IconTextButton theme={theme} icon="pencil" variant="ghost" compactIconOnly testID="compact" />,
+    );
+  });
+  const button = renderer!.root.findAllByProps({ testID: 'compact' }).at(-1)!;
+  const resolvedStyle = typeof button.props.style === 'function' ? button.props.style({ pressed: false }) : button.props.style;
+  const style = StyleSheet.flatten(resolvedStyle);
+
+  expect(style.width).toBe(tokens.typography.caption);
+  expect(style.height).toBe(tokens.typography.caption);
+  expect(button.props.hitSlop).toBe(tokens.spacing.md);
+});
