@@ -30,12 +30,12 @@ test.each(['light', 'dark'] as const)('anchors event image actions to their fram
 
   expect(backgroundStyle).toEqual(expect.objectContaining({
     position: 'absolute',
-    right: tokens.spacing.xs,
-    top: tokens.spacing.xs,
+    right: tokens.spacing.sm,
+    top: tokens.spacing.sm,
   }));
   expect(logoStyle).toEqual(expect.objectContaining({
     position: 'absolute',
-    right: tokens.spacing.xs,
-    bottom: tokens.spacing.xs,
+    right: tokens.spacing.sm,
+    bottom: tokens.spacing.sm,
   }));
 });

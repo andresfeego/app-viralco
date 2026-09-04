@@ -945,7 +945,7 @@ const styles = StyleSheet.create({
   modeButton: { minWidth: tokens.spacing.xl * 3 },
   row: { flexDirection: 'row', gap: tokens.spacing.xs },
   editableCardWrap: { position: 'relative' },
-  cardEditAction: { position: 'absolute', right: tokens.spacing.xs, top: tokens.spacing.xs },
+  cardEditAction: { position: 'absolute', right: tokens.spacing.sm, top: tokens.spacing.sm },
   smallButton: { flex: 1 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalCard: { flex: 1, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg, padding: tokens.spacing.md, gap: tokens.spacing.sm },

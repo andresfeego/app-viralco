@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: tokens.typography.caption, fontWeight: '700', textAlign: 'center' },
   logoWrap: { position: 'absolute', left: '50%', bottom: 0, width: LOGO_SIZE, height: LOGO_SIZE, marginLeft: -LOGO_OFFSET, borderRadius: tokens.radius.lg, borderWidth: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   logoImage: { width: '100%', height: '100%' },
-  backgroundAction: { position: 'absolute', right: tokens.spacing.xs, top: tokens.spacing.xs },
-  logoAction: { position: 'absolute', right: tokens.spacing.xs, bottom: tokens.spacing.xs },
+  backgroundAction: { position: 'absolute', right: tokens.spacing.sm, top: tokens.spacing.sm },
+  logoAction: { position: 'absolute', right: tokens.spacing.sm, bottom: tokens.spacing.sm },
   placeholderIconWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
 });
