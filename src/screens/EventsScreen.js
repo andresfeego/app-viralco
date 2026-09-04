@@ -783,6 +783,7 @@ export function EventsScreen({
                       launchLabel={`${t('event_130')} ${item.mode?.name || ''}`.trim()}
                       canConfigure={configureEnabled}
                       canLaunch={launchEnabled}
+                      showTopDivider={index === 0}
                       showDivider={index < event.modes.length - 1}
                       onConfigure={() => onConfigureMirror?.({ event, eventMode: item, accountId, canEdit })}
                       onLaunch={() => onLaunchMirror?.({ event, eventMode: item, accountId })}

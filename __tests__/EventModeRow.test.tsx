@@ -73,3 +73,24 @@ test('keeps symmetric vertical padding and removes the final divider', () => {
   expect(style.paddingVertical).toBe(tokens.spacing.md);
   expect(style.borderBottomWidth).toBe(tokens.spacing.none);
 });
+
+test('can render the upper divider for the first row', () => {
+  const theme = getTheme('light');
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <EventModeRow
+        theme={theme}
+        name="Espejo"
+        configureLabel="Configurar"
+        launchLabel="Lanzar"
+        showTopDivider
+      />,
+    );
+  });
+
+  const row = renderer!.root.findByProps({ testID: 'event-mode-row' });
+  const style = StyleSheet.flatten(row.props.style);
+  expect(style.borderTopColor).toBe(tokens.colors.gray[3]);
+  expect(style.borderTopWidth).toBe(tokens.border.thin);
+});
