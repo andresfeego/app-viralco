@@ -16,9 +16,11 @@ export function IconTextButton({
   accessibilityLabel,
   backgroundColor: customBackgroundColor,
   pressedBackgroundColor,
+  borderColor: customBorderColor,
   iconColor,
   iconSize = tokens.typography.caption,
   compactIconOnly = false,
+  iconOnlyShape = 'circle',
   testID,
   style,
 }) {
@@ -27,7 +29,7 @@ export function IconTextButton({
   const isGhost = variant === 'ghost';
   const backgroundColor = customBackgroundColor ?? (variant === 'filled' ? theme.buttonBg : theme.surface);
   const pressedColor = pressedBackgroundColor ?? (variant === 'filled' ? theme.buttonBgPressed : theme.background);
-  const borderColor = variant === 'filled' ? theme.buttonBg : theme.border;
+  const borderColor = customBorderColor ?? (variant === 'filled' ? theme.buttonBg : theme.border);
   const contentColor = iconColor ?? (variant === 'filled' ? theme.buttonText : isGhost ? theme.primary : theme.textPrimary);
 
   const iconNode = <Icon name={icon} iconStyle={iconStyle} size={iconSize} color={contentColor} />;
@@ -45,6 +47,7 @@ export function IconTextButton({
         styles.button,
         isGhost ? styles.ghost : null,
         isIconOnly ? styles.iconOnly : null,
+        isIconOnly && iconOnlyShape === 'rounded-square' ? styles.roundedSquareIconOnly : null,
         isIconOnly && compactIconOnly ? styles.compactIconOnly : null,
         direction === 'column' ? styles.column : styles.row,
         style,
@@ -92,6 +95,9 @@ const styles = StyleSheet.create({
     minHeight: tokens.typography.caption,
     paddingVertical: tokens.spacing.none,
     paddingHorizontal: tokens.spacing.none,
+  },
+  roundedSquareIconOnly: {
+    borderRadius: tokens.radius.sm,
   },
   ghost: {
     borderWidth: tokens.spacing.none,

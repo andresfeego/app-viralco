@@ -209,6 +209,7 @@ export const dictionary = {
   event_127: { es: 'Archivados', en: 'Archived' },
   event_128: { es: 'No hay eventos con este estado', en: 'No events match this status' },
   event_129: { es: 'Detalle de evento', en: 'Event detail' },
+  event_130: { es: 'Lanzar', en: 'Launch' },
   common_cancel: { es: 'Cancelar', en: 'Cancel' },
   common_confirm: { es: 'Confirmar', en: 'Confirm' },
   resource_001: { es: 'Pool', en: 'Pool' },

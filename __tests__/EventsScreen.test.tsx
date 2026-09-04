@@ -33,6 +33,7 @@ jest.mock('../src/services/api/events', () => ({
   deleteEventApi: jest.fn(),
   createEventResourceApi: jest.fn(),
   getEventDetailApi: jest.fn(),
+  getPublishedMagicMirrorConfigApi: jest.fn(),
   listAccountLibraryApi: jest.fn(),
   listEventModesApi: jest.fn(),
   listEventResourcesApi: jest.fn(),
@@ -50,8 +51,9 @@ jest.mock('../src/services/media/imagePicker', () => ({
 import { useAuth } from '../src/hooks/useAuth';
 import { useToast } from '../src/providers/ToastProvider';
 import { listAccountsApi } from '../src/services/api/accounts';
-import { createEventApi, deleteEventApi, getEventDetailApi, listEventModesApi, listEventsApi, listEventTypesApi } from '../src/services/api/events';
+import { createEventApi, deleteEventApi, getEventDetailApi, getPublishedMagicMirrorConfigApi, listEventModesApi, listEventsApi, listEventTypesApi } from '../src/services/api/events';
 import { EventListCard } from '../src/components/EventListCard';
+import { EventModeRow } from '../src/components/EventModeRow';
 import { AccountRequiredEmptyState } from '../src/components/AccountRequiredEmptyState';
 import { SelectableChipGroup } from '../src/components/SelectableChipGroup';
 import { AppButton } from '../src/design-system/components/AppButton';
@@ -64,6 +66,7 @@ const mockedListAccounts = listAccountsApi as jest.Mock;
 const mockedCreateEvent = createEventApi as jest.Mock;
 const mockedDeleteEvent = deleteEventApi as jest.Mock;
 const mockedGetEventDetail = getEventDetailApi as jest.Mock;
+const mockedGetPublishedMirrorConfig = getPublishedMagicMirrorConfigApi as jest.Mock;
 const mockedListEvents = listEventsApi as jest.Mock;
 const mockedListEventTypes = listEventTypesApi as jest.Mock;
 const mockedListModes = listEventModesApi as jest.Mock;
@@ -78,6 +81,7 @@ beforeEach(() => {
   mockedUseAuth.mockReturnValue({
     user: { themeMode: 'dark', globalRoles: [], accounts: [{ account: { id: '1' }, status: 'active', role: { slug: 'owner' } }] },
   });
+  mockedGetPublishedMirrorConfig.mockRejectedValue(new Error('Sin publicacion'));
   mockedUseToast.mockReturnValue({ showToast: jest.fn(), hideToast: jest.fn() });
   mockedCreateEvent.mockResolvedValue({ event: { id: '10', accountId: '1', name: 'Evento Demo', slug: 'boda-evento-demo-2026-08-19', eventType: { slug: 'boda', name: 'Boda' }, startDate: null, endDate: null, status: 'draft', timezone: 'America/Bogota', modes: [] } });
   mockedListEventTypes.mockResolvedValue({ types: [{ id: '1', slug: 'boda', name: 'Boda', isActive: true }] });
@@ -223,6 +227,28 @@ test('opens the mirror configurator from event detail', async () => {
   expect(onHeaderChange).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Evento Espejo', subtitle: 'Detalle de evento' }));
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-configure-mirror' }).props.onPress());
   expect(onConfigureMirror).toHaveBeenCalledWith(expect.objectContaining({ event: expect.objectContaining({ id: '10' }), eventMode: expect.objectContaining({ id: '30' }), accountId: '1', canEdit: true }));
+  expect(renderer!.root.findByType(EventModeRow).props.canLaunch).toBe(false);
+});
+
+test('enables launch only for an active mode with a published configuration and launch handler', async () => {
+  const mirrorEvent = { id: '10', accountId: '1', name: 'Evento activo', status: 'active', modes: [{ id: '30', isActive: true, mode: { slug: 'espejo', name: 'Espejo' } }] };
+  mockedListAccounts.mockResolvedValue({ accounts: [{ id: '1', name: 'Cuenta Uno', slug: 'cuenta-uno' }] });
+  mockedListEvents.mockResolvedValue({ events: [mirrorEvent] });
+  mockedGetEventDetail.mockResolvedValue({ event: mirrorEvent });
+  mockedGetPublishedMirrorConfig.mockResolvedValue({ version: { id: '99' } });
+  const onLaunchMirror = jest.fn();
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<EventsScreen allowedSections={['list', 'detail']} onConfigureMirror={jest.fn()} onLaunchMirror={onLaunchMirror} />);
+  });
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(EventListCard).props.onPress());
+  await ReactTestRenderer.act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+  const modeRow = renderer!.root.findByType(EventModeRow);
+  expect(modeRow.props.canLaunch).toBe(true);
+  ReactTestRenderer.act(() => modeRow.props.onLaunch());
+  expect(onLaunchMirror).toHaveBeenCalledWith(expect.objectContaining({ eventMode: expect.objectContaining({ id: '30' }) }));
 });
 
 test('confirms and deletes an event from its detail', async () => {

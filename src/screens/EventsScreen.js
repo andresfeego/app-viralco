@@ -14,6 +14,7 @@ import { CompactAccountSelector } from '../components/CompactAccountSelector';
 import { DestructiveConfirmationModal } from '../components/DestructiveConfirmationModal';
 import { EventHeroHeader } from '../components/EventHeroHeader';
 import { EventListCard } from '../components/EventListCard';
+import { EventModeRow } from '../components/EventModeRow';
 import { IconTextButton } from '../components/IconTextButton';
 import { PaperDateInput } from '../components/PaperDateInput';
 import { PaperFormInput } from '../components/PaperFormInput';
@@ -27,6 +28,7 @@ import {
   createEventResourceApi,
   createProcessedAccountImageAssetApi,
   getEventDetailApi,
+  getPublishedMagicMirrorConfigApi,
   listAccountLibraryApi,
   listEventResourcesApi,
   listEventsApi,
@@ -122,6 +124,7 @@ export function EventsScreen({
   showKpi = true,
   onHeaderChange = null,
   onConfigureMirror = null,
+  onLaunchMirror = null,
   onCreateAccount = () => {},
 }) {
   const { user } = useAuth();
@@ -232,7 +235,17 @@ export function EventsScreen({
     if (!eventId) return;
     try {
       const payload = await getEventDetailApi(eventId);
-      const event = normalizeEvent(payload?.event || payload);
+      const normalizedEvent = normalizeEvent(payload?.event || payload);
+      const hydratedModes = await Promise.all((normalizedEvent?.modes || []).map(async (item) => {
+        if (item.mode?.slug !== 'espejo' || item.isActive === false) return item;
+        try {
+          const publishedPayload = await getPublishedMagicMirrorConfigApi(eventId, item.id);
+          return { ...item, publishedVersionId: publishedPayload?.version?.id || null };
+        } catch (_error) {
+          return { ...item, publishedVersionId: null };
+        }
+      }));
+      const event = normalizedEvent ? { ...normalizedEvent, modes: hydratedModes } : null;
       setSelectedEvent(event);
       setEventForm({
         name: event?.name || '', eventTypeSlug: event?.eventTypeSlug || '', startDate: event?.startDate || '',
@@ -753,22 +766,28 @@ export function EventsScreen({
         <View style={styles.editableCardWrap}>
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_111')}</Text>
-            {event?.modes?.length ? event.modes.map((item) => (
-              <View key={item.id || item.mode?.slug} style={styles.modeRow}>
-                <Text style={[styles.cardMeta, styles.modeName, { color: theme.textSecondary }]}>{item.mode?.name || item.mode?.slug || '-'}</Text>
-                {item.mode?.slug === 'espejo' && item.isActive !== false && onConfigureMirror ? (
-                  <AppButton
-                    testID="event-configure-mirror"
-                    label={t('mirror_008')}
-                    onPress={() => onConfigureMirror({ event, eventMode: item, accountId, canEdit })}
-                    backgroundColor={theme.buttonBg}
-                    pressedColor={theme.buttonBgPressed}
-                    textColor={theme.buttonText}
-                    style={styles.modeButton}
-                  />
-                ) : null}
-              </View>
-            )) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
+            {event?.modes?.length ? event.modes.map((item) => {
+              const isMirror = item.mode?.slug === 'espejo';
+              const configureEnabled = Boolean(isMirror && item.isActive !== false && onConfigureMirror && canEdit);
+              const publishedVersionId = item.publishedVersionId || item.config?.publishedVersionId;
+              const canOperate = isSuperAdmin || ['owner', 'admin', 'operator'].includes(roleSlug);
+              const launchEnabled = Boolean(isMirror && item.isActive !== false && event.status === 'active' && publishedVersionId && onLaunchMirror && canOperate);
+              return (
+                <EventModeRow
+                  key={item.id || item.mode?.slug}
+                  theme={theme}
+                  name={item.mode?.name || item.mode?.slug || '-'}
+                  configureLabel={`${t('mirror_008')} ${item.mode?.name || ''}`.trim()}
+                  launchLabel={`${t('event_130')} ${item.mode?.name || ''}`.trim()}
+                  canConfigure={configureEnabled}
+                  canLaunch={launchEnabled}
+                  onConfigure={() => onConfigureMirror?.({ event, eventMode: item, accountId, canEdit })}
+                  onLaunch={() => onLaunchMirror?.({ event, eventMode: item, accountId })}
+                  configureTestID={isMirror ? 'event-configure-mirror' : `event-configure-${item.mode?.slug || item.id}`}
+                  launchTestID={isMirror ? 'event-launch-mirror' : `event-launch-${item.mode?.slug || item.id}`}
+                />
+              );
+            }) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
           </SurfaceCard>
           {canEdit ? (
             <View style={styles.cardEditAction}>
@@ -940,9 +959,6 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   cardTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
   cardMeta: { fontSize: tokens.typography.caption },
-  modeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
-  modeName: { flex: 1 },
-  modeButton: { minWidth: tokens.spacing.xl * 3 },
   row: { flexDirection: 'row', gap: tokens.spacing.xs },
   editableCardWrap: { position: 'relative' },
   cardEditAction: { position: 'absolute', right: tokens.spacing.sm, top: tokens.spacing.sm },

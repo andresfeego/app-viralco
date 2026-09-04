@@ -68,3 +68,19 @@ test('compact icon-only mode aligns the glyph while preserving a larger hit area
   expect(style.height).toBe(tokens.typography.caption);
   expect(button.props.hitSlop).toBe(tokens.spacing.md);
 });
+
+test('icon-only mode supports a rounded square and explicit border color', () => {
+  const theme = getTheme('light');
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <IconTextButton theme={theme} icon="gear" variant="outlined" iconOnlyShape="rounded-square" borderColor={theme.primary} testID="rounded-square" />,
+    );
+  });
+  const button = renderer!.root.findAllByProps({ testID: 'rounded-square' }).at(-1)!;
+  const resolvedStyle = typeof button.props.style === 'function' ? button.props.style({ pressed: false }) : button.props.style;
+  const style = StyleSheet.flatten(resolvedStyle);
+  expect(style.width).toBe(style.height);
+  expect(style.borderRadius).toBe(tokens.radius.sm);
+  expect(style.borderColor).toBe(theme.primary);
+});
