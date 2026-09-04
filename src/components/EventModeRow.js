@@ -10,6 +10,7 @@ export function EventModeRow({
   launchLabel,
   canConfigure = false,
   canLaunch = false,
+  showDivider = true,
   onConfigure = () => {},
   onLaunch = () => {},
   configureTestID,
@@ -18,7 +19,16 @@ export function EventModeRow({
   const launchColor = canLaunch ? tokens.colors.success[400] : tokens.colors.gray[4];
 
   return (
-    <View style={[styles.row, { borderBottomColor: tokens.colors.gray[3] }]}>
+    <View
+      testID="event-mode-row"
+      style={[
+        styles.row,
+        {
+          borderBottomColor: tokens.colors.gray[3],
+          borderBottomWidth: showDivider ? tokens.border.thin : tokens.spacing.none,
+        },
+      ]}
+    >
       <Text numberOfLines={1} style={[styles.name, { color: theme.textPrimary }]}>{name || '-'}</Text>
       <View style={styles.actions}>
         <IconTextButton
@@ -58,7 +68,6 @@ const styles = StyleSheet.create({
   row: {
     minHeight: tokens.spacing.xl + tokens.spacing.lg,
     paddingVertical: tokens.spacing.md,
-    borderBottomWidth: tokens.border.thin,
     flexDirection: 'row',
     alignItems: 'center',
     gap: tokens.spacing.sm,

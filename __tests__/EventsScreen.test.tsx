@@ -251,6 +251,33 @@ test('enables launch only for an active mode with a published configuration and 
   expect(onLaunchMirror).toHaveBeenCalledWith(expect.objectContaining({ eventMode: expect.objectContaining({ id: '30' }) }));
 });
 
+test('groups mode rows without card gaps and omits the final divider', async () => {
+  const event = {
+    id: '10',
+    accountId: '1',
+    name: 'Evento multimodo',
+    status: 'draft',
+    modes: [
+      { id: '30', isActive: true, mode: { slug: 'espejo', name: 'Espejo' } },
+      { id: '31', isActive: true, mode: { slug: 'cabina', name: 'Cabina' } },
+      { id: '32', isActive: true, mode: { slug: 'video-360', name: 'Video 360' } },
+    ],
+  };
+  mockedListAccounts.mockResolvedValue({ accounts: [{ id: '1', name: 'Cuenta Uno', slug: 'cuenta-uno' }] });
+  mockedListEvents.mockResolvedValue({ events: [event] });
+  mockedGetEventDetail.mockResolvedValue({ event });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<EventsScreen allowedSections={['list', 'detail']} onConfigureMirror={jest.fn()} />);
+  });
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(EventListCard).props.onPress());
+  await ReactTestRenderer.act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+  expect(renderer!.root.findAllByType(EventModeRow).map((row) => row.props.showDivider)).toEqual([true, true, false]);
+  expect(renderer!.root.findByProps({ testID: 'event-mode-list' })).toBeTruthy();
+});
+
 test('confirms and deletes an event from its detail', async () => {
   const event = { id: '10', accountId: '1', name: 'Evento eliminable', status: 'draft', modes: [] };
   mockedListAccounts.mockResolvedValue({ accounts: [{ id: '1', name: 'Cuenta Uno', slug: 'cuenta-uno' }] });

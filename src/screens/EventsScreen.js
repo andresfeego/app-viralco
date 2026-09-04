@@ -766,28 +766,33 @@ export function EventsScreen({
         <View style={styles.editableCardWrap}>
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_111')}</Text>
-            {event?.modes?.length ? event.modes.map((item) => {
-              const isMirror = item.mode?.slug === 'espejo';
-              const configureEnabled = Boolean(isMirror && item.isActive !== false && onConfigureMirror && canEdit);
-              const publishedVersionId = item.publishedVersionId || item.config?.publishedVersionId;
-              const canOperate = isSuperAdmin || ['owner', 'admin', 'operator'].includes(roleSlug);
-              const launchEnabled = Boolean(isMirror && item.isActive !== false && event.status === 'active' && publishedVersionId && onLaunchMirror && canOperate);
-              return (
-                <EventModeRow
-                  key={item.id || item.mode?.slug}
-                  theme={theme}
-                  name={item.mode?.name || item.mode?.slug || '-'}
-                  configureLabel={`${t('mirror_008')} ${item.mode?.name || ''}`.trim()}
-                  launchLabel={`${t('event_130')} ${item.mode?.name || ''}`.trim()}
-                  canConfigure={configureEnabled}
-                  canLaunch={launchEnabled}
-                  onConfigure={() => onConfigureMirror?.({ event, eventMode: item, accountId, canEdit })}
-                  onLaunch={() => onLaunchMirror?.({ event, eventMode: item, accountId })}
-                  configureTestID={isMirror ? 'event-configure-mirror' : `event-configure-${item.mode?.slug || item.id}`}
-                  launchTestID={isMirror ? 'event-launch-mirror' : `event-launch-${item.mode?.slug || item.id}`}
-                />
-              );
-            }) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
+            {event?.modes?.length ? (
+              <View testID="event-mode-list">
+                {event.modes.map((item, index) => {
+                  const isMirror = item.mode?.slug === 'espejo';
+                  const configureEnabled = Boolean(isMirror && item.isActive !== false && onConfigureMirror && canEdit);
+                  const publishedVersionId = item.publishedVersionId || item.config?.publishedVersionId;
+                  const canOperate = isSuperAdmin || ['owner', 'admin', 'operator'].includes(roleSlug);
+                  const launchEnabled = Boolean(isMirror && item.isActive !== false && event.status === 'active' && publishedVersionId && onLaunchMirror && canOperate);
+                  return (
+                    <EventModeRow
+                      key={item.id || item.mode?.slug}
+                      theme={theme}
+                      name={item.mode?.name || item.mode?.slug || '-'}
+                      configureLabel={`${t('mirror_008')} ${item.mode?.name || ''}`.trim()}
+                      launchLabel={`${t('event_130')} ${item.mode?.name || ''}`.trim()}
+                      canConfigure={configureEnabled}
+                      canLaunch={launchEnabled}
+                      showDivider={index < event.modes.length - 1}
+                      onConfigure={() => onConfigureMirror?.({ event, eventMode: item, accountId, canEdit })}
+                      onLaunch={() => onLaunchMirror?.({ event, eventMode: item, accountId })}
+                      configureTestID={isMirror ? 'event-configure-mirror' : `event-configure-${item.mode?.slug || item.id}`}
+                      launchTestID={isMirror ? 'event-launch-mirror' : `event-launch-${item.mode?.slug || item.id}`}
+                    />
+                  );
+                })}
+              </View>
+            ) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
           </SurfaceCard>
           {canEdit ? (
             <View style={styles.cardEditAction}>

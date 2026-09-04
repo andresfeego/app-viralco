@@ -52,3 +52,24 @@ test('renders launch disabled in gray when the mode cannot start', () => {
     iconColor: tokens.colors.gray[4],
   }));
 });
+
+test('keeps symmetric vertical padding and removes the final divider', () => {
+  const theme = getTheme('dark');
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <EventModeRow
+        theme={theme}
+        name="Video 360"
+        configureLabel="Configurar"
+        launchLabel="Lanzar"
+        showDivider={false}
+      />,
+    );
+  });
+
+  const row = renderer!.root.findByProps({ testID: 'event-mode-row' });
+  const style = StyleSheet.flatten(row.props.style);
+  expect(style.paddingVertical).toBe(tokens.spacing.md);
+  expect(style.borderBottomWidth).toBe(tokens.spacing.none);
+});
