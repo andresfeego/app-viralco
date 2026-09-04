@@ -13,7 +13,6 @@ export function EventHeroHeader({ theme, title, subtitle, backgroundImageUrl = '
       {!backgroundImageUrl ? (
         <View style={styles.placeholderIconWrap}>
           <Icon name={fallbackIcon} iconStyle="regular" size={36} color={theme.textSecondary} />
-          {backgroundAction ? <View style={styles.placeholderAction}>{backgroundAction}</View> : null}
         </View>
       ) : null}
       <View style={styles.titleBlock}>
@@ -26,13 +25,18 @@ export function EventHeroHeader({ theme, title, subtitle, backgroundImageUrl = '
   return (
     <View style={styles.wrap}>
       {backgroundImageUrl ? (
-        <ImageBackground source={{ uri: backgroundImageUrl }} imageStyle={styles.heroImage} style={[styles.hero, { backgroundColor: theme.surfaceSoft }]}>
+        <ImageBackground
+          source={{ uri: backgroundImageUrl }}
+          imageStyle={styles.heroImage}
+          style={[styles.hero, { backgroundColor: theme.surfaceSoft }]}
+        >
           {heroContent}
-          {backgroundAction ? <View style={styles.frameAction}>{backgroundAction}</View> : null}
+          {backgroundAction ? <View testID="event-hero-background-action" style={styles.mediaAction}>{backgroundAction}</View> : null}
         </ImageBackground>
       ) : (
         <View style={[styles.hero, { backgroundColor: theme.surfaceSoft, borderColor: theme.border }]}>
           {heroContent}
+          {backgroundAction ? <View testID="event-hero-background-action" style={styles.mediaAction}>{backgroundAction}</View> : null}
         </View>
       )}
       <View style={[styles.logoWrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -41,10 +45,9 @@ export function EventHeroHeader({ theme, title, subtitle, backgroundImageUrl = '
         ) : (
           <View style={styles.placeholderIconWrap}>
             <Icon name="image" iconStyle="regular" size={24} color={theme.textSecondary} />
-            {logoAction ? <View style={styles.placeholderAction}>{logoAction}</View> : null}
           </View>
         )}
-        {logoImageUrl && logoAction ? <View style={styles.frameAction}>{logoAction}</View> : null}
+        {logoAction ? <View testID="event-hero-logo-action" style={styles.mediaAction}>{logoAction}</View> : null}
       </View>
     </View>
   );
@@ -60,7 +63,6 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: tokens.typography.caption, fontWeight: '700', textAlign: 'center' },
   logoWrap: { position: 'absolute', left: '50%', bottom: 0, width: LOGO_SIZE, height: LOGO_SIZE, marginLeft: -LOGO_OFFSET, borderRadius: tokens.radius.lg, borderWidth: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   logoImage: { width: '100%', height: '100%' },
-  frameAction: { position: 'absolute', right: tokens.spacing.xs, bottom: tokens.spacing.xs },
+  mediaAction: { position: 'absolute', right: tokens.spacing.xs, top: tokens.spacing.xs },
   placeholderIconWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
-  placeholderAction: { position: 'absolute', right: -tokens.spacing.lg, bottom: -tokens.spacing.lg },
 });
