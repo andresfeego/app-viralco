@@ -818,7 +818,6 @@ export function EventsScreen({
                         launchLabel={`${t('event_130')} ${item.mode?.name || ''}`.trim()}
                         canConfigure={configureEnabled}
                         canLaunch={launchEnabled}
-                        showTopDivider={index === 0}
                         showDivider={index < event.modes.length - 1}
                         onConfigure={() => onConfigureMirror?.({ event, eventMode: item, accountId, canEdit })}
                         onLaunch={() => onLaunchMirror?.({ event, eventMode: item, accountId })}
@@ -976,7 +975,7 @@ const styles = StyleSheet.create({
   scrollContent: { padding: tokens.spacing.md, gap: tokens.spacing.md },
   detailScrollContent: { paddingTop: tokens.spacing.none, paddingHorizontal: tokens.spacing.none, gap: tokens.spacing.none },
   detailStack: { gap: tokens.spacing.none },
-  detailContentStack: { paddingHorizontal: tokens.spacing.md, paddingVertical: tokens.spacing.xs, gap: tokens.spacing.xs },
+  detailContentStack: { paddingHorizontal: tokens.spacing.md, paddingVertical: tokens.spacing.xs, gap: tokens.spacing.sm },
   sectionWrap: { gap: tokens.spacing.sm },
   compactCreateButton: { alignSelf: 'flex-end', minWidth: tokens.spacing.none },
   sectionTitle: { fontSize: tokens.typography.heading, fontWeight: '700' },

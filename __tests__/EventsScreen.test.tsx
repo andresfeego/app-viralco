@@ -275,7 +275,6 @@ test('groups mode rows without card gaps and omits the final divider', async () 
   await ReactTestRenderer.act(async () => { await Promise.resolve(); await Promise.resolve(); });
 
   const modeRows = renderer!.root.findAllByType(EventModeRow);
-  expect(modeRows.map((row) => row.props.showTopDivider)).toEqual([true, false, false]);
   expect(modeRows.map((row) => row.props.showDivider)).toEqual([true, true, false]);
   expect(renderer!.root.findByProps({ testID: 'event-mode-list' })).toBeTruthy();
 });

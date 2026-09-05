@@ -10,7 +10,6 @@ export function EventModeRow({
   launchLabel,
   canConfigure = false,
   canLaunch = false,
-  showTopDivider = false,
   showDivider = true,
   onConfigure = () => {},
   onLaunch = () => {},
@@ -25,8 +24,6 @@ export function EventModeRow({
       style={[
         styles.row,
         {
-          borderTopColor: tokens.colors.gray[3],
-          borderTopWidth: showTopDivider ? tokens.border.thin : tokens.spacing.none,
           borderBottomColor: tokens.colors.gray[3],
           borderBottomWidth: showDivider ? tokens.border.thin : tokens.spacing.none,
         },
