@@ -162,3 +162,15 @@ export function publishMagicMirrorConfigApi(eventId, eventModeId, expectedRevisi
 export function getPublishedMagicMirrorConfigApi(eventId, eventModeId) {
   return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/config/published`, { method: 'GET' });
 }
+
+export function createAccountPhotoLayoutTemplateApi(accountId, input) {
+  return apiRequest(`/api/accounts/${accountId}/library/layout-templates`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function getAccountPhotoLayoutTemplateApi(accountId, libraryAssetId) {
+  return apiRequest(`/api/accounts/${accountId}/library/${libraryAssetId}/layout-template`, { method: 'GET' });
+}
+
+export function applyPhotoLayoutTemplateApi(eventId, eventModeId, libraryAssetId, expectedRevision) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/layout-templates/${libraryAssetId}/apply`, { method: 'POST', body: JSON.stringify({ expectedRevision }) });
+}

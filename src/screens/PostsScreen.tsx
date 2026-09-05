@@ -6,6 +6,7 @@ import { MediaPreview } from '../design-system/components/MediaPreview';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { getTheme } from '../design-system/theme';
 import { tokens, type ThemeMode } from '../design-system/tokens';
+import { recordClientTechnicalError, userErrorMessage } from '../services/errorHandling';
 
 interface Post {
   id: number;
@@ -39,9 +40,8 @@ export function PostsScreen({ mode, onBack }: PostsScreenProps) {
       const data = (await response.json()) as Post[];
       setPosts(Array.isArray(data) ? data : []);
     } catch (fetchError) {
-      const message = fetchError instanceof Error ? fetchError.message : 'Unknown error';
-      console.error('[PostsScreen] loadPosts failed:', fetchError);
-      setError(`No fue posible cargar posts (${message}).`);
+      recordClientTechnicalError({ code: 'POSTS_LOAD_FAILED', method: 'GET', path: '/api/posts', detail: fetchError instanceof Error ? fetchError.message : String(fetchError) }).catch(() => {});
+      setError(userErrorMessage(fetchError, 'No fue posible cargar posts.'));
     } finally {
       setLoading(false);
     }

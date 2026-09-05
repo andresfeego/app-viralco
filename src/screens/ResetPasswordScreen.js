@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
+import { userErrorMessage } from '../services/errorHandling';
 
 export function ResetPasswordScreen({ onGoLogin }) {
   const { resetPassword } = useAuth();
@@ -18,7 +19,7 @@ export function ResetPasswordScreen({ onGoLogin }) {
       const payload = await resetPassword(token, newPassword);
       setMessage(payload.message || 'Contrasena actualizada');
     } catch (err) {
-      setError(err?.message || 'No se pudo restablecer contrasena');
+      setError(userErrorMessage(err, 'No se pudo restablecer contrasena'));
     } finally {
       setLoading(false);
     }

@@ -63,6 +63,7 @@ export function MainFlow({ bottomInset = 0 }) {
   }, []);
   const openMirrorConfig = useCallback(({ event, eventMode, accountId }) => setEventRoute({ name: 'mirror-config', event, eventMode, accountId: String(accountId || event?.accountId || '') }), []);
   const closeMirrorConfig = useCallback(() => setEventRoute((current) => ({ name: 'detail', event: current.event, eventMode: null, accountId: current.accountId })), []);
+  const openResourceLibrary = useCallback(() => setScreen('recursos'), []);
 
   const isSuperAdmin = useMemo(
     () => (user?.globalRoles || []).some((role) => role.slug === 'super_admin'),
@@ -166,6 +167,7 @@ export function MainFlow({ bottomInset = 0 }) {
             eventMode={eventRoute.eventMode}
             accountId={eventRoute.accountId}
             onBack={closeMirrorConfig}
+            onOpenResources={openResourceLibrary}
             onHeaderChange={setEventsHeaderConfig}
           />
         ) : null}

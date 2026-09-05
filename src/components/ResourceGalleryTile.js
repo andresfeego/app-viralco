@@ -27,6 +27,7 @@ export function resourceThumbnailUri(item) {
 
 export function resourceOriginalUri(item) {
   const asset = item?.asset || {};
+  if (asset.type === 'template') return resourceThumbnailUri(item);
   const full = asset?.variants?.full;
   if (String(asset.mimeType || '').startsWith('video/')) {
     return asset.fileUrl || asset.fileSignedUrl || resourceThumbnailUri(item);
@@ -34,19 +35,21 @@ export function resourceOriginalUri(item) {
   return asset.fileSignedUrl || full?.signedUrl || full?.fileUrl || asset.fileUrl || resourceThumbnailUri(item);
 }
 
-export function ResourceGalleryTile({ item, tileSize, theme, canManage, onPress, onToggleFavorite }) {
+export function ResourceGalleryTile({ item, tileSize, theme, canManage, onPress, onToggleFavorite, selected = false, showFavoriteAction = true, onRemove, disabled = false }) {
   const asset = item?.asset || {};
   const name = item.displayName || asset.name || t('resource_018');
   const typeLabel = resourceTypeLabel(asset.type);
   const thumbnailUri = resourceThumbnailUri(item);
   const isVideo = String(asset.mimeType || '').startsWith('video/');
   return (
-    <View style={[styles.tile, { width: tileSize, height: tileSize, backgroundColor: theme.surface }]}>
+    <View style={[styles.tile, selected ? styles.selectedTile : null, { width: tileSize, height: tileSize, backgroundColor: theme.surface, borderColor: selected ? theme.primary : theme.surface }]}>
       <Pressable
         testID={`resource-gallery-item-${item.libraryAssetId}`}
         accessibilityRole="button"
+        accessibilityState={{ selected, disabled }}
         accessibilityLabel={`${name}, ${typeLabel}`}
-        onPress={() => onPress(item)}
+        disabled={disabled}
+        onPress={() => onPress?.(item)}
         style={styles.previewButton}
       >
         {thumbnailUri ? (
@@ -66,7 +69,20 @@ export function ResourceGalleryTile({ item, tileSize, theme, canManage, onPress,
         ) : null}
         <View pointerEvents="none" style={styles.typeBadge}><ResourceTypeBadge type={asset.type} motionType={asset.motionType} theme={theme} testID={`resource-type-${item.libraryAssetId}`} /></View>
       </Pressable>
-      <View style={styles.favorite}>
+      {selected && onRemove ? <View style={styles.favorite}>
+        <IconTextButton
+          theme={theme}
+          icon="trash-can"
+          variant="ghost"
+          backgroundColor={theme.alert}
+          pressedBackgroundColor={theme.background}
+          iconColor={theme.buttonText}
+          iconSize={tokens.typography.body}
+          accessibilityLabel={`${t('mirror_048')}: ${name}`}
+          onPress={() => onRemove(item)}
+          style={styles.favoriteButton}
+        />
+      </View> : showFavoriteAction ? <View style={styles.favorite}>
         <IconTextButton
           theme={theme}
           icon="heart"
@@ -76,19 +92,20 @@ export function ResourceGalleryTile({ item, tileSize, theme, canManage, onPress,
           pressedBackgroundColor={theme.background}
           iconColor={theme.primary}
           iconSize={tokens.typography.body}
-          disabled={!canManage}
+          disabled={disabled || !canManage}
           accessibilityLabel={item.isFavorite ? t('resource_047') : t('resource_046')}
           onPress={() => onToggleFavorite(item)}
           testID={`resource-gallery-favorite-${item.libraryAssetId}`}
           style={styles.favoriteButton}
         />
-      </View>
+      </View> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tile: { overflow: 'hidden' },
+  tile: { overflow: 'hidden', borderWidth: tokens.spacing.none },
+  selectedTile: { borderWidth: tokens.border.medium },
   previewButton: { flex: 1 },
   image: { width: '100%', height: '100%' },
   fallback: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: tokens.spacing.xxs, padding: tokens.spacing.xs },

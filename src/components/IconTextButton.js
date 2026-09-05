@@ -12,6 +12,7 @@ export function IconTextButton({
   order = 'icon-first',
   variant = 'filled',
   disabled = false,
+  selected,
   onPress = () => {},
   accessibilityLabel,
   backgroundColor: customBackgroundColor,
@@ -20,6 +21,7 @@ export function IconTextButton({
   iconColor,
   iconSize = tokens.typography.caption,
   compactIconOnly = false,
+  denseIconOnly = false,
   iconOnlyShape = 'circle',
   testID,
   style,
@@ -40,6 +42,7 @@ export function IconTextButton({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || label || undefined}
+      accessibilityState={selected === undefined ? { disabled } : { disabled, selected }}
       hitSlop={isIconOnly && compactIconOnly ? tokens.spacing.md : undefined}
       disabled={disabled}
       onPress={onPress}
@@ -48,7 +51,9 @@ export function IconTextButton({
         isGhost ? styles.ghost : null,
         isIconOnly ? styles.iconOnly : null,
         isIconOnly && iconOnlyShape === 'rounded-square' ? styles.roundedSquareIconOnly : null,
+        isIconOnly && iconOnlyShape === 'square' ? styles.squareIconOnly : null,
         isIconOnly && compactIconOnly ? styles.compactIconOnly : null,
+        isIconOnly && denseIconOnly ? styles.denseIconOnly : null,
         direction === 'column' ? styles.column : styles.row,
         style,
         {
@@ -96,8 +101,18 @@ const styles = StyleSheet.create({
     paddingVertical: tokens.spacing.none,
     paddingHorizontal: tokens.spacing.none,
   },
+  denseIconOnly: {
+    width: tokens.spacing.lg,
+    height: tokens.spacing.lg,
+    minHeight: tokens.spacing.lg,
+    paddingVertical: tokens.spacing.none,
+    paddingHorizontal: tokens.spacing.none,
+  },
   roundedSquareIconOnly: {
     borderRadius: tokens.radius.sm,
+  },
+  squareIconOnly: {
+    borderRadius: tokens.spacing.none,
   },
   ghost: {
     borderWidth: tokens.spacing.none,

@@ -13,6 +13,7 @@ import { useToast } from '../providers/ToastProvider';
 import { t } from '../i18n';
 import { listAccountsApi } from '../services/api/accounts';
 import { listAccountLibraryApi, listEventTypesApi, updateAccountLibraryFavoriteApi } from '../services/api/events';
+import { userErrorMessage } from '../services/errorHandling';
 
 const INITIAL_FILTERS = { tab: 'favorites', search: '', type: '', eventType: '', motion: '' };
 const PAGE_SIZE = 60;
@@ -84,7 +85,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
       setAccounts(rows);
       setAccountId((current) => rows.some((account) => String(account.id) === String(current)) ? current : String(rows[0]?.id || ''));
     } catch (loadError) {
-      setAccountError(loadError?.message || t('account_006'));
+      setAccountError(userErrorMessage(loadError, t('account_006')));
     } finally {
       setAccountsLoading(false);
     }
@@ -99,7 +100,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
     setError('');
     try {
       const payload = await listAccountLibraryApi(accountId, {
-        scope: 'global',
+        scope: filters.tab === 'favorites' ? 'available' : 'global',
         favorite: filters.tab === 'favorites' ? true : '',
         type: filters.type,
         eventType: filters.eventType,
@@ -113,7 +114,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
       setItems((current) => append ? mergeUnique(current, rows) : rows);
       setPagination(payload?.pagination || { page, pageSize: PAGE_SIZE, total: rows.length, pageCount: rows.length ? 1 : 0 });
     } catch (loadError) {
-      if (requestId === requestSequence.current) setError(loadError?.message || t('resource_028'));
+      if (requestId === requestSequence.current) setError(userErrorMessage(loadError, t('resource_028')));
     } finally {
       if (requestId === requestSequence.current) {
         setLoading(false);
@@ -154,7 +155,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
     } catch (saveError) {
       setItems(beforeItems);
       setPreviewItem(beforePreview);
-      showToast({ message: saveError?.message || t('resource_030'), type: 'error' });
+      showToast({ message: userErrorMessage(saveError, t('resource_030')), type: 'error' });
     } finally {
       favoriteSavingIds.current.delete(assetId);
     }

@@ -69,6 +69,24 @@ test('compact icon-only mode aligns the glyph while preserving a larger hit area
   expect(button.props.hitSlop).toBe(tokens.spacing.md);
 });
 
+test('dense icon-only mode uses a token-sized square without internal padding', () => {
+  const theme = getTheme('light');
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <IconTextButton theme={theme} icon="hand" denseIconOnly testID="dense" />,
+    );
+  });
+  const button = renderer!.root.findAllByProps({ testID: 'dense' }).at(-1)!;
+  const resolvedStyle = typeof button.props.style === 'function' ? button.props.style({ pressed: false }) : button.props.style;
+  const style = StyleSheet.flatten(resolvedStyle);
+  expect(style.width).toBe(tokens.spacing.lg);
+  expect(style.height).toBe(tokens.spacing.lg);
+  expect(style.paddingHorizontal).toBe(tokens.spacing.none);
+  expect(style.paddingVertical).toBe(tokens.spacing.none);
+  expect(button.props.hitSlop).toBeUndefined();
+});
+
 test('icon-only mode supports a rounded square and explicit border color', () => {
   const theme = getTheme('light');
   let renderer: ReactTestRenderer.ReactTestRenderer;

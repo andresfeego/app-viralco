@@ -6,6 +6,7 @@ import { tokens } from '../design-system/tokens';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { AppButton } from '../design-system/components/AppButton';
 import { t } from '../i18n';
+import { userErrorMessage } from '../services/errorHandling';
 
 export function ProfileScreen() {
   const { user, reloadMe, updateThemeMode } = useAuth();
@@ -23,7 +24,7 @@ export function ProfileScreen() {
     try {
       await updateThemeMode(nextMode);
     } catch (err) {
-      setError(err?.message || 'No se pudo cambiar el tema');
+      setError(userErrorMessage(err, 'No se pudo cambiar el tema'));
     } finally {
       setLoadingMode(false);
     }
@@ -35,7 +36,7 @@ export function ProfileScreen() {
     try {
       await reloadMe();
     } catch (err) {
-      setError(err?.message || 'No se pudo recargar el perfil');
+      setError(userErrorMessage(err, 'No se pudo recargar el perfil'));
     } finally {
       setLoadingReload(false);
     }

@@ -26,6 +26,7 @@ import { pickLogoImage } from '../services/media/imagePicker';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
 import { ToastViewport, useToast } from '../providers/ToastProvider';
+import { userErrorMessage } from '../services/errorHandling';
 
 const ROLE_LABEL_BY_SLUG = {
   admin: 'account_017',
@@ -99,7 +100,7 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
       const nextAccount = payload?.account || null;
       setAccount(nextAccount);
       if (nextAccount) onAccountUpdated(nextAccount);
-    } catch (err) { setError(err?.message || t('account_046')); }
+    } catch (err) { setError(userErrorMessage(err, t('account_046'))); }
   }, [accountId, onAccountUpdated]);
 
   const loadMembers = useCallback(async () => {
@@ -107,7 +108,7 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
     try {
       const payload = await getAccountMembersApi(accountId);
       setMembers(Array.isArray(payload?.members) ? payload.members : []);
-    } catch (err) { setError(err?.message || t('account_007')); }
+    } catch (err) { setError(userErrorMessage(err, t('account_007'))); }
   }, [accountId]);
 
   useEffect(() => {
@@ -169,7 +170,7 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
       const image = await pickLogoImage();
       if (image) setEditForm((value) => ({ ...value, logo: image }));
     } catch (err) {
-      showToast({ message: err?.message || t('account_058'), type: 'error' });
+      showToast({ message: userErrorMessage(err, t('account_058')), type: 'error' });
     }
   };
 
@@ -205,7 +206,7 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
       showToast({ message: t('account_049'), type: 'success' });
       await reloadMe();
     } catch (err) {
-      const message = err?.message || t('account_047');
+      const message = userErrorMessage(err, t('account_047'));
       setError(message);
       showToast({ message, type: 'error' });
     }
@@ -229,7 +230,7 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
       showToast({ message: t('account_050'), type: 'success' });
       await reloadMe();
     } catch (err) {
-      const message = err?.message || t('account_009');
+      const message = userErrorMessage(err, t('account_009'));
       setError(message);
       showToast({ message, type: 'error' });
     }
@@ -243,7 +244,7 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
       showToast({ message: t('account_051'), type: 'success' });
       await reloadMe();
     } catch (err) {
-      const message = err?.message || t('account_015');
+      const message = userErrorMessage(err, t('account_015'));
       setError(message);
       showToast({ message, type: 'error' });
     }
@@ -257,7 +258,7 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
       showToast({ message: t('account_052'), type: 'success' });
       await reloadMe();
     } catch (err) {
-      const message = err?.message || t('account_016');
+      const message = userErrorMessage(err, t('account_016'));
       setError(message);
       showToast({ message, type: 'error' });
     }
@@ -274,7 +275,7 @@ export function AccountDetailScreen({ accountId, initialAccount = null, onAccoun
       showToast({ message: result?.archived ? t('account_081') : t('account_080'), type: 'success' });
       onAccountDeleted(result);
     } catch (err) {
-      const message = err?.message || t('account_082');
+      const message = userErrorMessage(err, t('account_082'));
       showToast({ message, type: 'error' });
     } finally { setDeleting(false); }
   };

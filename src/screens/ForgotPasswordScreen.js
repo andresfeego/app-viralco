@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
+import { userErrorMessage } from '../services/errorHandling';
 
 export function ForgotPasswordScreen({ onGoLogin, onGoReset }) {
   const { forgotPassword } = useAuth();
@@ -17,7 +18,7 @@ export function ForgotPasswordScreen({ onGoLogin, onGoReset }) {
       const payload = await forgotPassword(email);
       setMessage(payload.message || 'Si existe, se enviaron instrucciones');
     } catch (err) {
-      setError(err?.message || 'No se pudo procesar la solicitud');
+      setError(userErrorMessage(err, 'No se pudo procesar la solicitud'));
     } finally {
       setLoading(false);
     }

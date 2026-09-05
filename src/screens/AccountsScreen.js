@@ -15,6 +15,7 @@ import { pickLogoImage } from '../services/media/imagePicker';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
 import { ToastViewport, useToast } from '../providers/ToastProvider';
+import { userErrorMessage } from '../services/errorHandling';
 
 const MODAL_TOAST_TOP_OFFSET = tokens.spacing.xl * 3;
 const EMPTY_STATE_MIN_HEIGHT = tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.xl + tokens.spacing.lg + tokens.spacing.lg;
@@ -75,7 +76,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
     try {
       const payload = await listAccountsApi();
       setAccounts(Array.isArray(payload?.accounts) ? payload.accounts : []);
-    } catch (err) { setError(err?.message || t('account_006')); }
+    } catch (err) { setError(userErrorMessage(err, t('account_006'))); }
   }, []);
 
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
@@ -88,7 +89,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
       const defaults = rows.filter((mode) => mode.isDefault).map((mode) => mode.slug);
       if (defaults.length) setAccountForm((current) => ({ ...current, modeSlugs: current.modeSlugs.length ? current.modeSlugs : defaults }));
     } catch (err) {
-      setError(err?.message || t('account_071'));
+      setError(userErrorMessage(err, t('account_071')));
     }
   }, []);
 
@@ -150,7 +151,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
           const logoAsset = await createAccountLogoAssetApi(accountId, selectedLogo);
           if (logoAsset?.id) await updateAccountApi(accountId, { logoAssetId: logoAsset.id });
         } catch (err) {
-          showToast({ message: `${t('account_059')}: ${err?.message || '-'}`, type: 'error' });
+          showToast({ message: userErrorMessage(err, t('account_059')), type: 'error' });
         }
       }
       setAccountForm({ slug: '', name: '', phone: '', email: '', modeSlugs: subscriptionModes.filter((mode) => mode.isDefault).map((mode) => mode.slug), ownerUserId: '' });
@@ -159,7 +160,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
       await loadAccounts();
       await reloadMe();
     } catch (err) {
-      const message = err?.message || t('account_008');
+      const message = userErrorMessage(err, t('account_008'));
       setError(message);
       showToast({ message, type: 'error' });
     }
@@ -170,7 +171,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
       const image = await pickLogoImage();
       if (image) setSelectedLogo(image);
     } catch (err) {
-      showToast({ message: err?.message || t('account_058'), type: 'error' });
+      showToast({ message: userErrorMessage(err, t('account_058')), type: 'error' });
     }
   };
 

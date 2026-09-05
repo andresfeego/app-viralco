@@ -110,7 +110,7 @@ test('loads only the global catalog and keeps it read-only for an operator', asy
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
   await flush();
 
-  expect(listAccountLibraryApi).toHaveBeenCalledWith('10', expect.objectContaining({ scope: 'global', favorite: true, page: 1, pageSize: 60 }));
+  expect(listAccountLibraryApi).toHaveBeenCalledWith('10', expect.objectContaining({ scope: 'available', favorite: true, page: 1, pageSize: 60 }));
   expect(renderer!.root.findByType(ResourceGallery).props.canManage).toBe(false);
   expect(renderer!.root.findByType(ResourceFilters).props.showTabs).toBe(false);
   expect(renderer!.root.findByType(ResourceFilters).props.eventTypes).toEqual([expect.objectContaining({ slug: 'boda' })]);
@@ -145,7 +145,7 @@ test('starts in shared favorites, switches to global and opens a resource previe
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
   await flush();
 
-  expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ scope: 'global', favorite: true }));
+  expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ scope: 'available', favorite: true }));
   ReactTestRenderer.act(() => renderer!.root.findByType(HorizontalSubMenu).props.onSelect('pool'));
   await flush();
   expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ scope: 'global', favorite: '' }));

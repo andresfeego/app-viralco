@@ -40,6 +40,7 @@ import {
   updateEventResourceApi,
 } from '../services/api/events';
 import { pickEventResourceImage } from '../services/media/imagePicker';
+import { userErrorMessage } from '../services/errorHandling';
 
 const RESOURCE_PURPOSES = ['frame', 'overlay', 'intro', 'outro', 'music', 'logo', 'background', 'template', 'branding', 'other'];
 const EMPTY_EVENT_FORM = { name: '', eventTypeSlug: '', startDate: '', status: 'draft', timezone: 'America/Bogota', description: '', modeSlugs: [] };
@@ -192,7 +193,7 @@ export function EventsScreen({
         if (rows.some((account) => String(account.id) === String(current))) return current;
         return String(rows[0]?.id || '');
       });
-    } catch (err) { setError(err?.message || t('account_006')); }
+    } catch (err) { setError(userErrorMessage(err, t('account_006'))); }
     finally { setAccountsLoading(false); }
   }, []);
 
@@ -201,7 +202,7 @@ export function EventsScreen({
       const payload = await listEventTypesApi();
       const rows = Array.isArray(payload?.types) ? payload.types : [];
       setEventTypes(rows.filter((item) => item.isActive !== false));
-    } catch (err) { setError(err?.message || t('event_105')); }
+    } catch (err) { setError(userErrorMessage(err, t('event_105'))); }
   }, []);
 
   const loadModes = useCallback(async () => {
@@ -211,7 +212,7 @@ export function EventsScreen({
       setModes(rows);
       const defaults = rows.filter((mode) => mode.isDefault).map((mode) => mode.slug);
       if (defaults.length) setEventForm((prev) => ({ ...prev, modeSlugs: defaults }));
-    } catch (err) { setError(err?.message || 'No se pudieron cargar modos'); }
+    } catch (err) { setError(userErrorMessage(err, 'No se pudieron cargar modos')); }
   }, []);
 
   const loadEvents = useCallback(async () => {
@@ -227,7 +228,7 @@ export function EventsScreen({
         setSelectedEvent(requested);
         setSection('detail');
       } else if (!selectedEventId && normalized[0]?.id) setSelectedEventId(normalized[0].id);
-    } catch (err) { setError(err?.message || t('event_040')); }
+    } catch (err) { setError(userErrorMessage(err, t('event_040'))); }
     finally { setLoading(false); }
   }, [accountId, initialEventId, selectedEventId]);
 
@@ -252,7 +253,7 @@ export function EventsScreen({
         status: event?.status || 'draft', timezone: event?.timezone || 'America/Bogota', description: event?.description || '',
         modeSlugs: event?.modes?.map((item) => item.mode?.slug).filter(Boolean) || [],
       });
-    } catch (err) { setError(err?.message || t('event_041')); }
+    } catch (err) { setError(userErrorMessage(err, t('event_041'))); }
   }, []);
 
   const loadLibraryAndResources = useCallback(async (eventId) => {
@@ -266,7 +267,7 @@ export function EventsScreen({
       setLibrary(normalizedLibrary);
       setResources((resourcePayload?.resources || []).map(normalizeResource));
       if (!resourceForm.libraryAssetId && normalizedLibrary[0]?.libraryAssetId) setResourceForm((prev) => ({ ...prev, libraryAssetId: normalizedLibrary[0].libraryAssetId }));
-    } catch (err) { setError(err?.message || t('event_042')); }
+    } catch (err) { setError(userErrorMessage(err, t('event_042'))); }
   }, [accountId, resourceForm.libraryAssetId]);
 
   useEffect(() => { loadAccounts(); loadEventTypes(); loadModes(); }, [loadAccounts, loadEventTypes, loadModes]);
@@ -369,7 +370,7 @@ export function EventsScreen({
       setOk(t('event_061'));
       if (event?.id) { setSelectedEventId(event.id); setSection('detail'); }
     } catch (err) {
-      const message = err?.message || t('event_062');
+      const message = userErrorMessage(err, t('event_062'));
       setError(message);
       showToast({ message, type: 'error' });
     }
@@ -383,7 +384,7 @@ export function EventsScreen({
       const payload = await prepareAccountLibraryUploadApi(accountId, { purpose: libraryForm.purpose, fileName: `${libraryForm.purpose}.png`, contentType: libraryForm.mimeType, sizeBytes: Number(libraryForm.sizeBytes || 1) });
       setLibraryForm((prev) => ({ ...prev, key: payload.key, fileUrl: payload.fileUrl }));
       setOk('Upload R2 preparado para biblioteca');
-    } catch (err) { setError(err?.message || 'No se pudo preparar upload'); }
+    } catch (err) { setError(userErrorMessage(err, 'No se pudo preparar upload')); }
     finally { setSaving(false); }
   };
 
@@ -395,7 +396,7 @@ export function EventsScreen({
       setLibraryForm({ name: '', purpose: 'overlay', key: '', fileUrl: '', mimeType: 'image/png', sizeBytes: '1' });
       setOk('Recurso agregado a biblioteca');
       await loadLibraryAndResources(selectedEventId);
-    } catch (err) { setError(err?.message || 'No se pudo crear recurso'); }
+    } catch (err) { setError(userErrorMessage(err, 'No se pudo crear recurso')); }
     finally { setSaving(false); }
   };
 
@@ -407,7 +408,7 @@ export function EventsScreen({
       setResourceForm((prev) => ({ ...prev, placement: '', orderIndex: '0', isActive: true }));
       setOk('Recurso asignado al evento');
       await loadLibraryAndResources(selectedEventId);
-    } catch (err) { setError(err?.message || 'No se pudo asignar recurso'); }
+    } catch (err) { setError(userErrorMessage(err, 'No se pudo asignar recurso')); }
     finally { setSaving(false); }
   };
 
@@ -429,7 +430,7 @@ export function EventsScreen({
       await loadEventDetail(selectedEventId);
       await loadEvents();
     } catch (err) {
-      const message = err?.message || t('event_066');
+      const message = userErrorMessage(err, t('event_066'));
       setError(message);
       showToast({ message, type: 'error' });
     } finally { setSaving(false); }
@@ -448,7 +449,7 @@ export function EventsScreen({
       setOk(t('event_065'));
       await loadEventDetail(selectedEventId);
     } catch (err) {
-      const message = err?.message || t('event_066');
+      const message = userErrorMessage(err, t('event_066'));
       setError(message);
       showToast({ message, type: 'error' });
     } finally { setSaving(false); }
@@ -471,7 +472,7 @@ export function EventsScreen({
       await loadEventDetail(selectedEventId);
       await loadLibraryAndResources(selectedEventId);
     } catch (err) {
-      const message = err?.message || t('event_114');
+      const message = userErrorMessage(err, t('event_114'));
       setError(message);
       showToast({ message, type: 'error' });
     } finally { setSaving(false); }
@@ -487,7 +488,7 @@ export function EventsScreen({
       await updateEventResourceApi(selectedEventId, item.id, { orderIndex: target.orderIndex });
       await updateEventResourceApi(selectedEventId, target.id, { orderIndex: item.orderIndex });
       await loadLibraryAndResources(selectedEventId);
-    } catch (err) { setError(err?.message || t('event_070')); }
+    } catch (err) { setError(userErrorMessage(err, t('event_070'))); }
     finally { setSaving(false); }
   };
 
@@ -510,7 +511,7 @@ export function EventsScreen({
         showToast({ message: t('event_122'), type: 'success' });
       }
     } catch (err) {
-      const message = err?.message || t('event_124');
+      const message = userErrorMessage(err, t('event_124'));
       showToast({ message, type: 'error' });
     } finally { setSaving(false); }
   };

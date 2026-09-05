@@ -10,6 +10,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { tokens } from '../design-system/tokens';
 import { getTheme } from '../design-system/theme';
 import { t } from '../i18n';
+import { userErrorMessage } from '../services/errorHandling';
 
 const SUB_SECTIONS = [
   { key: 'usuarios', label: t('submenu_000') },
@@ -72,7 +73,7 @@ export function SuperAdminUsersScreen() {
       const payload = await listAdminUsersApi();
       setUsers(Array.isArray(payload.users) ? payload.users : []);
     } catch (err) {
-      setError(err?.message || 'No se pudieron cargar usuarios admin');
+      setError(userErrorMessage(err, 'No se pudieron cargar usuarios admin'));
     } finally {
       setLoading(false);
     }
@@ -89,7 +90,7 @@ export function SuperAdminUsersScreen() {
       await updateUserStatusApi(id, 'active');
       await loadUsers();
     } catch (err) {
-      setError(err?.message || 'No se pudo activar usuario');
+      setError(userErrorMessage(err, 'No se pudo activar usuario'));
     }
   };
 
@@ -98,7 +99,7 @@ export function SuperAdminUsersScreen() {
       await updateUserStatusApi(id, 'suspended');
       await loadUsers();
     } catch (err) {
-      setError(err?.message || 'No se pudo desactivar usuario');
+      setError(userErrorMessage(err, 'No se pudo desactivar usuario'));
     }
   };
 
@@ -116,7 +117,7 @@ export function SuperAdminUsersScreen() {
       await loadUsers();
       setSection('usuarios');
     } catch (err) {
-      setError(err?.message || 'No se pudo crear usuario admin');
+      setError(userErrorMessage(err, 'No se pudo crear usuario admin'));
     } finally {
       setSubmitting(false);
     }
@@ -153,7 +154,7 @@ export function SuperAdminUsersScreen() {
       setBitacoraHasMore(Boolean(payload?.hasMore));
       setBitacoraPage(Number(payload?.page || nextPage));
     } catch (err) {
-      setError(err?.message || 'No se pudo cargar bitacora');
+      setError(userErrorMessage(err, 'No se pudo cargar bitacora'));
     } finally {
       setBitacoraLoading(false);
     }
@@ -175,7 +176,7 @@ export function SuperAdminUsersScreen() {
       if (!query) {
         return true;
       }
-      const haystack = `${item?.accion || ''} ${item?.mensaje || ''} ${item?.httpPath || ''}`.toLowerCase();
+      const haystack = `${item?.accion || ''} ${item?.mensaje || ''} ${item?.httpPath || ''} ${item?.requestId || ''} ${item?.errorCode || ''} ${item?.errorDetalle || ''}`.toLowerCase();
       return haystack.includes(query);
     });
   }, [bitacoraItems, bitacoraResultado, bitacoraSearch]);

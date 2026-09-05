@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuthContext } from './AuthProvider';
 import { myPermissionsApi } from '../services/api/permissions';
+import { recordClientTechnicalError } from '../services/errorHandling';
 
 const PermissionContext = createContext(null);
 
@@ -21,7 +22,7 @@ export function PermissionProvider({ children }) {
         const payload = await myPermissionsApi();
         setPermissions(Array.isArray(payload.permissions) ? payload.permissions : []);
       } catch (error) {
-        console.warn('[PermissionProvider] permissions load failed', error);
+        await recordClientTechnicalError({ code: 'PERMISSIONS_LOAD_FAILED', path: 'PermissionProvider.load', detail: error?.message || String(error) });
         setPermissions([]);
       } finally {
         setLoadingPermissions(false);

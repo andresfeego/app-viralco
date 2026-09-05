@@ -4,6 +4,7 @@ import Toast from 'react-native-toast-message';
 import { useAuth } from '../hooks/useAuth';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
+import { userErrorMessage } from '../services/errorHandling';
 
 const ToastContext = createContext(null);
 
@@ -77,13 +78,15 @@ export function ToastProvider({ children }) {
   const theme = useMemo(() => getTheme(mode), [mode]);
 
   const showToast = useCallback((input) => {
-    const message = typeof input === 'string' ? input : input?.message;
+    const requestedMessage = typeof input === 'string' ? input : input?.message;
+    const requestedType = typeof input === 'string' ? 'info' : input?.type || 'info';
+    const message = requestedType === 'error' ? userErrorMessage(requestedMessage) : requestedMessage;
     if (!message) return;
-    const type = typeof input === 'string' ? 'info' : input?.type || 'info';
+    const type = requestedType;
     Toast.show({
       type,
       text1: message,
-      text2: typeof input === 'string' ? undefined : input?.detail,
+      text2: typeof input === 'string' || type === 'error' ? undefined : input?.detail,
       autoHide: type !== 'loading',
       visibilityTime: typeof input === 'string' ? 3200 : input?.duration || 3200,
       props: typeof input === 'string' ? undefined : {

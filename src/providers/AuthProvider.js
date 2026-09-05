@@ -11,6 +11,7 @@ import {
 } from '../services/api/auth';
 import { confirmSuperAdminPasswordApi } from '../services/api/admin';
 import { configureHttpAuth } from '../services/api/http';
+import { recordClientTechnicalError } from '../services/errorHandling';
 
 const STORAGE_KEY = 'viralco_session_v1';
 
@@ -88,7 +89,7 @@ export function AuthProvider({ children }) {
       const profile = await meApi();
       setUser(profile);
     } catch (error) {
-      console.warn('[AuthProvider] bootstrap failed', error);
+      await recordClientTechnicalError({ code: 'AUTH_BOOTSTRAP_FAILED', path: 'AuthProvider.bootstrap', detail: error?.message || String(error) });
       await clearSession();
     }
   }, [applyTokens, clearSession]);
@@ -119,7 +120,7 @@ export function AuthProvider({ children }) {
         await logoutApi(refreshTokenRef.current);
       }
     } catch (error) {
-      console.warn('[AuthProvider] logout API failed', error);
+      await recordClientTechnicalError({ code: 'AUTH_LOGOUT_FAILED', path: 'AuthProvider.logout', detail: error?.message || String(error) });
     }
 
     await clearSession();

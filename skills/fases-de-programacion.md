@@ -185,6 +185,8 @@ El refinamiento B.1 de fototeca global esta definido en [`docs/espejo-magico-fot
 
 El refinamiento B.2 de taxonomia y filtros esta definido en [`docs/espejo-magico-taxonomia-b2.md`](../docs/espejo-magico-taxonomia-b2.md). Establece fondos, marcos, stickers, plantillas reservadas, animaciones y fuentes; añade filtros independientes por tipo de evento y movimiento. El contrato backend vive en `WEB/backend/docs/modes/espejo-magico-taxonomia-b2.md`. B.2 esta completa y D permanece pausada.
 
+El refinamiento B.3 de plantillas de diseño fotográfico esta definido en [`docs/espejo-magico-plantillas-b3.md`](../docs/espejo-magico-plantillas-b3.md). Las plantillas guardan formato, tomas, orden y slots; sus miniaturas se generan desde la misma geometría. El contrato backend vive en `WEB/backend/docs/modes/espejo-magico-plantillas-b3.md`. B.3 esta completa y D permanece pausada.
+
 ### Objetivo
 
 Construir la experiencia principal del dispositivo sin entrar todavía en toda la complejidad interna de cada módulo.

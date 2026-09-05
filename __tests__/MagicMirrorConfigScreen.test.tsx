@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, StyleSheet, Text } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ jest.mock('react-native-paper', () => {
 jest.mock('../src/hooks/useAuth', () => ({ useAuth: jest.fn() }));
 jest.mock('../src/providers/ToastProvider', () => ({ useToast: jest.fn() }));
 jest.mock('../src/services/api/events', () => ({
+  applyPhotoLayoutTemplateApi: jest.fn(), createAccountPhotoLayoutTemplateApi: jest.fn(),
   createEventResourceApi: jest.fn(), deleteEventResourceApi: jest.fn(),
   getMagicMirrorConfigApi: jest.fn(), getPublishedMagicMirrorConfigApi: jest.fn(),
   listAccountLibraryApi: jest.fn(), listEventResourcesApi: jest.fn(), listEventTypesApi: jest.fn(() => Promise.resolve({ types: [] })),
@@ -26,13 +27,21 @@ jest.mock('../src/services/api/events', () => ({
 }));
 jest.mock('../src/services/media/documentPicker', () => ({ pickLibraryResourceFile: jest.fn() }));
 
-import { MirrorFormatSelector } from '../src/components/MirrorFormatSelector';
-import { ResourcePicker } from '../src/components/ResourcePicker';
-import { ResourceSelectionSummary } from '../src/components/ResourceSelectionSummary';
-import { applyMirrorFormat, defaultMirrorConfig } from '../src/domain/magicMirrorConfig';
+import { DesignAssetCarousel } from '../src/components/DesignAssetCarousel';
+import { DesignAssetGrid } from '../src/components/DesignAssetGrid';
+import { BackgroundColorPicker } from '../src/components/BackgroundColorPicker';
+import { MirrorBackgroundEditor } from '../src/components/MirrorBackgroundEditor';
+import { MirrorFrameEditor } from '../src/components/MirrorFrameEditor';
+import { MirrorConfigPreview } from '../src/components/MirrorConfigPreview';
+import { MirrorLayoutEditor } from '../src/components/MirrorLayoutEditor';
+import { MirrorStickerEditor } from '../src/components/MirrorStickerEditor';
+import { MirrorTextLayerEditor } from '../src/components/MirrorTextLayerEditor';
+import { applyMirrorFormat, defaultMirrorConfig, moveSlots } from '../src/domain/magicMirrorConfig';
 import { useAuth } from '../src/hooks/useAuth';
 import { useToast } from '../src/providers/ToastProvider';
 import {
+  applyPhotoLayoutTemplateApi,
+  createAccountPhotoLayoutTemplateApi,
   createEventResourceApi,
   deleteEventResourceApi,
   getMagicMirrorConfigApi,
@@ -69,6 +78,11 @@ function owner() {
   mockedAuth.mockReturnValue({ user: { themeMode: 'light', globalRoles: [], accounts: [{ account, status: 'active', role: { slug: 'owner' } }] } });
 }
 
+function changeFormat(renderer: ReactTestRenderer.ReactTestRenderer, format: string) {
+  const editor = renderer.root.findByType(MirrorLayoutEditor);
+  ReactTestRenderer.act(() => editor.props.onChange(applyMirrorFormat(editor.props.config, format)));
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   AsyncStorage.clear();
@@ -82,16 +96,75 @@ beforeEach(() => {
   (saveMagicMirrorConfigApi as jest.Mock).mockImplementation((_eventId, _modeId, input) => Promise.resolve({ config: { revision: input.expectedRevision + 1, config: input.config } }));
   (validateMagicMirrorConfigApi as jest.Mock).mockResolvedValue({ valid: true, errors: [], warnings: [] });
   (publishMagicMirrorConfigApi as jest.Mock).mockResolvedValue({ version: { id: '91', version: 2, config: defaultMirrorConfig() } });
+  const appliedTemplateConfig = applyMirrorFormat(defaultMirrorConfig(), 'personalizar-5x15');
+  appliedTemplateConfig.resources.layoutTemplateResourceId = '80';
+  (applyPhotoLayoutTemplateApi as jest.Mock).mockResolvedValue({ config: { revision: 3, config: appliedTemplateConfig } });
+  (createAccountPhotoLayoutTemplateApi as jest.Mock).mockResolvedValue({ asset: { id: '100', type: 'template' } });
+});
+
+test('applies a photo layout template through the revisioned endpoint', async () => {
+  const item = { id: '', libraryAssetId: '329', displayName: null, asset: { id: '329', name: 'Recuerdo clasico', type: 'template', mimeType: 'application/vnd.kaptura.photo-layout+json' } };
+  (listAccountLibraryApi as jest.Mock).mockImplementation((_accountId, query) => Promise.resolve({ library: query.type === 'template' ? [item] : [], pagination: { page: 1, pageCount: 1 } }));
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  expect(renderer!.root.findAllByType(DesignAssetCarousel).map((node) => node.props.label)).toContain('Global');
+  expect(renderer!.root.findAllByType(DesignAssetGrid).map((node) => node.props.label)).toContain('Favoritos');
+  const globalTemplates = renderer!.root.findAllByType(DesignAssetCarousel).find((node) => node.props.label === 'Global');
+  await ReactTestRenderer.act(async () => globalTemplates!.props.onSelect(item));
+  expect(applyPhotoLayoutTemplateApi).toHaveBeenCalledWith('20', '30', '329', 2);
+  expect(renderer!.root.findByType(MirrorConfigPreview).props.config.layout.format).toBe('personalizar-5x15');
 });
 
 test('owner changes a prototype format and saves with the expected revision', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
-  ReactTestRenderer.act(() => renderer!.root.findByType(MirrorFormatSelector).props.onChange('collage'));
+  changeFormat(renderer!, 'collage');
   ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
   await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-save' }).props.onPress());
-  expect(saveMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30', expect.objectContaining({ expectedRevision: 2, config: expect.objectContaining({ layout: expect.objectContaining({ format: 'collage', shotCount: 4 }) }) }));
+  expect(saveMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30', expect.objectContaining({ expectedRevision: 2, config: expect.objectContaining({ layout: expect.objectContaining({ format: 'personalizar-5x15', shotCount: 4, output: { width: 2000, height: 2960 } }) }) }));
+});
+
+test('moving an applied template immediately turns it into a personalized layout', async () => {
+  const applied = applyMirrorFormat(defaultMirrorConfig(), 'personalizar-5x15');
+  applied.resources.layoutTemplateResourceId = '80';
+  (getMagicMirrorConfigApi as jest.Mock).mockResolvedValue({ config: { revision: 2, config: applied, publishedVersionId: null } });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  const editor = renderer!.root.findByType(MirrorLayoutEditor);
+  const movedSlots = moveSlots(editor.props.config.layout.slots, [1], 2, 0);
+  ReactTestRenderer.act(() => editor.props.onChange({ ...editor.props.config, layout: { ...editor.props.config.layout, slots: movedSlots } }));
+  const previewConfig = renderer!.root.findByType(MirrorConfigPreview).props.config;
+  expect(previewConfig.resources.layoutTemplateResourceId).toBeNull();
+  expect(previewConfig.layout.format).toBe('personalizar-5x15');
+});
+
+test('disables parent scrolling only while the canvas owns a gesture', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  const editor = renderer!.root.findByType(MirrorLayoutEditor);
+  const configScroll = () => renderer!.root.findAllByType(ScrollView).find((node) => node.props.scrollEnabled !== undefined);
+  expect(configScroll()!.props.scrollEnabled).toBe(true);
+  ReactTestRenderer.act(() => editor.props.onInteractionChange(true));
+  expect(configScroll()!.props.scrollEnabled).toBe(false);
+  ReactTestRenderer.act(() => editor.props.onInteractionChange(false));
+  expect(configScroll()!.props.scrollEnabled).toBe(true);
+});
+
+test('shows unsaved changes beside the floating preview without exposing the server revision', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+
+  expect(renderer!.root.findAll((node) => node.type === Text && node.props.children === 'r2')).toHaveLength(0);
+  changeFormat(renderer!, 'collage');
+
+  const floatingControls = renderer!.root.findByProps({ testID: 'mirror-floating-controls' });
+  const floatingText = floatingControls.findAllByType(Text).map((node) => node.props.children).flat(Infinity).join(' ');
+  expect(floatingText).toContain('Cambios sin guardar');
 });
 
 test('a real tab press reveals the selected configurator section', async () => {
@@ -102,8 +175,7 @@ test('a real tab press reveals the selected configurator section', async () => {
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'horizontal-submenu-design' }).props.onPress());
 
   expect(renderer!.root.findByProps({ testID: 'horizontal-submenu-design' }).props.accessibilityState).toEqual({ selected: true });
-  const text = renderer!.root.findAllByType(Text).map((node) => node.props.children).flat(Infinity).join(' ');
-  expect(text).toContain('Seleccion multiple');
+  expect(renderer!.root.findAll((node) => node.props.accessibilityLabel === 'Seleccion multiple').length).toBeGreaterThan(0);
 });
 
 test('starts in design without an event tab and opens the transversal preview modal', async () => {
@@ -113,7 +185,12 @@ test('starts in design without an event tab and opens the transversal preview mo
 
   expect(renderer!.root.findAllByProps({ testID: 'horizontal-submenu-event' })).toHaveLength(0);
   expect(renderer!.root.findByProps({ testID: 'horizontal-submenu-design' }).props.accessibilityState).toEqual({ selected: true });
-  expect(renderer!.root.findByType(MirrorFormatSelector)).toBeTruthy();
+  expect(renderer!.root.findByProps({ testID: 'horizontal-submenu-format' })).toBeTruthy();
+  expect(renderer!.root.findByType(MirrorConfigPreview)).toBeTruthy();
+  expect(renderer!.root.findAllByType(MirrorLayoutEditor)).toHaveLength(1);
+  ['Mover y redimensionar', 'Rotar', 'Seleccion multiple', 'Deshacer', 'Rehacer', 'Duplicar como nueva toma', 'Repetir la misma toma', 'Agregar', 'Tira duplicada', 'Restaurar preset'].forEach((label) => {
+    expect(renderer!.root.findAll((node) => node.props.accessibilityLabel === label).length).toBeGreaterThan(0);
+  });
   expect(renderer!.root.findAllByProps({ testID: 'mirror-preview-modal' })).toHaveLength(0);
 
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'mirror-preview-open' }).props.onPress());
@@ -124,6 +201,58 @@ test('starts in design without an event tab and opens the transversal preview mo
   expect(text).toContain('Asi quedaria');
   expect(text).toContain('Dimensiones');
   expect(text).toContain('Numero de tomas');
+});
+
+test('design submenu switches between the five focused editors', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  ['format', 'frame', 'background', 'text', 'sticker'].forEach((key) => expect(renderer!.root.findByProps({ testID: `horizontal-submenu-${key}` })).toBeTruthy());
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'horizontal-submenu-text' }).props.onPress());
+  expect(renderer!.root.findByType(MirrorTextLayerEditor)).toBeTruthy();
+});
+
+test('adds a token color as an editable background layer without creating a resource', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'horizontal-submenu-background' }).props.onPress());
+  expect(renderer!.root.findByType(MirrorBackgroundEditor)).toBeTruthy();
+  ReactTestRenderer.act(() => renderer!.root.findByType(BackgroundColorPicker).props.onSelect('#2D3047'));
+  expect(renderer!.root.findByType(MirrorBackgroundEditor).props.config.layout.backgroundLayers).toEqual([
+    expect.objectContaining({ kind: 'color', color: '#2D3047', x: 0, y: 0, width: 100, height: 100, order: 0 }),
+  ]);
+  expect(createEventResourceApi).not.toHaveBeenCalled();
+});
+
+test('associates a favorite image as an editable background resource layer', async () => {
+  const item = { id: '41', libraryAssetId: '51', displayName: 'Fondo', asset: { id: '51', name: 'Fondo', type: 'background', mimeType: 'image/png' } };
+  (listAccountLibraryApi as jest.Mock).mockImplementation((_accountId, query) => Promise.resolve({ library: query.type === 'background' ? [item] : [], pagination: { page: 1, pageCount: 1 } }));
+  (createEventResourceApi as jest.Mock).mockResolvedValue({ resource: { id: '61', libraryAssetId: '51', purpose: 'background', asset: item.asset } });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'horizontal-submenu-background' }).props.onPress());
+  const grid = renderer!.root.findAllByType(DesignAssetGrid).find((node) => node.props.items.some((entry) => entry.libraryAssetId === '51'));
+  await ReactTestRenderer.act(async () => grid!.props.onSelect(item));
+  expect(renderer!.root.findByType(MirrorBackgroundEditor).props.config.layout.backgroundLayers).toEqual([
+    expect.objectContaining({ kind: 'resource', resourceId: '61', order: 0 }),
+  ]);
+});
+
+test('adds a favorite static sticker as a positioned design layer', async () => {
+  const item = { id: '50', libraryAssetId: '70', isFavorite: true, asset: { id: '70', name: 'Sticker', type: 'sticker', motionType: 'static', mimeType: 'image/png' } };
+  (listAccountLibraryApi as jest.Mock).mockImplementation((_accountId, query) => Promise.resolve({ library: query.type === 'sticker' ? [item] : [], pagination: { page: 1, pageCount: 1 } }));
+  (createEventResourceApi as jest.Mock).mockResolvedValue({ resource: { id: '80', libraryAssetId: '70', purpose: 'sticker', asset: item.asset } });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'horizontal-submenu-sticker' }).props.onPress());
+  const grid = renderer!.root.findAllByType(DesignAssetGrid).find((node) => node.props.items.some((entry) => entry.libraryAssetId === '70'));
+  await ReactTestRenderer.act(async () => grid!.props.onSelect(item));
+  expect(renderer!.root.findByType(MirrorStickerEditor).props.config.layout.stickerLayers).toEqual([
+    expect.objectContaining({ resourceId: '80', width: 25, height: 25, rotation: 0, order: 0 }),
+  ]);
 });
 
 test('operator sees only the active publication', async () => {
@@ -141,7 +270,7 @@ test('revision conflict exposes both explicit recovery actions', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
-  ReactTestRenderer.act(() => renderer!.root.findByType(MirrorFormatSelector).props.onChange('postal'));
+  changeFormat(renderer!, 'postal');
   ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
   await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-save' }).props.onPress());
   const text = renderer!.root.findAllByType(Text).map((node) => node.props.children).flat(Infinity).join(' ');
@@ -154,7 +283,7 @@ test('publish saves dirty state, validates and creates an immutable version afte
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
-  ReactTestRenderer.act(() => renderer!.root.findByType(MirrorFormatSelector).props.onChange('doble'));
+  changeFormat(renderer!, 'doble');
   ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
   await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-publish' }).props.onPress());
   await flush();
@@ -171,24 +300,43 @@ test('restores a local draft after an app restart when the base revision still m
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
-  expect(renderer!.root.findByType(MirrorFormatSelector).props.value).toBe('collage');
+  expect(renderer!.root.findByType(MirrorConfigPreview).props.config.layout.format).toBe('collage');
   alert.mockRestore();
 });
 
 test('rolls back a newly associated resource when saving conflicts', async () => {
-  const item = { id: '40', libraryAssetId: '50', displayName: 'Marco', asset: { id: '50', name: 'Marco', type: 'template', mimeType: 'image/png' } };
-  (listAccountLibraryApi as jest.Mock).mockResolvedValue({ library: [item], pagination: { page: 1, pageCount: 1 } });
-  (createEventResourceApi as jest.Mock).mockResolvedValue({ resource: { id: '60', libraryAssetId: '50', purpose: 'template', asset: item.asset } });
+  const item = { id: '40', libraryAssetId: '50', displayName: 'Marco', asset: { id: '50', name: 'Marco', type: 'frame', mimeType: 'image/png', variants: { card: { signedUrl: 'https://cdn.test/frame-card.webp' } } } };
+  (listAccountLibraryApi as jest.Mock).mockImplementation((_accountId, query) => Promise.resolve({ library: query.type === 'frame' ? [item] : [], pagination: { page: 1, pageCount: 1 } }));
+  (createEventResourceApi as jest.Mock).mockResolvedValue({ resource: { id: '60', libraryAssetId: '50', purpose: 'frame', asset: { id: '50', name: 'Marco', type: 'frame', mimeType: 'image/png' } } });
   (saveMagicMirrorConfigApi as jest.Mock).mockRejectedValue(Object.assign(new Error('CONFIG_REVISION_CONFLICT'), { status: 409, payload: { error: 'CONFIG_REVISION_CONFLICT' } }));
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
-  const openButtons = renderer!.root.findAll((node) => node.props.label === 'Seleccionar recurso');
-  await ReactTestRenderer.act(async () => openButtons[0].props.onPress());
-  await flush();
-  ReactTestRenderer.act(() => renderer!.root.findByType(ResourcePicker).props.onSelect(item));
-  await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceSelectionSummary).props.onConfirm());
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'horizontal-submenu-frame' }).props.onPress());
+  const frameGrid = renderer!.root.findAllByType(DesignAssetGrid).find((node) => node.props.items.some((entry) => entry.libraryAssetId === '50'));
+  await ReactTestRenderer.act(async () => frameGrid!.props.onSelect(item));
+  const frameEditor = renderer!.root.findByType(MirrorFrameEditor);
+  expect(frameEditor.props.config.layout.frameLayers).toEqual([expect.objectContaining({ resourceId: '60' })]);
+  expect(frameEditor.props.resourcesById['60'].asset.variants).toBe(item.asset.variants);
   ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
   await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-save' }).props.onPress());
   expect(deleteEventResourceApi).toHaveBeenCalledWith('20', '60');
+});
+
+test('restores the applied template when a personalized edit cannot be saved', async () => {
+  const applied = applyMirrorFormat(defaultMirrorConfig(), 'personalizar-5x15');
+  applied.resources.layoutTemplateResourceId = '80';
+  (getMagicMirrorConfigApi as jest.Mock).mockResolvedValue({ config: { revision: 2, config: applied, publishedVersionId: null } });
+  (saveMagicMirrorConfigApi as jest.Mock).mockRejectedValue(Object.assign(new Error('CONFIG_REVISION_CONFLICT'), { status: 409, payload: { error: 'CONFIG_REVISION_CONFLICT' } }));
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  const editor = renderer!.root.findByType(MirrorLayoutEditor);
+  const movedSlots = moveSlots(editor.props.config.layout.slots, [1], 2, 0);
+  ReactTestRenderer.act(() => editor.props.onChange({ ...editor.props.config, layout: { ...editor.props.config.layout, slots: movedSlots } }));
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
+  await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-save' }).props.onPress());
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'mirror-preview-open' }).props.onPress());
+  expect(renderer!.root.findByType(MirrorConfigPreview).props.config.resources.layoutTemplateResourceId).toBe('80');
+  expect(deleteEventResourceApi).not.toHaveBeenCalledWith('20', '80');
 });

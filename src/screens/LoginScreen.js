@@ -16,6 +16,9 @@ import { AppButton } from '../design-system/components/AppButton';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
 import { ENABLE_DEBUG_LOGIN_PRESETS } from '../config/debug';
+import { t } from '../i18n';
+import { useToast } from '../providers/ToastProvider';
+import { userErrorMessage } from '../services/errorHandling';
 
 const logoKaptura = require('../assets/branding/logo_kaptura.png');
 const QUICK_CREDENTIALS = {
@@ -70,13 +73,13 @@ function LoginField({
 
 export function LoginScreen({ onGoRegister, onGoForgot }) {
   const { login } = useAuth();
+  const { showToast } = useToast();
   const mode = 'dark';
   const theme = useMemo(() => getTheme(mode), [mode]);
 
   const [email, setEmail] = useState('superadmin@viralco.local');
   const [password, setPassword] = useState('superadmin1234');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const applyQuickCredentials = key => {
     const preset = QUICK_CREDENTIALS[key];
     if (!preset) {
@@ -84,17 +87,14 @@ export function LoginScreen({ onGoRegister, onGoForgot }) {
     }
     setEmail(preset.email);
     setPassword(preset.password);
-    setError('');
   };
 
   const onSubmit = async () => {
     setLoading(true);
-    setError('');
-
     try {
       await login(email, password);
     } catch (err) {
-      setError(err?.message || 'No se pudo iniciar sesion');
+      showToast({ type: 'error', message: userErrorMessage(err, t('error_001')) });
     } finally {
       setLoading(false);
     }
@@ -181,14 +181,6 @@ export function LoginScreen({ onGoRegister, onGoForgot }) {
                 autoComplete="password"
                 theme={theme}
               />
-
-              {error ? (
-                <Text
-                  style={[styles.errorText, { color: theme.buttonBgPressed }]}
-                >
-                  {error}
-                </Text>
-              ) : null}
 
               <AppButton
                 label={loading ? 'Ingresando...' : 'Iniciar sesion'}
@@ -277,10 +269,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: tokens.spacing.sm,
     paddingVertical: tokens.spacing.sm,
     fontSize: tokens.typography.body,
-  },
-  errorText: {
-    fontSize: tokens.typography.caption,
-    fontWeight: '600',
   },
   submitButton: {
     marginTop: tokens.spacing.xl,

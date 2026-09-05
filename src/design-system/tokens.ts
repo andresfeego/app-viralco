@@ -98,6 +98,7 @@ export const tokens = {
       500: '#22b77f',
       600: '#159263',
     },
+    backgroundPalette: ['#2D3047', '#93B7BE', '#E0CA3C', '#A799B7', '#048A81'],
     backgroundLight: '#f5f7fb',
     backgroundDark: '#111827',
     surfaceLight: '#ffffff',

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { t } from '../i18n';
+import { userErrorMessage } from '../services/errorHandling';
 
 export function RegisterScreen({ onGoLogin }) {
   const { register } = useAuth();
@@ -21,7 +22,7 @@ export function RegisterScreen({ onGoLogin }) {
       const payload = await register({ email, password, name, phone: phone || undefined });
       setMessage(payload.message || t('auth_009'));
     } catch (err) {
-      setError(err?.message || t('auth_010'));
+      setError(userErrorMessage(err, t('auth_010')));
     } finally {
       setLoading(false);
     }

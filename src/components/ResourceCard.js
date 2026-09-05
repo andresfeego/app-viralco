@@ -44,7 +44,7 @@ export function ResourceCard({ item, theme, canManage, compatible = true, select
           testID={`resource-favorite-${item.libraryAssetId}`}
         />
       </View>
-      {previewUri ? <MediaPreview uri={previewUri} mediaType={asset.mimeType || ''} borderColor={theme.border} textColor={theme.textSecondary} /> : null}
+      {previewUri ? <MediaPreview uri={previewUri} mediaType={asset.type === 'template' ? 'image/webp' : asset.mimeType || ''} borderColor={theme.border} textColor={theme.textSecondary} /> : null}
       <Text style={[styles.meta, { color: theme.textSecondary }]}>{asset.ownerType === 'viralco' ? t('resource_019') : t('resource_020')}</Text>
       {onSelect ? (
         <AppButton
