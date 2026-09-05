@@ -44,7 +44,7 @@ import {
 import { pickEventResourceImage } from '../services/media/imagePicker';
 import { userErrorMessage } from '../services/errorHandling';
 
-const RESOURCE_PURPOSES = ['frame', 'overlay', 'intro', 'outro', 'music', 'logo', 'background', 'template', 'branding', 'other'];
+const RESOURCE_PURPOSES = ['frame', 'overlay', 'intro', 'outro', 'music', 'logo', 'template', 'branding', 'other'];
 const EMPTY_EVENT_FORM = { name: '', eventTypeSlug: '', startDate: '', status: 'draft', timezone: 'America/Bogota', description: '', modeSlugs: [] };
 const MODAL_TOAST_TOP_OFFSET = tokens.spacing.xl * 3;
 
@@ -66,9 +66,7 @@ function normalizeEvent(item) {
     description: String(item.description || ''),
     branding: {
       logoResourceId: String(item.branding?.logoResourceId || ''),
-      backgroundResourceId: String(item.branding?.backgroundResourceId || ''),
       logoResource: item.branding?.logoResource || null,
-      backgroundResource: item.branding?.backgroundResource || null,
       isActive: item.branding?.isActive === undefined ? true : Boolean(item.branding.isActive),
     },
     modes: Array.isArray(item.modes) ? item.modes : [],
@@ -457,11 +455,12 @@ export function EventsScreen({
     } finally { setSaving(false); }
   };
 
-  const onPickEventVisualResource = async (purpose, source) => {
+  const onPickEventLogo = async (source) => {
     if (!selectedEventId || !accountId || !canEdit) { setError(t('event_060')); return; }
     setVisualMenuPurpose('');
     setSaving(true); clearMessages();
     try {
+      const purpose = 'logo';
       const image = await pickEventResourceImage({ source, purpose });
       if (!image) return;
       const asset = await createProcessedAccountImageAssetApi(accountId, image, purpose);
@@ -469,7 +468,7 @@ export function EventsScreen({
       const payload = await createEventResourceApi(selectedEventId, { libraryAssetId: asset.id, purpose, orderIndex: 0, isActive: true });
       const resourceId = payload?.resource?.id;
       if (!resourceId) throw new Error(t('event_114'));
-      await updateEventBrandingApi(selectedEventId, purpose === 'logo' ? { logoResourceId: resourceId } : { backgroundResourceId: resourceId });
+      await updateEventBrandingApi(selectedEventId, { logoResourceId: resourceId });
       setOk(t('event_065'));
       await loadEventDetail(selectedEventId);
       await loadLibraryAndResources(selectedEventId);
@@ -583,8 +582,8 @@ export function EventsScreen({
         />
       )}
     >
-      <Menu.Item onPress={() => onPickEventVisualResource(purpose, 'camera')} title={t('event_115')} />
-      <Menu.Item onPress={() => onPickEventVisualResource(purpose, 'gallery')} title={t('event_116')} />
+      <Menu.Item onPress={() => onPickEventLogo('camera')} title={t('event_115')} />
+      <Menu.Item onPress={() => onPickEventLogo('gallery')} title={t('event_116')} />
     </Menu>
   );
 
@@ -755,7 +754,6 @@ export function EventsScreen({
     const event = selectedEvent;
     const branding = event?.branding || {};
     const logoUrl = resourcePreviewUrl(branding.logoResource);
-    const backgroundUrl = resourcePreviewUrl(branding.backgroundResource);
     const statusKey = String(event?.status || 'draft').toLowerCase();
     const statusLabel = statusKey === 'active' ? t('event_135') : statusKey === 'archived' ? t('event_137') : t('event_136');
     const statusFlag = statusKey === 'active' ? 'success' : statusKey === 'archived' ? 'info' : 'warn';
@@ -765,9 +763,7 @@ export function EventsScreen({
           theme={theme}
           title={event?.name || t('event_002')}
           subtitle={event?.eventType?.name || event?.eventDate || ''}
-          backgroundImageUrl={backgroundUrl}
           logoImageUrl={logoUrl}
-          backgroundAction={canEdit ? renderVisualResourceMenu('background') : null}
           logoAction={canEdit ? renderVisualResourceMenu('logo') : null}
         />
         <View testID="event-detail-content" style={styles.detailContentStack}>
@@ -980,7 +976,7 @@ const styles = StyleSheet.create({
   scrollContent: { padding: tokens.spacing.md, gap: tokens.spacing.md },
   detailScrollContent: { paddingTop: tokens.spacing.none, paddingHorizontal: tokens.spacing.none, gap: tokens.spacing.none },
   detailStack: { gap: tokens.spacing.none },
-  detailContentStack: { paddingHorizontal: tokens.spacing.md, gap: tokens.spacing.sm },
+  detailContentStack: { paddingHorizontal: tokens.spacing.md, paddingVertical: tokens.spacing.xs, gap: tokens.spacing.xs },
   sectionWrap: { gap: tokens.spacing.sm },
   compactCreateButton: { alignSelf: 'flex-end', minWidth: tokens.spacing.none },
   sectionTitle: { fontSize: tokens.typography.heading, fontWeight: '700' },

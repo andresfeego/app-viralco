@@ -7,7 +7,7 @@ import { getTheme } from '../src/design-system/theme';
 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
 
-test.each(['light', 'dark'] as const)('anchors event image actions to their frame in %s mode', (mode) => {
+test.each(['light', 'dark'] as const)('presents a compact event identity header in %s mode', (mode) => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(
@@ -15,15 +15,11 @@ test.each(['light', 'dark'] as const)('anchors event image actions to their fram
         theme={getTheme(mode)}
         title="Evento"
         subtitle="Boda"
-        backgroundAction={<View testID="background-control" />}
         logoAction={<View testID="logo-control" />}
       />,
     );
   });
 
-  const backgroundStyle = StyleSheet.flatten(
-    renderer!.root.findByProps({ testID: 'event-hero-background-action' }).props.style,
-  );
   const logoStyle = StyleSheet.flatten(
     renderer!.root.findByProps({ testID: 'event-hero-logo-action' }).props.style,
   );
@@ -31,17 +27,15 @@ test.each(['light', 'dark'] as const)('anchors event image actions to their fram
     renderer!.root.findByProps({ testID: 'event-hero-frame' }).props.style,
   );
 
-  expect(backgroundStyle).toEqual(expect.objectContaining({
-    position: 'absolute',
-    right: tokens.spacing.sm,
-    top: tokens.spacing.sm,
-  }));
+  expect(renderer!.root.findAllByProps({ testID: 'event-hero-background-action' })).toHaveLength(0);
   expect(logoStyle).toEqual(expect.objectContaining({
     position: 'absolute',
     right: tokens.spacing.sm,
     bottom: tokens.spacing.sm,
   }));
   expect(frameStyle.width).toBe('100%');
+  expect(frameStyle.gap).toBe(tokens.spacing.sm);
+  expect(frameStyle.padding).toBe(tokens.spacing.md);
   expect(frameStyle.borderRadius).toBeUndefined();
   expect(frameStyle.marginTop).toBeUndefined();
 });
