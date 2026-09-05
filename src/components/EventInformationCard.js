@@ -34,7 +34,6 @@ export function EventInformationCard({
     { key: 'type', icon: 'shapes', label: labels.type, value: event?.eventType?.name },
     { key: 'date', icon: 'calendar-day', label: labels.date, value: event?.eventDate },
     { key: 'status', icon: 'circle-check', label: labels.status, status: true },
-    { key: 'timezone', icon: 'clock', label: labels.timezone, value: event?.timezone },
     { key: 'slug', icon: 'fingerprint', label: labels.identifier, value: event?.slug },
     ...(event?.description ? [{ key: 'description', icon: 'align-left', label: labels.description, value: event.description }] : []),
   ];

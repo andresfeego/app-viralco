@@ -291,6 +291,8 @@ test('confirms and deletes an event from its detail', async () => {
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<EventsScreen allowedSections={['list', 'detail']} />); });
   await ReactTestRenderer.act(async () => renderer!.root.findByType(EventListCard).props.onPress());
   await ReactTestRenderer.act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  expect(renderer!.root.findAllByProps({ testID: 'event-delete-open' })).toHaveLength(0);
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-details-edit' }).props.onPress());
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-delete-open' }).props.onPress());
   await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'event-delete-confirm' }).props.onPress());
   expect(mockedDeleteEvent).toHaveBeenCalledWith('10');

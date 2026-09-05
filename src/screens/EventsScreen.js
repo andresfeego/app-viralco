@@ -13,6 +13,7 @@ import { AccountRequiredEmptyState } from '../components/AccountRequiredEmptySta
 import { CompactAccountSelector } from '../components/CompactAccountSelector';
 import { DestructiveConfirmationModal } from '../components/DestructiveConfirmationModal';
 import { EventHeroHeader } from '../components/EventHeroHeader';
+import { EventEditModal } from '../components/EventEditModal';
 import { EventInformationCard } from '../components/EventInformationCard';
 import { EventListCard } from '../components/EventListCard';
 import { EventModeRow } from '../components/EventModeRow';
@@ -676,59 +677,78 @@ export function EventsScreen({
   );
 
   const renderEditEventModal = () => (
-    <Modal visible={editEventVisible} animationType="slide" transparent onRequestClose={() => setEditEventVisible(false)}>
-      <ModalSafeArea style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
-          <ScrollView contentContainerStyle={[styles.modalList, styles.editModalList]}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_117')}</Text>
-            {renderEventTypePicker()}
-            {renderEventInput({ testID: 'event-edit-name-input', label: t('event_071'), field: 'name', value: eventForm.name })}
-            <PaperDateInput
-              testID="event-edit-date-input"
-              theme={theme}
-              label={t('event_073')}
-              value={eventForm.startDate}
-              disabled={!canEdit}
-              helperLabel={t('event_104')}
-              onChangeDate={(startDate) => updateEventFormField('startDate', startDate)}
-            />
-            {renderEventInput({ testID: 'event-edit-timezone-input', label: t('event_103'), field: 'timezone', value: eventForm.timezone, autoCapitalize: 'none' })}
-            {renderEventInput({ testID: 'event-edit-description-input', label: t('event_075'), field: 'description', value: eventForm.description, multiline: true })}
-            <View style={styles.row}>
-              <AppButton label={t('account_028')} onPress={() => setEditEventVisible(false)} backgroundColor={theme.surface} pressedColor={theme.surface} textColor={theme.textPrimary} style={styles.smallButton} />
-              <AppButton label={t('event_119')} onPress={onSaveEventDetails} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.smallButton} />
-            </View>
-          </ScrollView>
+    <EventEditModal
+      visible={editEventVisible}
+      theme={theme}
+      title={t('event_117')}
+      accessibilityCloseLabel={t('account_028')}
+      cancelLabel={t('account_028')}
+      saveLabel={t('event_119')}
+      onClose={() => setEditEventVisible(false)}
+      onSave={onSaveEventDetails}
+      saving={saving}
+      testID="event-details-modal"
+      footerContent={canEdit ? (
+        <View style={[styles.dangerZone, { borderColor: theme.alert }]}>
+          <Text style={[styles.dangerTitle, { color: theme.alert }]}>{t('event_120')}</Text>
+          <Text style={[styles.dangerMessage, { color: theme.textSecondary }]}>{t('event_121')}</Text>
+          <IconTextButton
+            theme={theme}
+            label={t('event_120')}
+            icon="trash-can"
+            variant="outline"
+            borderColor={theme.alert}
+            iconColor={theme.alert}
+            onPress={() => {
+              setEditEventVisible(false);
+              setDeleteEventVisible(true);
+            }}
+            testID="event-delete-open"
+            style={styles.dangerAction}
+          />
         </View>
-      </ModalSafeArea>
-    </Modal>
+      ) : null}
+    >
+      {renderEventTypePicker()}
+      {renderEventInput({ testID: 'event-edit-name-input', label: t('event_071'), field: 'name', value: eventForm.name })}
+      <PaperDateInput
+        testID="event-edit-date-input"
+        theme={theme}
+        label={t('event_073')}
+        value={eventForm.startDate}
+        disabled={!canEdit}
+        helperLabel={t('event_104')}
+        onChangeDate={(startDate) => updateEventFormField('startDate', startDate)}
+      />
+      {renderEventInput({ testID: 'event-edit-description-input', label: t('event_075'), field: 'description', value: eventForm.description, multiline: true })}
+    </EventEditModal>
   );
 
   const renderEditModesModal = () => (
-    <Modal visible={editModesVisible} animationType="slide" transparent onRequestClose={() => setEditModesVisible(false)}>
-      <ModalSafeArea style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
-          <ScrollView contentContainerStyle={styles.modalList}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_118')}</Text>
-            <SelectableChipGroup
-              testID="event-edit-mode-selector"
-              theme={theme}
-              label={t('event_111')}
-              options={availableModes.map((mode) => ({ label: mode.name, value: mode.slug }))}
-              values={eventForm.modeSlugs}
-              multiple
-              disabled={!canEdit}
-              errorText={eventFormErrors.modeSlugs}
-              onChange={(modeSlugs) => updateEventFormField('modeSlugs', modeSlugs)}
-            />
-            <View style={styles.row}>
-              <AppButton label={t('account_028')} onPress={() => setEditModesVisible(false)} backgroundColor={theme.surface} pressedColor={theme.surface} textColor={theme.textPrimary} style={styles.smallButton} />
-              <AppButton label={t('event_119')} onPress={onSaveEventModes} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.smallButton} />
-            </View>
-          </ScrollView>
-        </View>
-      </ModalSafeArea>
-    </Modal>
+    <EventEditModal
+      visible={editModesVisible}
+      theme={theme}
+      title={t('event_118')}
+      accessibilityCloseLabel={t('account_028')}
+      cancelLabel={t('account_028')}
+      saveLabel={t('event_119')}
+      onClose={() => setEditModesVisible(false)}
+      onSave={onSaveEventModes}
+      saving={saving}
+      testID="event-modes-modal"
+    >
+      <SelectableChipGroup
+        testID="event-edit-mode-selector"
+        theme={theme}
+        label={t('event_111')}
+        options={availableModes.map((mode) => ({ label: mode.name, value: mode.slug }))}
+        values={eventForm.modeSlugs}
+        multiple
+        disabled={!canEdit}
+        errorText={eventFormErrors.modeSlugs}
+        onChange={(modeSlugs) => updateEventFormField('modeSlugs', modeSlugs)}
+      />
+    </EventEditModal>
   );
 
   const renderEventDetail = () => {
@@ -762,7 +782,6 @@ export function EventsScreen({
               type: t('event_105'),
               date: t('event_131'),
               status: t('event_010'),
-              timezone: t('event_132'),
               identifier: t('event_133'),
               description: t('event_134'),
               edit: t('event_117'),
@@ -772,9 +791,20 @@ export function EventsScreen({
             canEdit={canEdit}
             onEdit={() => setEditEventVisible(true)}
           />
-          <View style={styles.editableCardWrap}>
-            <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_111')}</Text>
+          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+              <View style={styles.cardHeaderCluster}>
+                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_111')}</Text>
+                {canEdit ? (
+                  <IconTextButton
+                    theme={theme}
+                    icon="pencil"
+                    variant="outline"
+                    onPress={() => setEditModesVisible(true)}
+                    testID="event-modes-edit"
+                    accessibilityLabel={t('event_118')}
+                  />
+                ) : null}
+              </View>
               {event?.modes?.length ? (
                 <View testID="event-mode-list">
                   {event.modes.map((item, index) => {
@@ -803,23 +833,7 @@ export function EventsScreen({
                   })}
                 </View>
               ) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
-            </SurfaceCard>
-            {canEdit ? (
-              <View style={styles.cardEditAction}>
-                <IconTextButton theme={theme} icon="pencil" variant="ghost" compactIconOnly onPress={() => setEditModesVisible(true)} testID="event-modes-edit" />
-              </View>
-            ) : null}
-          </View>
-          {canEdit ? (
-            <AppButton
-              testID="event-delete-open"
-              label={t('event_120')}
-              onPress={() => setDeleteEventVisible(true)}
-              backgroundColor={theme.alert}
-              pressedColor={theme.alert}
-              textColor={theme.buttonText}
-            />
-          ) : null}
+          </SurfaceCard>
         </View>
       </View>
     );
@@ -979,11 +993,13 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
   cardMeta: { fontSize: tokens.typography.caption },
   row: { flexDirection: 'row', gap: tokens.spacing.xs },
-  editableCardWrap: { position: 'relative' },
-  cardEditAction: { position: 'absolute', right: tokens.spacing.sm, top: tokens.spacing.sm },
+  cardHeaderCluster: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   smallButton: { flex: 1 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalCard: { flex: 1, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg, padding: tokens.spacing.md, gap: tokens.spacing.sm },
   modalList: { gap: tokens.spacing.sm, paddingBottom: tokens.spacing.md },
-  editModalList: { paddingTop: tokens.spacing.lg },
+  dangerZone: { gap: tokens.spacing.xs, borderTopWidth: tokens.border.thin, paddingTop: tokens.spacing.md },
+  dangerTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
+  dangerMessage: { fontSize: tokens.typography.caption },
+  dangerAction: { alignSelf: 'flex-start' },
 });

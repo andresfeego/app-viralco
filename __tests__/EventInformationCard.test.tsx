@@ -48,6 +48,8 @@ test.each(['light', 'dark'] as const)('presents event information semantically i
   expect(text).toContain('Tipo de evento');
   expect(text).toContain('Boda');
   expect(text).toContain('2026-09-05');
+  expect(text).not.toContain('Zona horaria');
+  expect(text).not.toContain('America/Bogota');
   expect(renderer!.root.findByType(StatusBadge).props).toEqual(expect.objectContaining({ label: 'Activo', flag: 'success' }));
   ReactTestRenderer.act(() => renderer!.root.findByType(IconTextButton).props.onPress());
   expect(onEdit).toHaveBeenCalledTimes(1);
