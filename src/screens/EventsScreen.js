@@ -13,6 +13,7 @@ import { AccountRequiredEmptyState } from '../components/AccountRequiredEmptySta
 import { CompactAccountSelector } from '../components/CompactAccountSelector';
 import { DestructiveConfirmationModal } from '../components/DestructiveConfirmationModal';
 import { EventHeroHeader } from '../components/EventHeroHeader';
+import { EventInformationCard } from '../components/EventInformationCard';
 import { EventListCard } from '../components/EventListCard';
 import { EventModeRow } from '../components/EventModeRow';
 import { IconTextButton } from '../components/IconTextButton';
@@ -735,8 +736,11 @@ export function EventsScreen({
     const branding = event?.branding || {};
     const logoUrl = resourcePreviewUrl(branding.logoResource);
     const backgroundUrl = resourcePreviewUrl(branding.backgroundResource);
+    const statusKey = String(event?.status || 'draft').toLowerCase();
+    const statusLabel = statusKey === 'active' ? t('event_135') : statusKey === 'archived' ? t('event_137') : t('event_136');
+    const statusFlag = statusKey === 'active' ? 'success' : statusKey === 'archived' ? 'info' : 'warn';
     return (
-      <View style={styles.sectionWrap}>
+      <View testID="event-detail" style={styles.detailStack}>
         <EventHeroHeader
           theme={theme}
           title={event?.name || t('event_002')}
@@ -746,72 +750,77 @@ export function EventsScreen({
           backgroundAction={canEdit ? renderVisualResourceMenu('background') : null}
           logoAction={canEdit ? renderVisualResourceMenu('logo') : null}
         />
-        <View style={styles.editableCardWrap}>
-          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_108')}</Text>
-            <View style={styles.detailRows}>
-              <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_105')}: {event?.eventType?.name || '-'}</Text>
-              <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_073')}: {event?.eventDate || '-'}</Text>
-              <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_010')}: {event?.status || '-'}</Text>
-              <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{t('event_103')}: {event?.timezone || '-'}</Text>
-              <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>Slug: {event?.slug || '-'}</Text>
-              {event?.description ? <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>{event.description}</Text> : null}
-            </View>
-          </SurfaceCard>
-          {canEdit ? (
-            <View style={styles.cardEditAction}>
-              <IconTextButton theme={theme} icon="pencil" variant="ghost" compactIconOnly onPress={() => setEditEventVisible(true)} testID="event-details-edit" />
-            </View>
-          ) : null}
-        </View>
-        <View style={styles.editableCardWrap}>
-          <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_111')}</Text>
-            {event?.modes?.length ? (
-              <View testID="event-mode-list">
-                {event.modes.map((item, index) => {
-                  const isMirror = item.mode?.slug === 'espejo';
-                  const configureEnabled = Boolean(isMirror && item.isActive !== false && onConfigureMirror && canEdit);
-                  const publishedVersionId = item.publishedVersionId || item.config?.publishedVersionId;
-                  const canOperate = isSuperAdmin || ['owner', 'admin', 'operator'].includes(roleSlug);
-                  const launchEnabled = Boolean(isMirror && item.isActive !== false && event.status === 'active' && publishedVersionId && onLaunchMirror && canOperate);
-                  return (
-                    <EventModeRow
-                      key={item.id || item.mode?.slug}
-                      theme={theme}
-                      name={item.mode?.name || item.mode?.slug || '-'}
-                      configureLabel={`${t('mirror_008')} ${item.mode?.name || ''}`.trim()}
-                      launchLabel={`${t('event_130')} ${item.mode?.name || ''}`.trim()}
-                      canConfigure={configureEnabled}
-                      canLaunch={launchEnabled}
-                      showTopDivider={index === 0}
-                      showDivider={index < event.modes.length - 1}
-                      onConfigure={() => onConfigureMirror?.({ event, eventMode: item, accountId, canEdit })}
-                      onLaunch={() => onLaunchMirror?.({ event, eventMode: item, accountId })}
-                      configureTestID={isMirror ? 'event-configure-mirror' : `event-configure-${item.mode?.slug || item.id}`}
-                      launchTestID={isMirror ? 'event-launch-mirror' : `event-launch-${item.mode?.slug || item.id}`}
-                    />
-                  );
-                })}
-              </View>
-            ) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
-          </SurfaceCard>
-          {canEdit ? (
-            <View style={styles.cardEditAction}>
-              <IconTextButton theme={theme} icon="pencil" variant="ghost" compactIconOnly onPress={() => setEditModesVisible(true)} testID="event-modes-edit" />
-            </View>
-          ) : null}
-        </View>
-        {canEdit ? (
-          <AppButton
-            testID="event-delete-open"
-            label={t('event_120')}
-            onPress={() => setDeleteEventVisible(true)}
-            backgroundColor={theme.alert}
-            pressedColor={theme.alert}
-            textColor={theme.buttonText}
+        <View testID="event-detail-content" style={styles.detailContentStack}>
+          {error ? <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text> : null}
+          {ok ? <Text style={[styles.feedback, { color: theme.secondary }]}>{ok}</Text> : null}
+          {saving || loading ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('event_020')}</Text> : null}
+          <EventInformationCard
+            theme={theme}
+            event={event}
+            title={t('event_108')}
+            labels={{
+              type: t('event_105'),
+              date: t('event_131'),
+              status: t('event_010'),
+              timezone: t('event_132'),
+              identifier: t('event_133'),
+              description: t('event_134'),
+              edit: t('event_117'),
+            }}
+            statusLabel={statusLabel}
+            statusFlag={statusFlag}
+            canEdit={canEdit}
+            onEdit={() => setEditEventVisible(true)}
           />
-        ) : null}
+          <View style={styles.editableCardWrap}>
+            <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_111')}</Text>
+              {event?.modes?.length ? (
+                <View testID="event-mode-list">
+                  {event.modes.map((item, index) => {
+                    const isMirror = item.mode?.slug === 'espejo';
+                    const configureEnabled = Boolean(isMirror && item.isActive !== false && onConfigureMirror && canEdit);
+                    const publishedVersionId = item.publishedVersionId || item.config?.publishedVersionId;
+                    const canOperate = isSuperAdmin || ['owner', 'admin', 'operator'].includes(roleSlug);
+                    const launchEnabled = Boolean(isMirror && item.isActive !== false && event.status === 'active' && publishedVersionId && onLaunchMirror && canOperate);
+                    return (
+                      <EventModeRow
+                        key={item.id || item.mode?.slug}
+                        theme={theme}
+                        name={item.mode?.name || item.mode?.slug || '-'}
+                        configureLabel={`${t('mirror_008')} ${item.mode?.name || ''}`.trim()}
+                        launchLabel={`${t('event_130')} ${item.mode?.name || ''}`.trim()}
+                        canConfigure={configureEnabled}
+                        canLaunch={launchEnabled}
+                        showTopDivider={index === 0}
+                        showDivider={index < event.modes.length - 1}
+                        onConfigure={() => onConfigureMirror?.({ event, eventMode: item, accountId, canEdit })}
+                        onLaunch={() => onLaunchMirror?.({ event, eventMode: item, accountId })}
+                        configureTestID={isMirror ? 'event-configure-mirror' : `event-configure-${item.mode?.slug || item.id}`}
+                        launchTestID={isMirror ? 'event-launch-mirror' : `event-launch-${item.mode?.slug || item.id}`}
+                      />
+                    );
+                  })}
+                </View>
+              ) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
+            </SurfaceCard>
+            {canEdit ? (
+              <View style={styles.cardEditAction}>
+                <IconTextButton theme={theme} icon="pencil" variant="ghost" compactIconOnly onPress={() => setEditModesVisible(true)} testID="event-modes-edit" />
+              </View>
+            ) : null}
+          </View>
+          {canEdit ? (
+            <AppButton
+              testID="event-delete-open"
+              label={t('event_120')}
+              onPress={() => setDeleteEventVisible(true)}
+              backgroundColor={theme.alert}
+              pressedColor={theme.alert}
+              textColor={theme.buttonText}
+            />
+          ) : null}
+        </View>
       </View>
     );
   };
@@ -833,10 +842,10 @@ export function EventsScreen({
         theme={theme}
         roleLabel={isSuperAdmin ? 'super_admin' : roleSlug || ''}
       />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {error ? <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text> : null}
-        {ok ? <Text style={[styles.feedback, { color: theme.secondary }]}>{ok}</Text> : null}
-        {saving || loading ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('event_020')}</Text> : null}
+      <ScrollView contentContainerStyle={[styles.scrollContent, section === 'detail' ? styles.detailScrollContent : null]}>
+        {section !== 'detail' && error ? <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text> : null}
+        {section !== 'detail' && ok ? <Text style={[styles.feedback, { color: theme.secondary }]}>{ok}</Text> : null}
+        {section !== 'detail' && (saving || loading) ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('event_020')}</Text> : null}
 
         {section === 'list' ? (
           <View style={styles.sectionWrap}>
@@ -955,6 +964,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { padding: tokens.spacing.md, gap: tokens.spacing.md },
+  detailScrollContent: { paddingTop: tokens.spacing.none, paddingHorizontal: tokens.spacing.none, gap: tokens.spacing.none },
+  detailStack: { gap: tokens.spacing.none },
+  detailContentStack: { paddingHorizontal: tokens.spacing.md, gap: tokens.spacing.sm },
   sectionWrap: { gap: tokens.spacing.sm },
   compactCreateButton: { alignSelf: 'flex-end', minWidth: tokens.spacing.none },
   sectionTitle: { fontSize: tokens.typography.heading, fontWeight: '700' },

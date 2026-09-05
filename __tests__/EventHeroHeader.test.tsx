@@ -27,6 +27,9 @@ test.each(['light', 'dark'] as const)('anchors event image actions to their fram
   const logoStyle = StyleSheet.flatten(
     renderer!.root.findByProps({ testID: 'event-hero-logo-action' }).props.style,
   );
+  const frameStyle = StyleSheet.flatten(
+    renderer!.root.findByProps({ testID: 'event-hero-frame' }).props.style,
+  );
 
   expect(backgroundStyle).toEqual(expect.objectContaining({
     position: 'absolute',
@@ -38,4 +41,7 @@ test.each(['light', 'dark'] as const)('anchors event image actions to their fram
     right: tokens.spacing.sm,
     bottom: tokens.spacing.sm,
   }));
+  expect(frameStyle.width).toBe('100%');
+  expect(frameStyle.borderRadius).toBeUndefined();
+  expect(frameStyle.marginTop).toBeUndefined();
 });
