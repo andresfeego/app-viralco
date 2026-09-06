@@ -166,7 +166,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
   }, [resourcesById]);
 
   useEffect(() => {
-    onHeaderChange?.({ title: t('mirror_000'), subtitle: event?.name || '', iconName: 'wand-magic-sparkles', onBack, backLabel: t('mirror_001') });
+    onHeaderChange?.({ title: event?.name || t('mirror_000'), subtitle: t('mirror_000'), iconName: 'wand-magic-sparkles', onBack, backLabel: t('mirror_001') });
   }, [event?.name, onBack, onHeaderChange]);
 
   useEffect(() => {

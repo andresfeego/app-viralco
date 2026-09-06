@@ -102,6 +102,27 @@ beforeEach(() => {
   (createAccountPhotoLayoutTemplateApi as jest.Mock).mockResolvedValue({ asset: { id: '100', type: 'template' } });
 });
 
+test('uses the event name as the configurator header title', async () => {
+  const onHeaderChange = jest.fn();
+  await ReactTestRenderer.act(async () => {
+    ReactTestRenderer.create(
+      <SafeAreaProvider initialMetrics={safeAreaMetrics}>
+        <MagicMirrorConfigScreen
+          event={event}
+          eventMode={eventMode}
+          accountId="10"
+          onBack={jest.fn()}
+          onHeaderChange={onHeaderChange}
+        />
+      </SafeAreaProvider>,
+    );
+  });
+  expect(onHeaderChange).toHaveBeenCalledWith(expect.objectContaining({
+    title: 'Boda',
+    subtitle: 'Configurar Espejo magico',
+  }));
+});
+
 test('applies a photo layout template through the revisioned endpoint', async () => {
   const item = { id: '', libraryAssetId: '329', displayName: null, asset: { id: '329', name: 'Recuerdo clasico', type: 'template', mimeType: 'application/vnd.kaptura.photo-layout+json' } };
   (listAccountLibraryApi as jest.Mock).mockImplementation((_accountId, query) => Promise.resolve({ library: query.type === 'template' ? [item] : [], pagination: { page: 1, pageCount: 1 } }));
