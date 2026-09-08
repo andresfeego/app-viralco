@@ -18,6 +18,7 @@ import { SuperAdminUsersScreen } from './src/screens/SuperAdminUsersScreen';
 import { EventsScreen } from './src/screens/EventsScreen';
 import { ResourceLibraryScreen } from './src/screens/ResourceLibraryScreen';
 import { MagicMirrorConfigScreen } from './src/screens/MagicMirrorConfigScreen';
+import { MagicMirrorLaunchScreen } from './src/screens/MagicMirrorLaunchScreen';
 import { SectionHeader } from './src/components/SectionHeader';
 import { BottomMainMenu } from './src/components/BottomMainMenu';
 import { getTheme } from './src/design-system/theme';
@@ -63,6 +64,8 @@ export function MainFlow({ bottomInset = 0 }) {
   }, []);
   const openMirrorConfig = useCallback(({ event, eventMode, accountId }) => setEventRoute({ name: 'mirror-config', event, eventMode, accountId: String(accountId || event?.accountId || '') }), []);
   const closeMirrorConfig = useCallback(() => setEventRoute((current) => ({ name: 'detail', event: current.event, eventMode: null, accountId: current.accountId })), []);
+  const openMirrorLaunch = useCallback(({ event, eventMode, accountId, canEdit }) => setEventRoute({ name: 'mirror-launch', event, eventMode, accountId: String(accountId || event?.accountId || ''), canEdit: Boolean(canEdit) }), []);
+  const closeMirrorLaunch = useCallback(() => setEventRoute((current) => ({ name: 'detail', event: current.event, eventMode: null, accountId: current.accountId })), []);
   const openResourceLibrary = useCallback(() => setScreen('recursos'), []);
 
   const isSuperAdmin = useMemo(
@@ -109,6 +112,7 @@ export function MainFlow({ bottomInset = 0 }) {
 
   const isAccountDetail = selectedKey === 'cuenta' && accountRoute.name === 'detail';
   const usesEventsHeader = selectedKey === 'eventos' || selectedKey === 'recursos';
+  const isMirrorLaunch = selectedKey === 'eventos' && eventRoute.name === 'mirror-launch';
   const headerTitle = isAccountDetail ? accountRoute.account?.name || t('account_054') : usesEventsHeader ? eventsHeaderConfig.title : selectedItem.headerTitle;
   const headerSubtitle = isAccountDetail ? t('account_054') : usesEventsHeader ? eventsHeaderConfig.subtitle : '';
   const headerIconName = isAccountDetail ? 'building' : usesEventsHeader ? eventsHeaderConfig.iconName : selectedItem.iconName;
@@ -127,14 +131,16 @@ export function MainFlow({ bottomInset = 0 }) {
 
   return (
     <View style={[styles.page, { backgroundColor: theme.background }]}>
-      <SectionHeader
-        title={headerTitle}
-        subtitle={headerSubtitle}
-        iconName={headerIconName}
-        onBack={headerOnBack}
-        backLabel={headerBackLabel}
-        theme={theme}
-      />
+      {!isMirrorLaunch ? (
+        <SectionHeader
+          title={headerTitle}
+          subtitle={headerSubtitle}
+          iconName={headerIconName}
+          onBack={headerOnBack}
+          backLabel={headerBackLabel}
+          theme={theme}
+        />
+      ) : null}
       <View style={styles.panelBody}>
         {selectedKey === 'superadmin' ? <SuperAdminUsersScreen /> : null}
         {selectedKey === 'cuenta' && accountRoute.name === 'list' ? (
@@ -151,13 +157,14 @@ export function MainFlow({ bottomInset = 0 }) {
             onAccountDeleted={closeAccountDetail}
           />
         ) : null}
-        {selectedKey === 'eventos' && eventRoute.name !== 'mirror-config' ? (
+        {selectedKey === 'eventos' && !['mirror-config', 'mirror-launch'].includes(eventRoute.name) ? (
           <EventsScreen
             initialSection={eventRoute.name === 'detail' ? 'detail' : 'list'}
             initialEventId={eventRoute.event?.id || ''}
             allowedSections={['list', 'create', 'detail']}
             onHeaderChange={setEventsHeaderConfig}
             onConfigureMirror={openMirrorConfig}
+            onLaunchMirror={openMirrorLaunch}
             onCreateAccount={openAccountCreation}
           />
         ) : null}
@@ -171,18 +178,29 @@ export function MainFlow({ bottomInset = 0 }) {
             onHeaderChange={setEventsHeaderConfig}
           />
         ) : null}
+        {selectedKey === 'eventos' && eventRoute.name === 'mirror-launch' ? (
+          <MagicMirrorLaunchScreen
+            event={eventRoute.event}
+            eventMode={eventRoute.eventMode}
+            accountId={eventRoute.accountId}
+            canManage={eventRoute.canEdit}
+            onBack={closeMirrorLaunch}
+          />
+        ) : null}
         {selectedKey === 'recursos' ? (
           <ResourceLibraryScreen onHeaderChange={setEventsHeaderConfig} onCreateAccount={openAccountCreation} />
         ) : null}
         {selectedKey === 'configuracion' ? <ConfigurationScreen onCreateAccount={openAccountCreation} /> : null}
       </View>
-      <BottomMainMenu
-        items={menuItems}
-        selectedKey={selectedKey}
-        onSelect={selectMenuItem}
-        theme={theme}
-        bottomInset={bottomInset}
-      />
+      {!isMirrorLaunch ? (
+        <BottomMainMenu
+          items={menuItems}
+          selectedKey={selectedKey}
+          onSelect={selectMenuItem}
+          theme={theme}
+          bottomInset={bottomInset}
+        />
+      ) : null}
     </View>
   );
 }

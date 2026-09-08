@@ -99,12 +99,13 @@ export function deleteEventResourceApi(eventId, resourceId) {
   return apiRequest(`/api/events/${eventId}/resources/${resourceId}`, { method: 'DELETE' });
 }
 
-export async function uploadFileToPreparedUrl(uploadUrl, file, onProgress = null) {
+export async function uploadFileToPreparedUrl(uploadUrl, file, onProgress = null, requiredHeaders = {}) {
   const body = file.blob || (file.uri ? await fetch(file.uri).then((response) => response.blob()) : file);
   await new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open('PUT', uploadUrl);
     request.setRequestHeader('Content-Type', file.type);
+    Object.entries(requiredHeaders).forEach(([name, value]) => request.setRequestHeader(name, String(value)));
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
     };
@@ -181,4 +182,56 @@ export function getAccountPrintProfileApi(accountId, libraryAssetId) {
 
 export function applyPhotoLayoutTemplateApi(eventId, eventModeId, libraryAssetId, expectedRevision) {
   return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/layout-templates/${libraryAssetId}/apply`, { method: 'POST', body: JSON.stringify({ expectedRevision }) });
+}
+
+export function getActiveMagicMirrorSessionApi(eventId, eventModeId) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/active`, { method: 'GET' });
+}
+
+export function startMagicMirrorSessionApi(eventId, eventModeId, input) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateMagicMirrorSessionApi(eventId, eventModeId, sessionId, input) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/${sessionId}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export function endMagicMirrorSessionApi(eventId, eventModeId, sessionId, input = {}) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/${sessionId}/end`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function forceEndMagicMirrorSessionApi(eventId, eventModeId, sessionId) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/${sessionId}/force-end`, { method: 'POST', body: '{}' });
+}
+
+export function getMagicMirrorSessionPackageApi(eventId, eventModeId, sessionId) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/${sessionId}/package`, { method: 'GET' });
+}
+
+export function createMagicMirrorRunApi(eventId, eventModeId, sessionId, input) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/${sessionId}/runs`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateMagicMirrorRunApi(eventId, eventModeId, sessionId, runId, input) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/${sessionId}/runs/${runId}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export function prepareMagicMirrorCaptureApi(eventId, eventModeId, sessionId, runId, input) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/${sessionId}/runs/${runId}/captures`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function completeMagicMirrorCaptureApi(eventId, eventModeId, sessionId, runId, captureId) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/${sessionId}/runs/${runId}/captures/${captureId}/complete`, { method: 'POST', body: '{}' });
+}
+
+export function prepareMagicMirrorAssetApi(eventId, eventModeId, sessionId, runId, input) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/${sessionId}/runs/${runId}/assets`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function completeMagicMirrorAssetApi(eventId, eventModeId, sessionId, runId, assetId) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/${sessionId}/runs/${runId}/assets/${assetId}/complete`, { method: 'POST', body: '{}' });
+}
+
+export function recordMagicMirrorDeliveryApi(publicHash, method) {
+  return apiRequest(`/api/public/assets/${publicHash}/deliveries`, { method: 'POST', body: JSON.stringify({ method }) });
 }

@@ -39,6 +39,8 @@
 	<string>Kaptura usa la cámara para previsualizar el encuadre y capturar fotografías del evento.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>ViralCo usa tu galeria para seleccionar el logo de la cuenta.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Kaptura guarda las fotografías entregadas por el Espejo Mágico en tu galería.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIAppFonts</key>

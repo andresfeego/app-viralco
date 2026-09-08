@@ -820,7 +820,7 @@ export function EventsScreen({
                         canLaunch={launchEnabled}
                         showDivider={index < event.modes.length - 1}
                         onConfigure={() => onConfigureMirror?.({ event, eventMode: item, accountId, canEdit })}
-                        onLaunch={() => onLaunchMirror?.({ event, eventMode: item, accountId })}
+                        onLaunch={() => onLaunchMirror?.({ event, eventMode: item, accountId, canEdit })}
                         configureTestID={isMirror ? 'event-configure-mirror' : `event-configure-${item.mode?.slug || item.id}`}
                         launchTestID={isMirror ? 'event-launch-mirror' : `event-launch-${item.mode?.slug || item.id}`}
                       />
