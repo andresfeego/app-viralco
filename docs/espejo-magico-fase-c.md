@@ -10,8 +10,8 @@ El flujo replica las capacidades de configuracion del prototipo, adaptadas al de
 
 1. Diseno: formato, slots, marco, fondo, stickers y capas de texto.
 2. Experiencia: pantalla inicial, asistente, estilo y animaciones por etapa.
-3. Captura: tiempos, flash, lente, calidad, originales y modo itinerante.
-4. Operacion: entrega, reinicio y menu del operador.
+3. Captura: tiempos, flash, lente, calidad y originales.
+4. Operacion: entrega, reinicio, menu del operador y perfiles de impresion.
 5. Revision: errores, guardado, validacion y publicacion.
 
 Los recursos visuales de Diseno se eligen exclusivamente entre favoritos de la cuenta; las plantillas ofrecen carruseles separados Global y Favoritos. La interfaz nunca solicita IDs, URLs o keys. Experiencia conserva el selector general para animaciones.
@@ -39,7 +39,7 @@ Fase `COMPLETA`.
 
 Debajo del submenu principal, Diseno expone un segundo submenu sin separacion: `Formato de foto`, `Marcos`, `Fondos`, `Texto` y `Stickers`. El preview compuesto permanece visible encima del separador y el panel inferior cambia segun la opcion activa. El boton flotante de preview se conserva en todas las secciones.
 
-- Formato de foto: `Personalizado` encabeza el carrusel global; los seis diseños portrait `2000 × 2960` proceden de recursos globales. Un segundo carrusel contiene las plantillas favoritas de la cuenta.
+- Formato de foto: `Personalizado` encabeza el carrusel global; los seis diseños portrait `2000 × 2960` proceden de recursos globales. Favoritos se presenta como galería. Las plantillas son presets independientes que copian geometría al borrador sin adjudicarse al evento ni guardarse automáticamente.
 - Marcos: muestra exclusivamente favoritos y admite varias capas editables del mismo grupo.
 - Fondos: ofrece la paleta ViralCo, color hexadecimal personalizado y recursos favoritos; admite varias capas de color o imagen editables y ordenadas exclusivamente dentro del grupo de fondos.
 - Stickers: admite hasta diez favoritos estaticos con posicion, tamano, rotacion y orden independientes; cada insercion inicia al 25 % del lienzo.

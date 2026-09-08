@@ -13,6 +13,7 @@ export function SelectableChipGroup({
   errorText = '',
   disabled = false,
   horizontal = false,
+  labelVariant = 'caption',
   testID,
 }) {
   const chipItems = options.map((option) => {
@@ -51,7 +52,7 @@ export function SelectableChipGroup({
 
   return (
     <View style={styles.wrap}>
-      {label ? <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text> : null}
+      {label ? <Text style={[styles.label, labelVariant === 'heading' && styles.headingLabel, { color: labelVariant === 'heading' ? theme.textPrimary : theme.textSecondary }]}>{label}</Text> : null}
       {horizontal ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalChipRow}>
           {chipItems}
@@ -69,6 +70,9 @@ const styles = StyleSheet.create({
   label: {
     fontSize: tokens.typography.caption,
     fontWeight: '700',
+  },
+  headingLabel: {
+    fontSize: tokens.typography.heading,
   },
   chipRow: {
     flexDirection: 'row',

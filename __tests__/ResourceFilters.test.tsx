@@ -19,7 +19,7 @@ test('renders resource and event filters in the required independent order', () 
   ReactTestRenderer.act(() => { renderer = ReactTestRenderer.create(<ResourceFilters {...baseProps} />); });
   const rows = renderer!.root.findAllByType(SelectableChipGroup);
   expect(rows).toHaveLength(2);
-  expect(rows[0].props.options.map((item: any) => item.value)).toEqual(['', 'background', 'frame', 'sticker', 'template', 'animation', 'font']);
+  expect(rows[0].props.options.map((item: any) => item.value)).toEqual(['', 'background', 'frame', 'sticker', 'template', 'animation', 'font', 'print_profile']);
   expect(rows[1].props.options.map((item: any) => item.value)).toEqual(['', 'boda']);
 });
 

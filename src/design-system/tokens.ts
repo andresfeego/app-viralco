@@ -98,6 +98,7 @@ export const tokens = {
       500: '#22b77f',
       600: '#159263',
     },
+    colorPickerHue: ['#ff0000', '#ffff00', '#00ff00', '#00ffff', '#0000ff', '#ff00ff', '#ff0000'],
     backgroundPalette: ['#2D3047', '#93B7BE', '#E0CA3C', '#A799B7', '#048A81'],
     backgroundLight: '#f5f7fb',
     backgroundDark: '#111827',
@@ -157,6 +158,9 @@ export const tokens = {
     resourceGridPhoneColumns: 3,
     resourceGridWideColumns: 5,
     bottomMainMenuContentHeight: 56,
+    verticalVideoAspectRatio: 9 / 16,
+    cameraPreviewAspectRatio: 16 / 9,
+    carouselSideScale: 0.9,
   },
   opacity: {
     disabled: 0.6,

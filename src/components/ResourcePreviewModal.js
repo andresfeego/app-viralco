@@ -16,7 +16,7 @@ export function ResourcePreviewModal({ item, theme, canManage, onClose, onToggle
   const uri = resourceOriginalUri(item);
   const posterUri = resourceThumbnailUri(item);
   const isVideo = String(asset.mimeType || '').startsWith('video/');
-  const isRenderedPreview = asset.type === 'font' || asset.type === 'template';
+  const isRenderedPreview = asset.type === 'font' || asset.type === 'template' || asset.type === 'print_profile';
   const previewUri = isRenderedPreview ? posterUri : uri;
   return (
     <Modal visible={Boolean(item)} animationType="slide" onRequestClose={onClose}>

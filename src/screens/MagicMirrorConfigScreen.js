@@ -9,6 +9,8 @@ import { HorizontalSubMenu } from '../components/HorizontalSubMenu';
 import { DesignAssetCarousel } from '../components/DesignAssetCarousel';
 import { DesignAssetGrid } from '../components/DesignAssetGrid';
 import { BackgroundColorPicker } from '../components/BackgroundColorPicker';
+import { CameraLensPreview } from '../components/CameraLensPreview';
+import { CaptureTimeSlider } from '../components/CaptureTimeSlider';
 import { IconTextButton } from '../components/IconTextButton';
 import { MirrorLayoutEditor } from '../components/MirrorLayoutEditor';
 import { MirrorFrameEditor } from '../components/MirrorFrameEditor';
@@ -18,22 +20,26 @@ import { MirrorPreviewModal } from '../components/MirrorPreviewModal';
 import { MirrorStickerEditor } from '../components/MirrorStickerEditor';
 import { PhotoLayoutTemplateSaveModal } from '../components/PhotoLayoutTemplateSaveModal';
 import { MirrorTextLayerEditor } from '../components/MirrorTextLayerEditor';
+import { MirrorAnimationStageCard } from '../components/MirrorAnimationStageCard';
+import { MirrorConfigurationSummary } from '../components/MirrorConfigurationSummary';
 import { MirrorToggleRow } from '../components/MirrorToggleRow';
+import { PrintProfileSelector, printProfileConfig } from '../components/PrintProfileSelector';
+import { PaperFormInput } from '../components/PaperFormInput';
 import { ResourcePicker } from '../components/ResourcePicker';
 import { ResourceSelectionSummary } from '../components/ResourceSelectionSummary';
 import { ResourceUploadAction } from '../components/ResourceUploadAction';
+import { ResourceUploadModal } from '../components/ResourceUploadModal';
 import { SelectableChipGroup } from '../components/SelectableChipGroup';
 import { StatusBadge } from '../components/StatusBadge';
-import { ValueStepper } from '../components/ValueStepper';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../providers/ToastProvider';
 import { t } from '../i18n';
 import {
-  applyCapturePreset,
   addBackgroundColorLayer,
   addBackgroundResourceLayer,
   addStickerLayer,
   applyMirrorFormat,
+  applyPhotoLayoutPreset,
   addFrameLayer,
   cloneValue,
   configResourceIds,
@@ -49,11 +55,12 @@ import {
   removeStickerResourceLayers,
 } from '../domain/magicMirrorConfig';
 import {
-  applyPhotoLayoutTemplateApi,
+  createAccountPrintProfileApi,
   createAccountPhotoLayoutTemplateApi,
   createEventResourceApi,
   deleteEventResourceApi,
   getMagicMirrorConfigApi,
+  getAccountPhotoLayoutTemplateApi,
   getPublishedMagicMirrorConfigApi,
   listAccountLibraryApi,
   listEventTypesApi,
@@ -66,6 +73,8 @@ import {
 } from '../services/api/events';
 import { pickLibraryResourceFile } from '../services/media/documentPicker';
 import { userErrorMessage } from '../services/errorHandling';
+import { normalizeMirrorValidationResult } from '../domain/magicMirrorAssessment';
+import { detectPrinter, detectedPrinterProfileInput, getPrinterBinding } from '../services/printers';
 
 const SECTIONS = [
   { key: 'design', labelKey: 'mirror_003' },
@@ -105,12 +114,9 @@ function localKey(accountId, eventId, eventModeId) {
   return `mirror-config-draft:v1:${accountId}:${eventId}:${eventModeId}`;
 }
 
-function sectionForIssue(path) {
-  if (path.startsWith('layout')) return 'design';
-  if (path.startsWith('resources') || path.startsWith('experience')) return 'experience';
-  if (path.startsWith('capture')) return 'capture';
-  if (path.startsWith('delivery') || path.startsWith('runtime') || path.startsWith('print')) return 'operation';
-  return 'review';
+function presetSnapshot(config) {
+  const origin = config?.layout?.presetOrigin;
+  return origin ? { origin: cloneValue(origin), layout: cloneValue(config.layout) } : null;
 }
 
 export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountIdProp, onBack, onOpenResources = null, onHeaderChange = null }) {
@@ -144,12 +150,17 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
   const [libraryFilters, setLibraryFilters] = useState({ tab: 'pool', search: '', type: '', eventType: '', motion: '', page: 1 });
   const [eventTypes, setEventTypes] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 30, pageCount: 0, total: 0 });
-  const [designLibrary, setDesignLibrary] = useState({ templatesGlobal: [], templatesFavorites: [], frames: [], backgrounds: [], stickers: [], fonts: [] });
+  const [designLibrary, setDesignLibrary] = useState({ templatesGlobal: [], templatesFavorites: [], frames: [], backgrounds: [], stickers: [], fonts: [], animations: [], printProfiles: [] });
   const [designLibraryLoading, setDesignLibraryLoading] = useState(false);
   const [designLibraryError, setDesignLibraryError] = useState('');
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [animationStage, setAnimationStage] = useState(MIRROR_ANIMATION_STAGES[0]);
+  const animationStage = MIRROR_ANIMATION_STAGES[0];
+  const [deviceUploadPurpose, setDeviceUploadPurpose] = useState('animation');
+  const [deviceUploadVisible, setDeviceUploadVisible] = useState(false);
+  const [printSearch, setPrintSearch] = useState('');
+  const [printerBinding, setPrinterBinding] = useState(null);
+  const [printerDetecting, setPrinterDetecting] = useState(false);
   const [conflictConfig, setConflictConfig] = useState(null);
   const pendingAssignments = useRef([]);
   const replacedResourceIds = useRef(new Set());
@@ -181,9 +192,9 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     setDesignLibraryError('');
     try {
       const query = (type, extra = {}) => listAccountLibraryApi(accountId, { scope: 'available', favorite: true, type, page: 1, pageSize: 100, ...extra });
-      const [templatesGlobal, templatesFavorites, frames, backgrounds, stickers, fonts] = await Promise.all([
+      const [templatesGlobal, templatesFavorites, frames, backgrounds, stickers, fonts, animations, printProfiles] = await Promise.all([
         listAccountLibraryApi(accountId, { scope: 'global', type: 'template', page: 1, pageSize: 100 }),
-        query('template'), query('frame'), query('background'), query('sticker', { motion: 'static' }), query('font'),
+        query('template'), query('frame'), query('background'), query('sticker', { motion: 'static' }), query('font'), query('animation'), query('print_profile'),
       ]);
       setDesignLibrary({
         templatesGlobal: (templatesGlobal?.library || []).map(normalizeLibraryItem),
@@ -192,6 +203,8 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
         backgrounds: (backgrounds?.library || []).map(normalizeLibraryItem),
         stickers: (stickers?.library || []).map(normalizeLibraryItem),
         fonts: (fonts?.library || []).map(normalizeLibraryItem),
+        animations: (animations?.library || []).map(normalizeLibraryItem),
+        printProfiles: (printProfiles?.library || []).map(normalizeLibraryItem),
       });
     } catch (error) {
       setDesignLibraryError(userErrorMessage(error, t('resource_028')));
@@ -202,10 +215,14 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
 
   useEffect(() => { loadDesignLibrary(); }, [loadDesignLibrary]);
 
+  useEffect(() => {
+    if (!accountId) return;
+    getPrinterBinding(accountId).then(setPrinterBinding).catch(() => setPrinterBinding(null));
+  }, [accountId]);
+
   const applyLoadedDraft = useCallback((draft, revision, nextStatus = 'clean') => {
     const normalized = normalizeMirrorConfig(draft);
-    const templateResourceId = normalized.config.resources.layoutTemplateResourceId;
-    layoutTemplateOrigin.current = templateResourceId ? { resourceId: String(templateResourceId), layout: cloneValue(normalized.config.layout) } : null;
+    layoutTemplateOrigin.current = presetSnapshot(normalized.config);
     setConfig(normalized.config);
     setServerRevision(Number(revision || 0));
     setStatus(normalized.migrated ? 'dirty' : nextStatus);
@@ -219,8 +236,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
       if (!canEdit) {
         const response = await getPublishedMagicMirrorConfigApi(eventId, eventModeId);
         const normalized = normalizeMirrorConfig(response?.version?.config);
-        const templateResourceId = normalized.config.resources.layoutTemplateResourceId;
-        layoutTemplateOrigin.current = templateResourceId ? { resourceId: String(templateResourceId), layout: cloneValue(normalized.config.layout) } : null;
+        layoutTemplateOrigin.current = presetSnapshot(normalized.config);
         setConfig(normalized.config);
         setPublished(response?.version || null);
         setResources((response?.manifest || []).map((item) => normalizeEventResource({ ...item, id: item.eventResourceId })));
@@ -241,7 +257,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
         if (Number(local.baseRevision) === Number(draft?.revision)) {
           Alert.alert(t('mirror_113'), t('mirror_011'), [
             { text: t('mirror_115'), style: 'destructive', onPress: () => AsyncStorage.removeItem(storageKey) },
-            { text: t('mirror_114'), onPress: () => { setConfig(normalizeMirrorConfig(local.config).config); setStatus('dirty'); } },
+            { text: t('mirror_114'), onPress: () => { const localConfig = normalizeMirrorConfig(local.config).config; layoutTemplateOrigin.current = presetSnapshot(localConfig); setConfig(localConfig); setStatus('dirty'); } },
           ]);
         } else {
           setConflictConfig(normalizeMirrorConfig(local.config).config);
@@ -281,6 +297,12 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     });
   }, []);
 
+  const navigateToAssessmentTarget = useCallback((target) => {
+    if (target?.designSection) setDesignSection(target.designSection);
+    setPreviewVisible(false);
+    selectSection(target?.section || 'review');
+  }, [selectSection]);
+
   const rollbackAssignments = useCallback(async () => {
     const pending = [...pendingAssignments.current];
     await Promise.all(pending.map((item) => deleteEventResourceApi(eventId, item.createdId).catch(() => null)));
@@ -289,8 +311,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     const restored = assignmentBase.current || config;
     assignmentBase.current = null;
     setConfig(restored);
-    const restoredTemplateId = restored.resources.layoutTemplateResourceId;
-    layoutTemplateOrigin.current = restoredTemplateId ? { resourceId: String(restoredTemplateId), layout: cloneValue(restored.layout) } : null;
+    layoutTemplateOrigin.current = presetSnapshot(restored) || layoutTemplateOrigin.current;
     setResources((current) => current.filter((item) => !pending.some((pendingItem) => pendingItem.createdId === String(item.id))));
     return restored;
   }, [config, eventId]);
@@ -303,7 +324,6 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     pendingAssignments.current = [];
     replacedResourceIds.current.clear();
     assignmentBase.current = null;
-    if (!savedConfig.resources.layoutTemplateResourceId) layoutTemplateOrigin.current = null;
   }, [eventId]);
 
   const saveDraft = useCallback(async (draftConfig = config, expectedRevision = serverRevision) => {
@@ -313,8 +333,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
       const response = await saveMagicMirrorConfigApi(eventId, eventModeId, { expectedRevision, schemaVersion: 1, config: draftConfig });
       const saved = response?.config;
       const normalized = normalizeMirrorConfig(saved?.config);
-      const templateResourceId = normalized.config.resources.layoutTemplateResourceId;
-      layoutTemplateOrigin.current = templateResourceId ? { resourceId: String(templateResourceId), layout: cloneValue(normalized.config.layout) } : null;
+      layoutTemplateOrigin.current = presetSnapshot(normalized.config) || layoutTemplateOrigin.current;
       setConfig(normalized.config);
       setServerRevision(Number(saved?.revision || expectedRevision));
       setStatus('saved');
@@ -342,11 +361,11 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
   const validateDraft = async (draftConfig = config) => {
     setStatus('saving'); setMessage('');
     try {
-      const result = await validateMagicMirrorConfigApi(eventId, eventModeId, { schemaVersion: 1, config: draftConfig, publish: true });
-      setIssues(result?.errors || []);
-      setStatus(result?.valid ? 'saved' : 'invalid');
-      setMessage(result?.valid ? t('mirror_103') : t('mirror_014'));
-      if (!result?.valid && result?.errors?.length) setSection(sectionForIssue(result.errors[0].path || ''));
+      const result = normalizeMirrorValidationResult(await validateMagicMirrorConfigApi(eventId, eventModeId, { schemaVersion: 1, config: draftConfig, publish: true }));
+      setIssues(result.errors);
+      setStatus(result.valid ? 'saved' : 'invalid');
+      setMessage(result.valid ? t('mirror_103') : t('mirror_014'));
+      selectSection('review');
       return result;
     } catch (error) {
       setStatus('error'); setMessage(userErrorMessage(error, t('mirror_106')));
@@ -427,26 +446,9 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     if (selectedAsset.asset?.type !== resourceTarget.purpose) { setMessage(t('mirror_035')); return; }
     try {
       if (resourceTarget.purpose === 'template') {
-        let revision = serverRevision;
-        if (status === 'dirty' || status === 'invalid') {
-          const savedCurrent = await saveDraft();
-          if (!savedCurrent) return;
-          revision = Number(savedCurrent.revision);
-        }
-        setStatus('saving');
-        const response = await applyPhotoLayoutTemplateApi(eventId, eventModeId, selectedAsset.libraryAssetId, revision);
-        const saved = response?.config;
-        const normalized = normalizeMirrorConfig(saved?.config);
-        setConfig(normalized.config);
-        setServerRevision(Number(saved?.revision || revision));
-        setStatus('saved');
-        setIssues([]);
-        await AsyncStorage.removeItem(storageKey);
-        const resourceResponse = await listEventResourcesApi(eventId);
-        setResources((resourceResponse?.resources || []).map(normalizeEventResource));
+        await applyDesignTemplate(selectedAsset, selectedAsset.isFavorite ? 'favorite' : 'global');
         setSelectedAsset(null);
         setResourceTarget(null);
-        showToast({ type: 'success', message: t('mirror_126') });
         return;
       }
       if (!assignmentBase.current) assignmentBase.current = config;
@@ -477,36 +479,32 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     }
   };
 
-  const applyDesignTemplate = async (item) => {
+  async function applyDesignTemplate(item, source = 'global') {
     if (!item || !canEdit) return;
-    const currentTemplate = resourcesById[String(config.resources.layoutTemplateResourceId || '')];
-    if (String(currentTemplate?.libraryAssetId || '') === String(item.libraryAssetId)) return;
+    const currentOrigin = config.layout.presetOrigin;
+    if (String(currentOrigin?.libraryAssetId || '') === String(item.libraryAssetId) && currentOrigin?.source === source) return;
     try {
-      let revision = serverRevision;
-      if (status === 'dirty' || status === 'invalid') {
-        const savedCurrent = await saveDraft();
-        if (!savedCurrent) return;
-        revision = Number(savedCurrent.revision);
+      const previousLegacyResourceId = config.resources.layoutTemplateResourceId;
+      if (previousLegacyResourceId) {
+        if (!assignmentBase.current) assignmentBase.current = config;
+        replacedResourceIds.current.add(String(previousLegacyResourceId));
       }
-      setStatus('saving');
-      const response = await applyPhotoLayoutTemplateApi(eventId, eventModeId, item.libraryAssetId, revision);
-      const saved = response?.config;
-      const normalized = normalizeMirrorConfig(saved?.config);
-      const templateResourceId = normalized.config.resources.layoutTemplateResourceId;
-      layoutTemplateOrigin.current = templateResourceId ? { resourceId: String(templateResourceId), layout: cloneValue(normalized.config.layout) } : null;
-      setConfig(normalized.config);
-      setServerRevision(Number(saved?.revision || revision));
-      setStatus('saved');
-      setIssues([]);
-      await AsyncStorage.removeItem(storageKey);
-      const resourceResponse = await listEventResourcesApi(eventId);
-      setResources((resourceResponse?.resources || []).map(normalizeEventResource));
+      const response = await getAccountPhotoLayoutTemplateApi(accountId, item.libraryAssetId);
+      const origin = {
+        libraryAssetId: String(item.libraryAssetId),
+        name: response?.asset?.name || item.displayName || item.asset?.name || t('mirror_preset_template'),
+        source,
+        contentHash: response?.template?.contentHash || null,
+      };
+      const nextConfig = applyPhotoLayoutPreset(config, response?.template?.config || {}, origin);
+      layoutTemplateOrigin.current = presetSnapshot(nextConfig);
+      mutate(nextConfig);
       showToast({ type: 'success', message: t('mirror_126') });
     } catch (error) {
-      setStatus(error?.status === 409 ? 'conflict' : 'error');
-      setMessage(error?.status === 409 ? t('mirror_112') : userErrorMessage(error, t('mirror_129')));
+      setStatus('error');
+      setMessage(userErrorMessage(error, t('mirror_129')));
     }
-  };
+  }
 
   const selectCustomLayout = () => {
     if (!canEdit) return;
@@ -517,15 +515,16 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     }
     layoutTemplateOrigin.current = null;
     const custom = applyMirrorFormat(config, 'personalizar-5x15');
-    mutate({ ...custom, resources: { ...custom.resources, layoutTemplateResourceId: null } });
+    mutate({ ...custom, layout: { ...custom.layout, presetOrigin: null }, resources: { ...custom.resources, layoutTemplateResourceId: null } });
   };
 
   const customizeLayout = (nextConfig) => {
     if (!canEdit) return;
     const templateResourceId = config.resources.layoutTemplateResourceId;
+    const origin = config.layout.presetOrigin;
+    if (origin && !layoutTemplateOrigin.current) layoutTemplateOrigin.current = presetSnapshot(config);
     if (templateResourceId) {
       if (!assignmentBase.current) assignmentBase.current = config;
-      if (!layoutTemplateOrigin.current) layoutTemplateOrigin.current = { resourceId: String(templateResourceId), layout: cloneValue(config.layout) };
       replacedResourceIds.current.add(String(templateResourceId));
     }
     mutate(customizePhotoLayout(nextConfig));
@@ -535,8 +534,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     if (!canEdit) return;
     const origin = layoutTemplateOrigin.current;
     if (origin) {
-      replacedResourceIds.current.delete(String(origin.resourceId));
-      mutate({ ...config, layout: cloneValue(origin.layout), resources: { ...config.resources, layoutTemplateResourceId: origin.resourceId } });
+      mutate({ ...config, layout: cloneValue(origin.layout), resources: { ...config.resources, layoutTemplateResourceId: null } });
       return;
     }
     customizeLayout(applyMirrorFormat(config, 'personalizar-5x15'));
@@ -713,18 +711,29 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     mutate({ ...config, resources: nextResources });
   };
 
-  const uploadResource = async () => {
-    if (!resourceTarget || !canEdit) return;
+  const uploadResource = async (purposeOverride = '') => {
+    const purpose = purposeOverride || resourceTarget?.purpose;
+    if (!purpose || !canEdit) return;
     try {
       const file = await pickLibraryResourceFile();
       if (!file) return;
       const maxBytes = String(file.type || '').startsWith('video/') ? MAX_VIDEO_UPLOAD_BYTES : MAX_STANDARD_UPLOAD_BYTES;
       if (!file.fileSize || file.fileSize > maxBytes) throw new Error(t('resource_043'));
       setUploadProgress(1);
-      await uploadAccountLibraryFileApi(accountId, file, resourceTarget.purpose, setUploadProgress);
+      const asset = await uploadAccountLibraryFileApi(accountId, file, purpose, setUploadProgress);
+      if (asset?.id) await updateAccountLibraryFavoriteApi(accountId, asset.id, true);
       setUploadProgress(0);
+      setDeviceUploadVisible(false);
+      await loadDesignLibrary();
       await loadLibrary();
+      showToast({ type: 'success', message: t('resource_032') });
     } catch (error) { setUploadProgress(0); setMessage(userErrorMessage(error, t('resource_033'))); }
+  };
+
+  const openDeviceUpload = (purpose) => {
+    if (!canEdit) return;
+    setDeviceUploadPurpose(purpose);
+    setDeviceUploadVisible(true);
   };
 
   const toggleFavorite = async (item) => {
@@ -748,12 +757,19 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     if (designLibraryLoading) return <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('resource_022')}</Text>;
     if (designLibraryError) return <View style={styles.section}><Text style={[styles.feedback, { color: theme.alert }]}>{designLibraryError}</Text><AppButton label={t('resource_025')} onPress={loadDesignLibrary} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} /></View>;
     if (designSection === 'format') {
-      const currentTemplate = eventResourceAsLibraryItem(config.resources.layoutTemplateResourceId);
-      const currentGlobalTemplate = currentTemplate?.asset?.ownerType === 'viralco' ? [currentTemplate] : [];
-      const currentFavoriteTemplate = currentTemplate && designLibrary.templatesFavorites.some((item) => String(item.libraryAssetId) === String(currentTemplate.libraryAssetId)) ? [currentTemplate] : [];
-      const customItem = { key: 'custom-layout', libraryAssetId: 'custom-layout', displayName: t('mirror_024'), icon: 'crop-simple', selected: !config.resources.layoutTemplateResourceId && config.layout.format === 'personalizar-5x15' };
+      const presetOrigin = config.layout.presetOrigin;
+      const originAssetId = String(presetOrigin?.libraryAssetId || '');
+      const selectedGlobal = designLibrary.templatesGlobal.find((item) => String(item.libraryAssetId) === originAssetId);
+      const selectedFavorite = designLibrary.templatesFavorites.find((item) => String(item.libraryAssetId) === originAssetId);
+      const currentGlobalTemplate = presetOrigin?.source === 'global' && selectedGlobal ? [selectedGlobal] : [];
+      const currentFavoriteTemplate = presetOrigin?.source === 'favorite' && selectedFavorite ? [selectedFavorite] : [];
+      const customItem = { key: 'custom-layout', libraryAssetId: 'custom-layout', displayName: t('mirror_024'), icon: 'crop-simple', selected: !presetOrigin };
+      const presetLabel = presetOrigin
+        ? `${t('mirror_preset_template')}: ${presetOrigin.name} · ${t(presetOrigin.source === 'favorite' ? 'mirror_preset_favorite' : 'mirror_preset_global')}`
+        : t('mirror_preset_custom');
       return (
         <View style={styles.section}>
+          <StatusBadge label={presetLabel} flag="info" />
           <DesignAssetCarousel
             label={t('resource_045')}
             items={designLibrary.templatesGlobal}
@@ -763,8 +779,8 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
             theme={theme}
             disabled={!canEdit}
             emptyLabel={t('resource_023')}
-            onSelect={(item) => item.key === 'custom-layout' ? selectCustomLayout() : applyDesignTemplate(item)}
-            onRemove={currentTemplate ? selectCustomLayout : undefined}
+            onSelect={(item) => item.key === 'custom-layout' ? selectCustomLayout() : applyDesignTemplate(item, 'global')}
+            onRemove={currentGlobalTemplate.length ? selectCustomLayout : undefined}
           />
           <DesignAssetGrid
             label={t('resource_002')}
@@ -775,8 +791,8 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
             emptyLabel={t('mirror_143')}
             emptyActionLabel={t('mirror_148')}
             onEmptyAction={onOpenResources}
-            onSelect={applyDesignTemplate}
-            onRemove={currentTemplate ? selectCustomLayout : undefined}
+            onSelect={(item) => applyDesignTemplate(item, 'favorite')}
+            onRemove={currentFavoriteTemplate.length ? selectCustomLayout : undefined}
           />
         </View>
       );
@@ -786,7 +802,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
         const item = eventResourceAsLibraryItem(layer.resourceId);
         return item ? [String(item.libraryAssetId), item] : null;
       }).filter(Boolean)).values());
-      return <DesignAssetGrid label={t('resource_002')} items={designLibrary.frames} selectedItems={selectedFrames} theme={theme} disabled={!canEdit} emptyLabel={t('mirror_144')} emptyActionLabel={t('mirror_148')} onEmptyAction={onOpenResources} onSelect={(item) => selectedFrames.some((selected) => String(selected.libraryAssetId) === String(item.libraryAssetId)) ? null : associateDesignAsset(item, 'frame')} onRemove={removeFrameAsset} />;
+      return <DesignAssetGrid label={t('resource_002')} items={designLibrary.frames} selectedItems={selectedFrames} theme={theme} disabled={!canEdit} emptyLabel={t('mirror_144')} emptyActionLabel={t('mirror_148')} onEmptyAction={onOpenResources} secondaryEmptyActionLabel={t('resource_060')} onSecondaryEmptyAction={() => openDeviceUpload('frame')} onSelect={(item) => selectedFrames.some((selected) => String(selected.libraryAssetId) === String(item.libraryAssetId)) ? null : associateDesignAsset(item, 'frame')} onRemove={removeFrameAsset} />;
     }
     if (designSection === 'background') {
       const selectedBackgrounds = Array.from(new Map((config.layout.backgroundLayers || []).filter((layer) => layer.kind === 'resource').map((layer) => {
@@ -796,7 +812,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
       const selectedColors = (config.layout.backgroundLayers || []).filter((layer) => layer.kind === 'color').map((layer) => layer.color);
       return <View style={styles.section}>
         <BackgroundColorPicker theme={theme} selectedColors={selectedColors} disabled={!canEdit} onSelect={addBackgroundColor} />
-        <DesignAssetGrid label={t('resource_002')} items={designLibrary.backgrounds} selectedItems={selectedBackgrounds} theme={theme} disabled={!canEdit} emptyLabel={t('mirror_144')} emptyActionLabel={t('mirror_148')} onEmptyAction={onOpenResources} onSelect={(item) => selectedBackgrounds.some((selected) => String(selected.libraryAssetId) === String(item.libraryAssetId)) ? null : associateDesignAsset(item, 'background')} onRemove={removeBackgroundAsset} />
+        <DesignAssetGrid label={t('resource_002')} items={designLibrary.backgrounds} selectedItems={selectedBackgrounds} theme={theme} disabled={!canEdit} emptyLabel={t('mirror_144')} emptyActionLabel={t('mirror_148')} onEmptyAction={onOpenResources} secondaryEmptyActionLabel={t('resource_060')} onSecondaryEmptyAction={() => openDeviceUpload('background')} onSelect={(item) => selectedBackgrounds.some((selected) => String(selected.libraryAssetId) === String(item.libraryAssetId)) ? null : associateDesignAsset(item, 'background')} onRemove={removeBackgroundAsset} />
       </View>;
     }
     if (designSection === 'sticker') {
@@ -804,13 +820,15 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
         const item = eventResourceAsLibraryItem(layer.resourceId);
         return item ? [String(item.libraryAssetId), item] : null;
       }).filter(Boolean)).values());
-      return <DesignAssetGrid label={t('resource_002')} items={designLibrary.stickers} selectedItems={selectedStickers} theme={theme} disabled={!canEdit} emptyLabel={t('mirror_139')} emptyActionLabel={t('mirror_148')} onEmptyAction={onOpenResources} onSelect={(item) => selectedStickers.some((selected) => String(selected.libraryAssetId) === String(item.libraryAssetId)) ? null : associateDesignAsset(item, 'sticker')} onRemove={removeStickerAsset} />;
+      return <DesignAssetGrid label={t('resource_002')} items={designLibrary.stickers} selectedItems={selectedStickers} theme={theme} disabled={!canEdit} emptyLabel={t('mirror_139')} emptyActionLabel={t('mirror_148')} onEmptyAction={onOpenResources} secondaryEmptyActionLabel={t('resource_060')} onSecondaryEmptyAction={() => openDeviceUpload('sticker')} onSelect={(item) => selectedStickers.some((selected) => String(selected.libraryAssetId) === String(item.libraryAssetId)) ? null : associateDesignAsset(item, 'sticker')} onRemove={removeStickerAsset} />;
     }
-    return <MirrorTextLayerEditor config={config} onChange={mutate} theme={theme} disabled={!canEdit} event={event} favoriteFonts={designLibrary.fonts} resourcesById={resourcesById} onOpenResources={onOpenResources} onInteractionChange={setCanvasInteracting} onSelectFont={(item, layerId) => associateDesignAsset(item, 'font', layerId)} onRemoveFont={removeTextFont} />;
+    return <MirrorTextLayerEditor config={config} onChange={mutate} theme={theme} disabled={!canEdit} event={event} favoriteFonts={designLibrary.fonts} resourcesById={resourcesById} onOpenResources={onOpenResources} onUploadFont={() => openDeviceUpload('font')} onInteractionChange={setCanvasInteracting} onSelectFont={(item, layerId) => associateDesignAsset(item, 'font', layerId)} onRemoveFont={removeTextFont} onDiscardFont={(resourceId) => replacedResourceIds.current.add(String(resourceId))} />;
   };
 
-  const renderDesignSection = () => (
-    <View style={styles.section}>
+  const renderDesignSection = () => {
+    if (designSection === 'text') return <View style={styles.section}>{renderDesignOptions()}</View>;
+    return (
+      <View style={styles.section}>
       {designSection === 'format'
         ? <MirrorLayoutEditor config={config} onChange={customizeLayout} onRestore={restoreLayout} onSaveTemplate={() => { setTemplateError(''); setTemplateSaveVisible(true); }} onInteractionChange={setCanvasInteracting} resourcesById={resourcesById} theme={theme} disabled={!canEdit} />
         : designSection === 'frame'
@@ -822,26 +840,79 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
         : <MirrorConfigPreview config={config} theme={theme} resourcesById={resourcesById} showMeta={false} />}
       <View style={[styles.designSeparator, { backgroundColor: theme.border }]} />
       {renderDesignOptions()}
-    </View>
-  );
+      </View>
+    );
+  };
+
+  const selectedAnimationForStage = (stage) => {
+    const configuredIds = new Set((config.resources.animationResourceIds || []).map(String));
+    const resource = resources.find((item) => item.purpose === 'animation' && item.placement === stage && configuredIds.has(String(item.id)));
+    return resource ? { ...eventResourceAsLibraryItem(resource.id), displayName: resource.asset?.name || `#${resource.id}` } : null;
+  };
+
+  const selectAnimationForStage = async (item, stage) => {
+    if (!canEdit || !item?.libraryAssetId) return;
+    try {
+      if (!assignmentBase.current) assignmentBase.current = config;
+      const previous = resources.find((entry) => entry.purpose === 'animation' && entry.placement === stage && (config.resources.animationResourceIds || []).map(String).includes(String(entry.id)));
+      let resource = resources.find((entry) => entry.purpose === 'animation' && entry.placement === stage && String(entry.libraryAssetId) === String(item.libraryAssetId));
+      if (!resource) {
+        const created = await createEventResourceApi(eventId, {
+          libraryAssetId: item.libraryAssetId,
+          eventModeId,
+          purpose: 'animation',
+          placement: stage,
+          orderIndex: MIRROR_ANIMATION_STAGES.indexOf(stage),
+          isActive: true,
+        });
+        const createdAsset = created?.resource?.asset || {};
+        resource = normalizeEventResource({
+          ...(created?.resource || {}),
+          asset: { ...(item.asset || {}), ...createdAsset, variants: createdAsset.variants || item.asset?.variants },
+        });
+        if (!resource.id) throw new Error(t('resource_034'));
+        pendingAssignments.current.push({ createdId: resource.id });
+        setResources((current) => [...current, resource]);
+      }
+      if (previous && String(previous.id) !== String(resource.id)) replacedResourceIds.current.add(String(previous.id));
+      replacedResourceIds.current.delete(String(resource.id));
+      const animationResourceIds = (config.resources.animationResourceIds || [])
+        .filter((id) => !previous || String(id) !== String(previous.id));
+      if (!animationResourceIds.map(String).includes(String(resource.id))) animationResourceIds.push(resource.id);
+      mutate({ ...config, resources: { ...config.resources, animationResourceIds } });
+    } catch (error) {
+      setStatus('error');
+      setMessage(userErrorMessage(error, t('resource_034')));
+    }
+  };
+
+  const removeAnimationForStage = (stage) => {
+    const selected = selectedAnimationForStage(stage);
+    if (!selected?.eventResourceId) return;
+    unlinkResource('animation', selected.eventResourceId);
+  };
 
   const renderExperienceSection = () => {
-    const stageResources = resources.filter((item) => item.purpose === 'animation' && item.placement === animationStage && (config.resources.animationResourceIds || []).map(String).includes(String(item.id)));
     return (
       <View style={styles.section}>
-        <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-          <Text style={[styles.title, { color: theme.textPrimary }]}>{t('mirror_080')}</Text>
-          <MirrorToggleRow label={t('mirror_081')} value={config.experience.virtualAssistantEnabled} onChange={(virtualAssistantEnabled) => mutate({ ...config, experience: { ...config.experience, virtualAssistantEnabled } })} theme={theme} disabled={!canEdit} />
-          <SelectableChipGroup theme={theme} label={t('mirror_082')} options={[{ value: 'video-vertical', label: t('mirror_083') }, { value: 'minimal', label: t('mirror_084') }, { value: 'party', label: t('mirror_085') }]} value={config.experience.style} disabled={!canEdit} onChange={(value) => mutate({ ...config, experience: { ...config.experience, style: value || config.experience.style } })} />
-        </SurfaceCard>
-        <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-          <SelectableChipGroup theme={theme} label={t('mirror_086')} options={MIRROR_ANIMATION_STAGES.map((stage) => ({ value: stage, label: t(`mirror_stage_${stage}`) }))} value={animationStage} onChange={(value) => setAnimationStage(value || animationStage)} />
-          <MirrorToggleRow label={t('mirror_087')} value={Boolean(config.experience.randomByStage?.[animationStage])} onChange={(enabled) => mutate({ ...config, experience: { ...config.experience, randomByStage: { ...config.experience.randomByStage, [animationStage]: enabled } } })} theme={theme} disabled={!canEdit} />
-          <AppButton label={t('mirror_033')} onPress={() => openResource('animation', animationStage)} disabled={!canEdit} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
-          <Text style={[styles.meta, { color: theme.textSecondary }]}>{t('mirror_088')}: {stageResources.length}</Text>
-          {stageResources.map((resource) => <View key={resource.id} style={styles.resourceRow}><Text style={[styles.meta, { color: theme.textPrimary }]}>{resource.asset?.name || `#${resource.id}`}</Text><AppButton label={t('mirror_034')} onPress={() => unlinkResource('animation', resource.id)} disabled={!canEdit} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} style={styles.rowButton} /></View>)}
-        </SurfaceCard>
-        {renderResourcePicker()}
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('mirror_080')}</Text>
+        {MIRROR_ANIMATION_STAGES.map((stage) => (
+          <MirrorAnimationStageCard
+            key={stage}
+            stage={stage}
+            label={t(`mirror_stage_${stage}`)}
+            enabled={Boolean(config.experience.animationEnabledByStage?.[stage])}
+            selected={selectedAnimationForStage(stage)}
+            favorites={designLibrary.animations}
+            theme={theme}
+            disabled={!canEdit}
+            onEnabledChange={(enabled) => mutate({ ...config, experience: { ...config.experience, animationEnabledByStage: { ...config.experience.animationEnabledByStage, [stage]: enabled } } })}
+            onSelect={(item) => selectAnimationForStage(item, stage)}
+            onRemove={() => removeAnimationForStage(stage)}
+            onOpenResources={onOpenResources}
+            onUpload={() => openDeviceUpload('animation')}
+          />
+        ))}
       </View>
     );
   };
@@ -849,20 +920,117 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
   const renderCaptureSection = () => (
     <View style={styles.section}>
       <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-        <SelectableChipGroup theme={theme} label={t('mirror_060')} options={[{ value: 'soft', label: t('mirror_061') }, { value: 'fast', label: t('mirror_062') }, { value: 'party', label: t('mirror_063') }, { value: 'event', label: t('mirror_064') }]} value="" disabled={!canEdit} onChange={(value) => mutate(applyCapturePreset(config, value))} />
-        <View style={styles.stepperGrid}>
-          <ValueStepper label={t('mirror_065')} value={config.capture.firstCountdownSeconds} onChange={(value) => mutate({ ...config, capture: { ...config.capture, firstCountdownSeconds: value } })} min={1} max={30} theme={theme} disabled={!canEdit} />
-          <ValueStepper label={t('mirror_066')} value={config.capture.nextCountdownSeconds} onChange={(value) => mutate({ ...config, capture: { ...config.capture, nextCountdownSeconds: value } })} min={1} max={30} theme={theme} disabled={!canEdit} />
-          <ValueStepper label={t('mirror_067')} value={config.capture.reviewSeconds} onChange={(value) => mutate({ ...config, capture: { ...config.capture, reviewSeconds: value } })} min={1} max={30} theme={theme} disabled={!canEdit} />
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('mirror_capture_times')}</Text>
+        <View style={styles.captureStack}>
+          <CaptureTimeSlider testID="capture-first-countdown" label={t('mirror_065')} value={config.capture.firstCountdownSeconds} onChange={(value) => mutate({ ...config, capture: { ...config.capture, firstCountdownSeconds: value } })} theme={theme} disabled={!canEdit} />
+          <CaptureTimeSlider testID="capture-next-countdown" label={t('mirror_066')} value={config.capture.nextCountdownSeconds} onChange={(value) => mutate({ ...config, capture: { ...config.capture, nextCountdownSeconds: value } })} theme={theme} disabled={!canEdit} />
+          <CaptureTimeSlider testID="capture-review" label={t('mirror_067')} value={config.capture.reviewSeconds} onChange={(value) => mutate({ ...config, capture: { ...config.capture, reviewSeconds: value } })} theme={theme} disabled={!canEdit} />
         </View>
-        <SelectableChipGroup theme={theme} label={t('mirror_071')} options={[{ value: 'normal', label: t('mirror_073') }, { value: 'wide', label: t('mirror_074') }, { value: 'ultra-wide', label: t('mirror_075') }]} value={config.capture.lens} disabled={!canEdit} onChange={(value) => mutate({ ...config, capture: { ...config.capture, lens: value || config.capture.lens } })} />
-        <SelectableChipGroup theme={theme} label={t('mirror_072')} options={[{ value: 'medium', label: t('mirror_076') }, { value: 'high', label: t('mirror_077') }, { value: 'superior', label: t('mirror_078') }]} value={config.capture.quality} disabled={!canEdit} onChange={(value) => mutate({ ...config, capture: { ...config.capture, quality: value || config.capture.quality } })} />
+      </SurfaceCard>
+      <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+        <SelectableChipGroup theme={theme} label={t('mirror_071')} labelVariant="heading" options={[{ value: 'normal', label: t('mirror_073') }, { value: 'wide', label: t('mirror_074') }, { value: 'ultra-wide', label: t('mirror_075') }]} value={config.capture.lens} disabled={!canEdit} onChange={(value) => mutate({ ...config, capture: { ...config.capture, lens: value || config.capture.lens } })} />
+        <Text style={[styles.description, { color: theme.textSecondary }]}>{t(`mirror_lens_${config.capture.lens}`)}</Text>
+        <CameraLensPreview lens={config.capture.lens} theme={theme} />
+      </SurfaceCard>
+      <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+        <SelectableChipGroup theme={theme} label={t('mirror_072')} labelVariant="heading" options={[{ value: 'medium', label: t('mirror_076') }, { value: 'high', label: t('mirror_077') }, { value: 'superior', label: t('mirror_078') }]} value={config.capture.quality} disabled={!canEdit} onChange={(value) => mutate({ ...config, capture: { ...config.capture, quality: value || config.capture.quality } })} />
+        <Text style={[styles.description, { color: theme.textSecondary }]}>{t(`mirror_quality_${config.capture.quality}`)}</Text>
+      </SurfaceCard>
+      <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('mirror_capture_other')}</Text>
         <MirrorToggleRow label={t('mirror_068')} value={config.capture.flashEnabled} onChange={(flashEnabled) => mutate({ ...config, capture: { ...config.capture, flashEnabled } })} theme={theme} disabled={!canEdit} />
         <MirrorToggleRow label={t('mirror_069')} value={config.capture.preserveOriginals} onChange={(preserveOriginals) => mutate({ ...config, capture: { ...config.capture, preserveOriginals } })} theme={theme} disabled={!canEdit} />
-        <MirrorToggleRow label={t('mirror_070')} value={config.capture.roamingMode} onChange={(roamingMode) => mutate({ ...config, capture: { ...config.capture, roamingMode } })} theme={theme} disabled={!canEdit} />
       </SurfaceCard>
     </View>
   );
+
+  const selectedPrintProfile = () => eventResourceAsLibraryItem(config.print.profileResourceId);
+
+  const applyPrintProfileValues = (item, eventResourceId) => {
+    const profile = printProfileConfig(item);
+    if (!profile) throw new Error(t('print_024'));
+    return {
+      ...config,
+      print: {
+        ...config.print,
+        enabled: true,
+        profileResourceId: String(eventResourceId),
+        paperWidthCm: Number(profile.paper.widthMm) / 10,
+        paperHeightCm: Number(profile.paper.heightMm) / 10,
+        orientation: profile.paper.orientation,
+        dpi: Number(profile.output.dpi),
+        marginCm: Number(profile.paper.safeMarginMm || 0) / 10,
+        copies: Number(profile.output.defaultCopies || 1),
+        fit: profile.output.fit,
+        twoPerPage: Boolean(profile.output.supportsTwoPerPage && config.print.twoPerPage),
+      },
+      delivery: { ...config.delivery, print: true },
+    };
+  };
+
+  const selectPrintProfile = async (item) => {
+    if (!canEdit || !item?.libraryAssetId) return;
+    try {
+      if (!assignmentBase.current) assignmentBase.current = config;
+      const previousId = config.print.profileResourceId;
+      let resource = resources.find((entry) => entry.purpose === 'print_profile' && String(entry.libraryAssetId) === String(item.libraryAssetId));
+      if (!resource) {
+        const created = await createEventResourceApi(eventId, { libraryAssetId: item.libraryAssetId, eventModeId, purpose: 'print_profile', placement: 'primary', orderIndex: 0, isActive: true });
+        resource = normalizeEventResource({ ...(created?.resource || {}), asset: { ...(item.asset || {}), ...(created?.resource?.asset || {}) } });
+        if (!resource.id) throw new Error(t('resource_034'));
+        pendingAssignments.current.push({ createdId: resource.id });
+        setResources((current) => [...current, resource]);
+      }
+      if (previousId && String(previousId) !== String(resource.id)) replacedResourceIds.current.add(String(previousId));
+      replacedResourceIds.current.delete(String(resource.id));
+      mutate(applyPrintProfileValues({ ...item, asset: { ...(item.asset || {}), ...(resource.asset || {}) } }, resource.id));
+    } catch (error) {
+      setStatus('error');
+      setMessage(userErrorMessage(error, t('resource_034')));
+    }
+  };
+
+  const removePrintProfile = () => {
+    if (!canEdit || !config.print.profileResourceId) return;
+    replacedResourceIds.current.add(String(config.print.profileResourceId));
+    mutate({ ...config, print: { ...config.print, enabled: false, profileResourceId: null }, delivery: { ...config.delivery, print: false } });
+  };
+
+  const detectAndAddPrinter = async () => {
+    if (!canEdit || printerDetecting) return;
+    setPrinterDetecting(true);
+    try {
+      const binding = await detectPrinter(accountId);
+      if (!binding) return;
+      setPrinterBinding(binding);
+      const available = await listAccountLibraryApi(accountId, { scope: 'available', type: 'print_profile', page: 1, pageSize: 100 });
+      const matching = (available?.library || []).map(normalizeLibraryItem).find((item) => {
+        const profile = printProfileConfig(item);
+        return profile && String(binding.name).toLowerCase().includes(String(profile.model || '').toLowerCase());
+      });
+      let item = matching;
+      if (item) {
+        const response = await updateAccountLibraryFavoriteApi(accountId, item.libraryAssetId, true);
+        item = normalizeLibraryItem(response?.library || { ...item, isFavorite: true });
+      } else {
+        const response = await createAccountPrintProfileApi(accountId, detectedPrinterProfileInput(binding));
+        item = normalizeLibraryItem({ libraryAssetId: response?.asset?.id, isFavorite: true, asset: response?.asset });
+      }
+      await loadDesignLibrary();
+      await selectPrintProfile(item);
+      showToast({ type: 'success', message: t('print_023') });
+    } catch (error) {
+      setMessage(userErrorMessage(error, t('print_024')));
+      setStatus('error');
+    } finally {
+      setPrinterDetecting(false);
+    }
+  };
+
+  const updatePrintNumber = (key, value) => {
+    const parsed = Number(String(value).replace(',', '.'));
+    mutate({ ...config, print: { ...config.print, [key]: Number.isFinite(parsed) ? parsed : 0 } });
+  };
 
   const renderOperationSection = () => (
     <View style={styles.section}>
@@ -874,12 +1042,36 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
       </SurfaceCard>
       <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
         <MirrorToggleRow label={t('mirror_094')} value={config.runtime.operatorMenuEnabled} onChange={(operatorMenuEnabled) => mutate({ ...config, runtime: { ...config.runtime, operatorMenuEnabled } })} theme={theme} disabled={!canEdit} />
-        <ValueStepper label={`${t('mirror_095')} (s)`} value={config.runtime.autoResetSeconds} onChange={(autoResetSeconds) => mutate({ ...config, runtime: { ...config.runtime, autoResetSeconds } })} min={5} max={300} step={5} theme={theme} disabled={!canEdit} />
+        <CaptureTimeSlider testID="runtime-auto-reset" label={t('mirror_095')} value={config.runtime.autoResetSeconds} onChange={(autoResetSeconds) => mutate({ ...config, runtime: { ...config.runtime, autoResetSeconds } })} minimumValue={5} maximumValue={300} step={5} layout="stacked" theme={theme} disabled={!canEdit} />
       </SurfaceCard>
       <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('mirror_096')}</Text>
-        <Text style={[styles.meta, { color: theme.textSecondary }]}>{t('mirror_097')}</Text>
-        <StatusBadge label={t('mirror_098')} flag="warn" />
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('print_009')}</Text>
+        <PrintProfileSelector
+          items={designLibrary.printProfiles}
+          selected={selectedPrintProfile()}
+          search={printSearch}
+          binding={printerBinding}
+          theme={theme}
+          disabled={!canEdit || printerDetecting}
+          onSearchChange={setPrintSearch}
+          onSelect={selectPrintProfile}
+          onRemove={removePrintProfile}
+          onOpenResources={onOpenResources}
+          onDetect={detectAndAddPrinter}
+        />
+        <MirrorToggleRow label={t('print_010')} value={config.print.enabled} onChange={(enabled) => mutate({ ...config, print: { ...config.print, enabled }, delivery: { ...config.delivery, print: enabled } })} theme={theme} disabled={!canEdit || !config.print.profileResourceId} />
+        {config.print.profileResourceId ? <View style={styles.printSettingsStack}>
+          <View style={styles.printInputGrid}>
+            <View style={styles.printInputCell}><PaperFormInput theme={theme} label={t('print_011')} value={String(config.print.paperWidthCm)} onChangeText={(value) => updatePrintNumber('paperWidthCm', value)} keyboardType="decimal-pad" editable={canEdit} /></View>
+            <View style={styles.printInputCell}><PaperFormInput theme={theme} label={t('print_012')} value={String(config.print.paperHeightCm)} onChangeText={(value) => updatePrintNumber('paperHeightCm', value)} keyboardType="decimal-pad" editable={canEdit} /></View>
+            <View style={styles.printInputCell}><PaperFormInput theme={theme} label={t('print_013')} value={String(config.print.marginCm)} onChangeText={(value) => updatePrintNumber('marginCm', value)} keyboardType="decimal-pad" editable={canEdit} /></View>
+            <View style={styles.printInputCell}><PaperFormInput theme={theme} label={t('print_014')} value={String(config.print.copies)} onChangeText={(value) => updatePrintNumber('copies', value)} keyboardType="number-pad" editable={canEdit} /></View>
+            <View style={styles.printInputCell}><PaperFormInput theme={theme} label={t('print_021')} value={String(config.print.dpi)} onChangeText={(value) => updatePrintNumber('dpi', value)} keyboardType="number-pad" editable={canEdit} /></View>
+          </View>
+          <SelectableChipGroup theme={theme} label={t('print_015')} options={[{ value: 'portrait', label: t('print_016') }, { value: 'landscape', label: t('print_017') }]} value={config.print.orientation} onChange={(orientation) => mutate({ ...config, print: { ...config.print, orientation } })} disabled={!canEdit} />
+          <SelectableChipGroup theme={theme} label={t('print_018')} options={[{ value: 'contain', label: t('print_019') }, { value: 'cover', label: t('print_020') }]} value={config.print.fit} onChange={(fit) => mutate({ ...config, print: { ...config.print, fit } })} disabled={!canEdit} />
+          <MirrorToggleRow label={t('print_022')} value={config.print.twoPerPage} onChange={(twoPerPage) => mutate({ ...config, print: { ...config.print, twoPerPage } })} theme={theme} disabled={!canEdit} />
+        </View> : <Text style={[styles.meta, { color: theme.textSecondary }]}>{t('print_025')}</Text>}
       </SurfaceCard>
       <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
         <Text style={[styles.meta, { color: theme.textSecondary }]}>GIF · {t('mirror_098')}</Text>
@@ -892,7 +1084,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     <View style={styles.section}>
       {!canEdit ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('mirror_116')}</Text> : null}
       {published ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('mirror_117')}: {published.version || published.id}</Text> : null}
-      {issues.length ? <SurfaceCard surfaceColor={theme.surface} borderColor={theme.alert}>{issues.map((entry, index) => <Text key={`${entry.path}-${index}`} style={[styles.feedback, { color: theme.alert }]}>{entry.path}: {entry.message}</Text>)}</SurfaceCard> : null}
+      <MirrorConfigurationSummary config={config} issues={issues} resourcesById={resourcesById} theme={theme} onNavigate={navigateToAssessmentTarget} />
       {status === 'conflict' ? <SurfaceCard surfaceColor={theme.surface} borderColor={theme.secondary}><Text style={[styles.feedback, { color: theme.textPrimary }]}>{t('mirror_112')}</Text><View style={styles.actions}><AppButton label={t('mirror_110')} onPress={loadServerAfterConflict} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} style={styles.flexButton} /><AppButton label={t('mirror_111')} onPress={keepLocalAfterConflict} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.flexButton} /></View></SurfaceCard> : null}
       {canEdit ? <View style={styles.section}><AppButton testID="mirror-save" label={t('mirror_100')} onPress={() => saveDraft()} disabled={status === 'saving'} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} /><AppButton testID="mirror-validate" label={t('mirror_101')} onPress={() => validateDraft()} disabled={status === 'saving'} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} /><AppButton testID="mirror-publish" label={t('mirror_102')} onPress={publishDraft} disabled={status === 'saving' || status === 'conflict'} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} /></View> : null}
     </View>
@@ -935,7 +1127,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
           onPress={() => setPreviewVisible(true)}
         />
       </View>
-      {previewVisible ? <MirrorPreviewModal visible config={config} theme={theme} resourcesById={resourcesById} onClose={() => setPreviewVisible(false)} /> : null}
+      {previewVisible ? <MirrorPreviewModal visible config={config} theme={theme} resourcesById={resourcesById} issues={issues} onNavigate={navigateToAssessmentTarget} onClose={() => setPreviewVisible(false)} /> : null}
       <PhotoLayoutTemplateSaveModal
         visible={templateSaveVisible}
         config={config}
@@ -947,6 +1139,17 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
         onCancel={() => { if (!templateSaving) { setTemplateSaveVisible(false); setTemplateError(''); } }}
         onSave={saveLayoutTemplate}
       />
+      <ResourceUploadModal
+        visible={deviceUploadVisible}
+        theme={theme}
+        purpose={deviceUploadPurpose}
+        fixedPurpose
+        progress={uploadProgress}
+        disabled={Boolean(uploadProgress)}
+        onPurposeChange={setDeviceUploadPurpose}
+        onUpload={uploadResource}
+        onClose={() => { if (!uploadProgress) setDeviceUploadVisible(false); }}
+      />
     </View>
   );
 }
@@ -956,12 +1159,16 @@ const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: tokens.spacing.md },
   content: { padding: tokens.spacing.md, paddingBottom: tokens.spacing.xl * 3, gap: tokens.spacing.md },
   section: { gap: tokens.spacing.md },
-  title: { fontSize: tokens.typography.body, fontWeight: '700' },
+  title: { fontSize: tokens.typography.heading, fontWeight: '700' },
   meta: { fontSize: tokens.typography.caption },
   feedback: { fontSize: tokens.typography.caption, fontWeight: '700' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   flexButton: { flex: 1, minWidth: tokens.spacing.xl * 4 },
-  stepperGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
+  captureStack: { gap: tokens.spacing.md },
+  printSettingsStack: { gap: tokens.spacing.sm },
+  printInputGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
+  printInputCell: { flexGrow: 1, flexBasis: tokens.spacing.xl * 5, minWidth: 0 },
+  description: { fontSize: tokens.typography.caption, lineHeight: tokens.typography.body + tokens.spacing.xxs },
   resourceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   rowButton: { minWidth: tokens.spacing.xl * 3 },
   designSeparator: { height: StyleSheet.hairlineWidth },

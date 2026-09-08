@@ -16,6 +16,9 @@ interface MediaPreviewProps {
   buttonBackgroundColor?: string;
   buttonPressedColor?: string;
   buttonTextColor?: string;
+  autoPlay?: boolean;
+  repeat?: boolean;
+  controls?: boolean;
 }
 
 function isVideoType(mediaType: string) {
@@ -37,23 +40,26 @@ export function MediaPreview({
   buttonBackgroundColor,
   buttonPressedColor,
   buttonTextColor,
+  autoPlay = false,
+  repeat = false,
+  controls,
 }: MediaPreviewProps) {
-  const [paused, setPaused] = useState(true);
+  const [paused, setPaused] = useState(!autoPlay);
   const [ready, setReady] = useState(false);
   const [layoutReady, setLayoutReady] = useState(false);
-  const [playRequested, setPlayRequested] = useState(false);
+  const [playRequested, setPlayRequested] = useState(autoPlay);
   const [failed, setFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const layoutSize = useRef({ width: 0, height: 0 });
 
   useEffect(() => {
-    setPaused(true);
+    setPaused(!autoPlay);
     setReady(false);
     setLayoutReady(false);
-    setPlayRequested(false);
+    setPlayRequested(autoPlay);
     setFailed(false);
     setReloadKey(0);
-  }, [uri]);
+  }, [autoPlay, uri]);
 
   useEffect(() => {
     if (!playRequested || !ready || !layoutReady || failed) return;
@@ -94,14 +100,15 @@ export function MediaPreview({
             key={`${uri}-${reloadKey}`}
             source={{ uri }}
             style={styles.mediaFill}
-            controls={!posterUri}
+            controls={controls ?? !posterUri}
             paused={paused}
+            repeat={repeat}
             resizeMode={resizeMode}
             onLoadStart={() => setReady(false)}
             onLoad={() => setReady(true)}
             onReadyForDisplay={() => setReady(true)}
             onError={() => { setFailed(true); setPlayRequested(false); setPaused(true); }}
-            onEnd={() => { setPlayRequested(false); setPaused(true); }}
+            onEnd={() => { if (!repeat) { setPlayRequested(false); setPaused(true); } }}
           />
           {posterUri && paused && !failed ? (
             <Image source={{ uri: posterUri }} style={styles.mediaFill} resizeMode={resizeMode} />

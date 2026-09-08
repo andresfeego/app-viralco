@@ -171,6 +171,14 @@ export function getAccountPhotoLayoutTemplateApi(accountId, libraryAssetId) {
   return apiRequest(`/api/accounts/${accountId}/library/${libraryAssetId}/layout-template`, { method: 'GET' });
 }
 
+export function createAccountPrintProfileApi(accountId, input) {
+  return apiRequest(`/api/accounts/${accountId}/library/print-profiles`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function getAccountPrintProfileApi(accountId, libraryAssetId) {
+  return apiRequest(`/api/accounts/${accountId}/library/${libraryAssetId}/print-profile`, { method: 'GET' });
+}
+
 export function applyPhotoLayoutTemplateApi(eventId, eventModeId, libraryAssetId, expectedRevision) {
   return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/layout-templates/${libraryAssetId}/apply`, { method: 'POST', body: JSON.stringify({ expectedRevision }) });
 }

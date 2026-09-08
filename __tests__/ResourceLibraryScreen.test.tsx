@@ -38,7 +38,9 @@ jest.mock('../src/services/api/events', () => ({
   listAccountLibraryApi: jest.fn(),
   listEventTypesApi: jest.fn(),
   updateAccountLibraryFavoriteApi: jest.fn(),
+  uploadAccountLibraryFileApi: jest.fn(),
 }));
+jest.mock('../src/services/media/documentPicker', () => ({ pickLibraryResourceFile: jest.fn() }));
 
 import { CompactAccountSelector } from '../src/components/CompactAccountSelector';
 import { AccountRequiredEmptyState } from '../src/components/AccountRequiredEmptyState';

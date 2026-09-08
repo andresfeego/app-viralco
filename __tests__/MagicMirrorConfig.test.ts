@@ -6,6 +6,7 @@ import {
   addStickerLayer,
   applyCapturePreset,
   applyMirrorFormat,
+  applyPhotoLayoutPreset,
   defaultMirrorConfig,
   duplicateCustomSlot,
   duplicateBackgroundLayer,
@@ -152,9 +153,32 @@ describe('magic mirror config geometry', () => {
   test('detaches a template into the canonical portrait canvas', () => {
     const config = applyMirrorFormat(defaultMirrorConfig(), 'postal');
     config.resources.layoutTemplateResourceId = '99';
+    config.layout.presetOrigin = { libraryAssetId: '329', name: 'Postal', source: 'global', contentHash: 'hash' };
     const customized = customizePhotoLayout(config);
     expect(customized.layout).toEqual(expect.objectContaining({ format: 'personalizar-5x15', output: { width: MIRROR_CANVAS_WIDTH, height: MIRROR_CANVAS_HEIGHT } }));
+    expect(customized.layout.presetOrigin).toBeNull();
     expect(customized.resources.layoutTemplateResourceId).toBeNull();
+  });
+
+  test('copies complete preset geometry without associating an event resource', () => {
+    const config = defaultMirrorConfig();
+    const template = {
+      baseFormat: 'personalizar-5x15', output: { width: 2000, height: 2960 }, shotCount: 2,
+      order: [2, 1], duplicateStrip: true,
+      slots: [
+        { slotId: 'slot-1', photoNumber: 1, x: 8, y: 10, width: 40, height: 30, rotation: 12 },
+        { slotId: 'slot-2', photoNumber: 2, x: 52, y: 45, width: 38, height: 42, rotation: -8 },
+      ],
+    };
+    const origin = { libraryAssetId: '329', name: 'Dos fotos', source: 'favorite', contentHash: 'hash' };
+    const applied = applyPhotoLayoutPreset(config, template, origin);
+    expect(applied.layout).toEqual(expect.objectContaining({
+      format: template.baseFormat, output: template.output, shotCount: 2, order: [2, 1], slots: template.slots,
+      duplicateStrip: true, presetOrigin: origin,
+    }));
+    expect(applied.resources.layoutTemplateResourceId).toBeNull();
+    expect(normalizeMirrorConfig(applied).config.layout.presetOrigin).toEqual(origin);
+    expect(normalizeMirrorConfig(applied).config.layout.slots).toEqual(template.slots);
   });
 
   test('adds, duplicates and removes custom slots up to a stable order', () => {

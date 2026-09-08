@@ -8,16 +8,22 @@ import { HorizontalSubMenu } from '../components/HorizontalSubMenu';
 import { ResourceFilters } from '../components/ResourceFilters';
 import { ResourceGallery } from '../components/ResourceGallery';
 import { ResourcePreviewModal } from '../components/ResourcePreviewModal';
+import { ResourceUploadModal } from '../components/ResourceUploadModal';
+import { IconTextButton } from '../components/IconTextButton';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../providers/ToastProvider';
 import { t } from '../i18n';
 import { listAccountsApi } from '../services/api/accounts';
-import { listAccountLibraryApi, listEventTypesApi, updateAccountLibraryFavoriteApi } from '../services/api/events';
+import { createAccountPrintProfileApi, listAccountLibraryApi, listEventTypesApi, updateAccountLibraryFavoriteApi, uploadAccountLibraryFileApi } from '../services/api/events';
 import { userErrorMessage } from '../services/errorHandling';
+import { pickLibraryResourceFile } from '../services/media/documentPicker';
+import { detectPrinter, detectedPrinterProfileInput } from '../services/printers';
 
 const INITIAL_FILTERS = { tab: 'favorites', search: '', type: '', eventType: '', motion: '' };
 const PAGE_SIZE = 60;
 const SEARCH_DEBOUNCE_MS = 300;
+const MAX_STANDARD_UPLOAD_BYTES = 25 * 1024 * 1024;
+const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 function normalizeEntry(item) {
   return {
@@ -58,6 +64,9 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
   const [error, setError] = useState('');
   const [accountError, setAccountError] = useState('');
   const [previewItem, setPreviewItem] = useState(null);
+  const [uploadVisible, setUploadVisible] = useState(false);
+  const [uploadPurpose, setUploadPurpose] = useState('background');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const favoriteSavingIds = useRef(new Set());
   const requestSequence = useRef(0);
 
@@ -166,6 +175,41 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
     loadLibrary({ page: pagination.page + 1, append: true });
   };
 
+  const uploadFromDevice = async (purpose) => {
+    if (!canManage || !purpose) return;
+    try {
+      if (purpose === 'print_profile') {
+        const binding = await detectPrinter(accountId);
+        if (!binding) return;
+        const available = await listAccountLibraryApi(accountId, { scope: 'available', type: 'print_profile', page: 1, pageSize: 100 });
+        const matching = (available?.library || []).find((item) => {
+          const profile = item?.asset?.metadata?.printProfile;
+          return profile && String(binding.name).toLowerCase().includes(String(profile.model || '').toLowerCase());
+        });
+        if (matching) await updateAccountLibraryFavoriteApi(accountId, matching.libraryAssetId, true);
+        else await createAccountPrintProfileApi(accountId, detectedPrinterProfileInput(binding));
+        setUploadVisible(false);
+        await loadLibrary({ refresh: true });
+        showToast({ message: t('print_023'), type: 'success' });
+        return;
+      }
+      const file = await pickLibraryResourceFile();
+      if (!file) return;
+      const maxBytes = String(file.type || '').startsWith('video/') ? MAX_VIDEO_UPLOAD_BYTES : MAX_STANDARD_UPLOAD_BYTES;
+      if (!file.fileSize || file.fileSize > maxBytes) throw new Error(t('resource_043'));
+      setUploadProgress(1);
+      const asset = await uploadAccountLibraryFileApi(accountId, file, purpose, setUploadProgress);
+      if (asset?.id) await updateAccountLibraryFavoriteApi(accountId, asset.id, true);
+      setUploadProgress(0);
+      setUploadVisible(false);
+      await loadLibrary({ refresh: true });
+      showToast({ message: t('resource_032'), type: 'success' });
+    } catch (uploadError) {
+      setUploadProgress(0);
+      showToast({ message: userErrorMessage(uploadError, purpose === 'print_profile' ? t('print_024') : t('resource_033')), type: 'error' });
+    }
+  };
+
   const hasActiveFilter = Boolean(filters.search || filters.type || filters.eventType || filters.motion);
   const header = (
     <View style={styles.header}>
@@ -213,13 +257,12 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
         onSelect={(tab) => setFilters((current) => ({ ...current, tab }))}
         items={[{ key: 'favorites', label: t('resource_002') }, { key: 'pool', label: t('resource_045') }]}
       />
-      <CompactAccountSelector
-        accounts={accounts}
-        value={accountId}
-        onChange={changeAccount}
-        theme={theme}
-        roleLabel={isSuperAdmin ? 'super_admin' : accountRole(user, accountId)}
-      />
+      <View style={styles.accountTools}>
+        <View style={styles.accountSelector}>
+          <CompactAccountSelector accounts={accounts} value={accountId} onChange={changeAccount} theme={theme} roleLabel={isSuperAdmin ? 'super_admin' : accountRole(user, accountId)} />
+        </View>
+        {canManage ? <IconTextButton testID="resource-upload-open" theme={theme} icon="plus" accessibilityLabel={t('resource_060')} backgroundColor={theme.buttonBg} pressedBackgroundColor={theme.buttonBgPressed} iconColor={theme.buttonText} onPress={() => setUploadVisible(true)} style={styles.uploadButton} /> : null}
+      </View>
       <ResourceGallery
         items={items}
         theme={theme}
@@ -235,8 +278,13 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
         onRetry={() => loadLibrary()}
         onRefresh={() => loadLibrary({ refresh: true })}
         onLoadMore={loadMore}
+        emptyPrimaryLabel={t('mirror_148')}
+        onEmptyPrimary={() => setFilters((current) => ({ ...current, tab: 'pool', search: '', type: '', eventType: '', motion: '' }))}
+        emptySecondaryLabel={t('resource_060')}
+        onEmptySecondary={() => setUploadVisible(true)}
       />
       <ResourcePreviewModal item={previewItem} theme={theme} canManage={canManage} onClose={() => setPreviewItem(null)} onToggleFavorite={toggleFavorite} />
+      <ResourceUploadModal visible={uploadVisible} theme={theme} purpose={uploadPurpose} progress={uploadProgress} disabled={Boolean(uploadProgress)} onPurposeChange={setUploadPurpose} onUpload={uploadFromDevice} onClose={() => { if (!uploadProgress) setUploadVisible(false); }} />
     </View>
   );
 }
@@ -245,5 +293,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: { padding: tokens.spacing.md, gap: tokens.spacing.md },
+  accountTools: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs, paddingRight: tokens.spacing.md },
+  accountSelector: { flex: 1, minWidth: 0 },
+  uploadButton: { flexShrink: 0 },
   feedback: { fontSize: tokens.typography.caption, fontWeight: '700' },
 });

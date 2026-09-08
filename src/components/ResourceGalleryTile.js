@@ -9,7 +9,7 @@ import { ResourceTypeBadge } from './ResourceTypeBadge';
 export function resourceTypeLabel(type) {
   const labels = {
     template: 'resource_007', frame: 'resource_008', animation: 'resource_009', sticker: 'resource_053',
-    font: 'resource_011', background: 'resource_012',
+    font: 'resource_011', background: 'resource_012', print_profile: 'print_001',
   };
   return t(labels[type] || 'resource_018');
 }

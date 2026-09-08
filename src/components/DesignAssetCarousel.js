@@ -6,6 +6,7 @@ import { AppButton } from '../design-system/components/AppButton';
 import { t } from '../i18n';
 import { resourceThumbnailUri } from './ResourceGalleryTile';
 import { IconTextButton } from './IconTextButton';
+import { ResourceEmptyActions } from './ResourceEmptyActions';
 
 function AssetCard({ item, selected, theme, disabled, onPress, onRemove }) {
   const thumbnail = resourceThumbnailUri(item);
@@ -42,7 +43,7 @@ function AssetCard({ item, selected, theme, disabled, onPress, onRemove }) {
   );
 }
 
-export function DesignAssetCarousel({ label, items = [], selectedItems = [], leadingItem = null, leadingFirst = false, theme, emptyLabel = '', emptyActionLabel = '', disabled = false, onSelect, onRemove, onEmptyAction }) {
+export function DesignAssetCarousel({ label, items = [], selectedItems = [], leadingItem = null, leadingFirst = false, theme, emptyLabel = '', emptyActionLabel = '', secondaryEmptyActionLabel = '', disabled = false, onSelect, onRemove, onEmptyAction, onSecondaryEmptyAction }) {
   const selectedIds = new Set(selectedItems.map((item) => String(item.libraryAssetId)));
   const remaining = items.filter((item) => !selectedIds.has(String(item.libraryAssetId)));
   const ordered = leadingFirst
@@ -68,7 +69,9 @@ export function DesignAssetCarousel({ label, items = [], selectedItems = [], lea
       ) : (
         <View style={styles.emptyState}>
           <Text style={[styles.empty, { color: theme.textSecondary }]}>{emptyLabel}</Text>
-          {onEmptyAction && emptyActionLabel ? (
+          {onEmptyAction && emptyActionLabel && onSecondaryEmptyAction && secondaryEmptyActionLabel ? (
+            <ResourceEmptyActions theme={theme} primaryLabel={emptyActionLabel} onPrimary={onEmptyAction} secondaryLabel={secondaryEmptyActionLabel} onSecondary={onSecondaryEmptyAction} disabled={disabled} />
+          ) : onEmptyAction && emptyActionLabel ? (
             <AppButton
               label={emptyActionLabel}
               onPress={onEmptyAction}

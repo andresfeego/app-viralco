@@ -1,8 +1,7 @@
 import { tokens } from '../design-system/tokens';
 
 export const MIRROR_ANIMATION_STAGES = [
-  'beforeCountdown', 'afterCapture', 'countdown', 'pickMusic', 'beforeSignature',
-  'processing', 'afterProcessing', 'sessionEnd',
+  'start', 'beforeCountdown', 'afterCapture', 'processing',
 ];
 
 export const MIRROR_CANVAS_WIDTH = 2000;
@@ -14,6 +13,7 @@ export const MIRROR_MAX_SLOT_INSTANCES = 16;
 export const MIRROR_MAX_FRAME_LAYERS = 10;
 export const MIRROR_MAX_BACKGROUND_LAYERS = 10;
 export const MIRROR_MAX_STICKER_LAYERS = 10;
+export const MIRROR_MAX_TEXT_LAYERS = 10;
 
 export const MIRROR_FORMATS = [
   { id: 'digital', shots: 1, width: 1200, height: 1500, labelKey: 'mirror_020', slots: [{ photoNumber: 1, x: 7, y: 17, width: 86, height: 66 }] },
@@ -33,7 +33,30 @@ export const TEXT_LAYER_DEFAULTS = [
 ];
 
 export function createCustomTextLayer(id) {
-  return { ...TEXT_LAYER_DEFAULTS[0], id, text: '', fontResourceId: null };
+  return { ...TEXT_LAYER_DEFAULTS[0], id, text: '', fontResourceId: null, rotation: 0, order: 0 };
+}
+
+export function ensureMirrorTextLayers(layers) {
+  return (layers || []).map((layer, index) => ({ ...layer, rotation: Number(layer.rotation || 0), order: index }));
+}
+
+export function removeTextLayer(config, layerId) {
+  const textLayers = ensureMirrorTextLayers((config.layout.textLayers || []).filter((layer) => String(layer.id) !== String(layerId)));
+  return { ...config, layout: { ...config.layout, textLayers } };
+}
+
+export function duplicateTextLayer(config, layerId) {
+  const layers = ensureMirrorTextLayers(config.layout.textLayers || []);
+  if (layers.length >= MIRROR_MAX_TEXT_LAYERS) return config;
+  const source = layers.find((layer) => String(layer.id) === String(layerId));
+  if (!source) return config;
+  const id = `custom-${Date.now()}-${layers.length}`;
+  const layer = { ...source, id, x: clamp(source.x + tokens.spacing.xxs, 0, 100 - source.width), y: clamp(source.y + tokens.spacing.xxs, 0, 100), order: layers.length };
+  return { ...config, layout: { ...config.layout, textLayers: [...layers, layer] } };
+}
+
+export function clearTextLayers(config) {
+  return { ...config, layout: { ...config.layout, textLayers: [] } };
 }
 
 export const CAPTURE_PRESETS = {
@@ -130,13 +153,18 @@ function matchesSlot(slot, identities) {
 
 export function defaultMirrorConfig() {
   return {
-    layout: { format: 'digital', output: { width: 1200, height: 1500 }, shotCount: 1, order: [1], slots: ensureMirrorSlotIds(cloneValue(MIRROR_FORMATS[0].slots)), duplicateStrip: false, backgroundLayers: [], frameLayers: [], textLayers: [], stickerLayers: [] },
+    layout: { format: 'digital', output: { width: 1200, height: 1500 }, shotCount: 1, order: [1], slots: ensureMirrorSlotIds(cloneValue(MIRROR_FORMATS[0].slots)), duplicateStrip: false, presetOrigin: null, backgroundLayers: [], frameLayers: [], textLayers: [], stickerLayers: [] },
     resources: { templateResourceId: null, layoutTemplateResourceId: null, frameResourceId: null, gifOverlayResourceId: null, startScreenResourceId: null, backgroundResourceId: null, fontResourceId: null, animationResourceIds: [] },
     capture: { firstCountdownSeconds: 5, nextCountdownSeconds: 5, reviewSeconds: 5, flashEnabled: true, lens: 'wide', quality: 'high', preserveOriginals: true, roamingMode: false },
-    experience: { style: 'video-vertical', virtualAssistantEnabled: true, randomByStage: {} },
+    experience: {
+      style: 'video-vertical',
+      virtualAssistantEnabled: true,
+      randomByStage: {},
+      animationEnabledByStage: { start: false, beforeCountdown: false, afterCapture: false, processing: false },
+    },
     gif: { enabled: false, captureCount: 2, delayMs: 300, reverse: false, size: 'vertical-720' },
     backgroundRemoval: { enabled: false, mode: 'automatic', finalBackground: 'transparent', edgeSoftness: 'medium', keepShadow: true },
-    print: { enabled: false, paperWidthCm: 10, paperHeightCm: 14.8, orientation: 'portrait', dpi: 300, marginCm: 0, copies: 1, fit: 'contain', twoPerPage: false },
+    print: { enabled: false, profileResourceId: null, paperWidthCm: 10, paperHeightCm: 14.8, orientation: 'portrait', dpi: 300, marginCm: 0, copies: 1, fit: 'contain', twoPerPage: false },
     delivery: { qr: true, share: true, download: true, print: false },
     runtime: { autoResetSeconds: 15, operatorMenuEnabled: true },
   };
@@ -170,16 +198,21 @@ export function normalizeMirrorConfig(input) {
       slots: Array.isArray(source.layout?.slots) ? ensureMirrorSlotIds(source.layout.slots.map((slot) => ({ ...slot, rotation: Number(slot.rotation || 0) }))) : cloneValue(base.layout.slots),
       backgroundLayers: ensureMirrorBackgroundLayerIds(sourceBackgroundLayers),
       frameLayers: ensureMirrorFrameLayerIds(sourceFrameLayers),
-      textLayers: Array.isArray(source.layout?.textLayers) ? source.layout.textLayers : [],
+      textLayers: ensureMirrorTextLayers(Array.isArray(source.layout?.textLayers) ? source.layout.textLayers : []),
       stickerLayers: ensureMirrorStickerLayerIds(Array.isArray(source.layout?.stickerLayers) ? source.layout.stickerLayers : []),
     },
     resources: { ...base.resources, ...(source.resources || {}), frameResourceId: null, backgroundResourceId: null },
     capture: { ...base.capture, ...(source.capture || {}) },
-    experience: { ...base.experience, ...(source.experience || {}), randomByStage: { ...base.experience.randomByStage, ...(source.experience?.randomByStage || {}) } },
+    experience: {
+      ...base.experience,
+      ...(source.experience || {}),
+      randomByStage: { ...base.experience.randomByStage, ...(source.experience?.randomByStage || {}) },
+      animationEnabledByStage: { ...base.experience.animationEnabledByStage, ...(source.experience?.animationEnabledByStage || {}) },
+    },
     gif: { ...base.gif, ...(source.gif || {}), enabled: false },
     backgroundRemoval: { ...base.backgroundRemoval, ...(source.backgroundRemoval || {}), enabled: false },
-    print: { ...base.print, ...(source.print || {}), enabled: false },
-    delivery: { ...base.delivery, ...(source.delivery || {}), print: false },
+    print: { ...base.print, ...(source.print || {}) },
+    delivery: { ...base.delivery, ...(source.delivery || {}) },
     runtime: { ...base.runtime, ...(source.runtime || {}) },
   };
   if (legacy) {
@@ -425,6 +458,24 @@ export function customizePhotoLayout(config) {
       format: 'personalizar-5x15',
       output: { width: MIRROR_CANVAS_WIDTH, height: MIRROR_CANVAS_HEIGHT },
       shotCount: config.layout.shotCount,
+      presetOrigin: null,
+    },
+    resources: { ...config.resources, layoutTemplateResourceId: null },
+  };
+}
+
+export function applyPhotoLayoutPreset(config, template, origin) {
+  return {
+    ...config,
+    layout: {
+      ...config.layout,
+      format: template.baseFormat,
+      output: cloneValue(template.output),
+      shotCount: template.shotCount,
+      order: cloneValue(template.order),
+      slots: ensureMirrorSlotIds(cloneValue(template.slots)),
+      duplicateStrip: Boolean(template.duplicateStrip),
+      presetOrigin: cloneValue(origin),
     },
     resources: { ...config.resources, layoutTemplateResourceId: null },
   };
@@ -631,11 +682,11 @@ export function applyCapturePreset(config, presetId) {
 export function configResourceIds(config) {
   return [
     config.resources.templateResourceId,
-    config.resources.layoutTemplateResourceId,
     config.resources.frameResourceId,
     config.resources.backgroundResourceId,
     config.resources.fontResourceId,
     config.resources.startScreenResourceId,
+    config.print.profileResourceId,
     ...(config.layout.frameLayers || []).map((layer) => layer.resourceId),
     ...(config.layout.backgroundLayers || []).filter((layer) => layer.kind === 'resource').map((layer) => layer.resourceId),
     ...(config.resources.animationResourceIds || []),

@@ -11,6 +11,7 @@ const TYPE_DEFINITIONS = {
   template: { icon: 'delicious', iconStyle: 'brand', label: 'resource_007' },
   animation: { icon: 'film', label: 'resource_009' },
   font: { icon: 'font', label: 'resource_011' },
+  print_profile: { icon: 'print', label: 'print_001' },
 };
 
 export function resourceTypeDefinition(type, motionType) {

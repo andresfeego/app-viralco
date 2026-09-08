@@ -4,8 +4,9 @@ import { AppButton } from '../design-system/components/AppButton';
 import { tokens } from '../design-system/tokens';
 import { t } from '../i18n';
 import { ResourceGalleryTile } from './ResourceGalleryTile';
+import { ResourceEmptyActions } from './ResourceEmptyActions';
 
-export function ResourceGallery({ items, theme, canManage, loading, loadingMore, refreshing, error, emptyLabel, header, onPressItem, onToggleFavorite, onRetry, onRefresh, onLoadMore }) {
+export function ResourceGallery({ items, theme, canManage, loading, loadingMore, refreshing, error, emptyLabel, header, onPressItem, onToggleFavorite, onRetry, onRefresh, onLoadMore, emptyPrimaryLabel, onEmptyPrimary, emptySecondaryLabel, onEmptySecondary }) {
   const { width } = useWindowDimensions();
   const columns = width >= tokens.layout.wideScreenMinWidth
     ? tokens.layout.resourceGridWideColumns
@@ -20,7 +21,12 @@ export function ResourceGallery({ items, theme, canManage, loading, loadingMore,
       <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text>
       <AppButton label={t('resource_025')} onPress={onRetry} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
     </View>
-  ) : <Text style={[styles.feedback, { color: theme.textSecondary }]}>{emptyLabel}</Text>;
+  ) : (
+    <View style={styles.state}>
+      <Text style={[styles.feedback, { color: theme.textSecondary }]}>{emptyLabel}</Text>
+      {emptyPrimaryLabel && emptySecondaryLabel ? <ResourceEmptyActions theme={theme} primaryLabel={emptyPrimaryLabel} onPrimary={onEmptyPrimary} secondaryLabel={emptySecondaryLabel} onSecondary={onEmptySecondary} disabled={!canManage} /> : null}
+    </View>
+  );
 
   return (
     <FlatList

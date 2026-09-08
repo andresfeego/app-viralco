@@ -15,6 +15,7 @@ export function ResourceFilters({ theme, tab, onTabChange, search, onSearchChang
     { label: t('resource_007'), value: 'template' },
     { label: t('resource_009'), value: 'animation' },
     { label: t('resource_011'), value: 'font' },
+    { label: t('print_001'), value: 'print_profile' },
   ];
   const eventTypeOptions = [{ label: t('resource_006'), value: '' }, ...eventTypes.map((item) => ({ label: item.name, value: item.slug }))];
   const motionOptions = [

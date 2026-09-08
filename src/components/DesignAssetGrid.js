@@ -3,10 +3,11 @@ import { StyleSheet, Text, View } from 'react-native';
 import { AppButton } from '../design-system/components/AppButton';
 import { tokens } from '../design-system/tokens';
 import { ResourceGalleryTile } from './ResourceGalleryTile';
+import { ResourceEmptyActions } from './ResourceEmptyActions';
 
 const COLUMNS = 3;
 
-export function DesignAssetGrid({ label, items = [], selectedItems = [], theme, disabled = false, emptyLabel = '', emptyActionLabel = '', onEmptyAction, onSelect, onRemove }) {
+export function DesignAssetGrid({ label, items = [], selectedItems = [], theme, disabled = false, emptyLabel = '', emptyActionLabel = '', secondaryEmptyActionLabel = '', onEmptyAction, onSecondaryEmptyAction, onSelect, onRemove }) {
   const [width, setWidth] = useState(tokens.spacing.xl * COLUMNS);
   const selectedIds = useMemo(() => new Set(selectedItems.map((item) => String(item.libraryAssetId))), [selectedItems]);
   const ordered = useMemo(() => {
@@ -27,7 +28,9 @@ export function DesignAssetGrid({ label, items = [], selectedItems = [], theme, 
         {ordered.map((item) => <ResourceGalleryTile key={String(item.libraryAssetId)} item={item} tileSize={tileSize} theme={theme} canManage={false} selected={selectedIds.has(String(item.libraryAssetId))} showFavoriteAction={false} disabled={disabled} onPress={onSelect} onRemove={disabled ? undefined : onRemove} />)}
       </View> : <View style={styles.emptyState}>
         <Text style={[styles.empty, { color: theme.textSecondary }]}>{emptyLabel}</Text>
-        {onEmptyAction && emptyActionLabel ? <AppButton label={emptyActionLabel} onPress={onEmptyAction} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.primary} style={styles.emptyAction} /> : null}
+        {onEmptyAction && emptyActionLabel && onSecondaryEmptyAction && secondaryEmptyActionLabel
+          ? <ResourceEmptyActions theme={theme} primaryLabel={emptyActionLabel} onPrimary={onEmptyAction} secondaryLabel={secondaryEmptyActionLabel} onSecondary={onSecondaryEmptyAction} disabled={disabled} />
+          : onEmptyAction && emptyActionLabel ? <AppButton label={emptyActionLabel} onPress={onEmptyAction} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.primary} style={styles.emptyAction} /> : null}
       </View>}
     </View>
   );

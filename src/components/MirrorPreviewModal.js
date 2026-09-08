@@ -6,6 +6,7 @@ import { tokens } from '../design-system/tokens';
 import { formatDefinition } from '../domain/magicMirrorConfig';
 import { t } from '../i18n';
 import { IconTextButton } from './IconTextButton';
+import { MirrorConfigurationSummary } from './MirrorConfigurationSummary';
 import { MirrorConfigPreview } from './MirrorConfigPreview';
 
 function DetailRow({ label, value, theme }) {
@@ -17,7 +18,7 @@ function DetailRow({ label, value, theme }) {
   );
 }
 
-export function MirrorPreviewModal({ visible, config, theme, resourcesById = {}, onClose }) {
+export function MirrorPreviewModal({ visible, config, theme, resourcesById = {}, issues = [], onNavigate, onClose }) {
   const insets = useSafeAreaInsets();
   const format = formatDefinition(config.layout.format);
   const output = config.layout.output;
@@ -45,6 +46,7 @@ export function MirrorPreviewModal({ visible, config, theme, resourcesById = {},
               <DetailRow label={t('mirror_120')} value={String(config.layout.shotCount)} theme={theme} />
             </View>
           </SurfaceCard>
+          <MirrorConfigurationSummary config={config} issues={issues} resourcesById={resourcesById} theme={theme} onNavigate={onNavigate} />
         </ScrollView>
       </SafeAreaView>
     </Modal>

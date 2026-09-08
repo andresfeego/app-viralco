@@ -11,6 +11,9 @@
 		5514EB02A9B2D49DF76A36DC /* libPods-kaptura.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4DB21B21B671CB59C6B4E1EB /* libPods-kaptura.a */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		A10F0002B20C000000000002 /* RCTNativeKapturaFontLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = A10F0001B20C000000000001 /* RCTNativeKapturaFontLoader.mm */; };
+		A10F0004B20C000000000004 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10F0003B20C000000000003 /* CoreText.framework */; };
+		A10F0007B20C000000000007 /* RCTNativeKapturaPrinter.mm in Sources */ = {isa = PBXBuildFile; fileRef = A10F0006B20C000000000006 /* RCTNativeKapturaPrinter.mm */; };
 		DF430343339BF5BF9EE69B64 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
@@ -23,6 +26,11 @@
 		4DB21B21B671CB59C6B4E1EB /* libPods-kaptura.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-kaptura.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = kaptura/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = kaptura/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		A10F0001B20C000000000001 /* RCTNativeKapturaFontLoader.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = RCTNativeKapturaFontLoader.mm; path = kaptura/RCTNativeKapturaFontLoader.mm; sourceTree = "<group>"; };
+		A10F0003B20C000000000003 /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
+		A10F0005B20C000000000005 /* RCTNativeKapturaFontLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = RCTNativeKapturaFontLoader.h; path = kaptura/RCTNativeKapturaFontLoader.h; sourceTree = "<group>"; };
+		A10F0006B20C000000000006 /* RCTNativeKapturaPrinter.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = RCTNativeKapturaPrinter.mm; path = kaptura/RCTNativeKapturaPrinter.mm; sourceTree = "<group>"; };
+		A10F0008B20C000000000008 /* RCTNativeKapturaPrinter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = RCTNativeKapturaPrinter.h; path = kaptura/RCTNativeKapturaPrinter.h; sourceTree = "<group>"; };
 		E57E639F13EB2D8CE468375F /* Pods-kaptura.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-kaptura.debug.xcconfig"; path = "Target Support Files/Pods-kaptura/Pods-kaptura.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -32,6 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10F0004B20C000000000004 /* CoreText.framework in Frameworks */,
 				5514EB02A9B2D49DF76A36DC /* libPods-kaptura.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -44,6 +53,10 @@
 			children = (
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
+				A10F0005B20C000000000005 /* RCTNativeKapturaFontLoader.h */,
+				A10F0001B20C000000000001 /* RCTNativeKapturaFontLoader.mm */,
+				A10F0008B20C000000000008 /* RCTNativeKapturaPrinter.h */,
+				A10F0006B20C000000000006 /* RCTNativeKapturaPrinter.mm */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
@@ -54,6 +67,7 @@
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A10F0003B20C000000000003 /* CoreText.framework */,
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				4DB21B21B671CB59C6B4E1EB /* libPods-kaptura.a */,
 			);
@@ -256,6 +270,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				A10F0002B20C000000000002 /* RCTNativeKapturaFontLoader.mm in Sources */,
+				A10F0007B20C000000000007 /* RCTNativeKapturaPrinter.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

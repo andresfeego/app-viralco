@@ -3,6 +3,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { tokens } from '../design-system/tokens';
 import { t } from '../i18n';
 import { MirrorCanvasSurface } from './MirrorCanvasSurface';
+import { RuntimeFontText } from './RuntimeFontText';
 
 export function mirrorResourceUrl(resource) {
   const asset = resource?.asset || {};
@@ -50,8 +51,8 @@ function CanvasContent({ config, theme, resourcesById, compact = false, renderSl
         const stickerUrl = mirrorResourceUrl(resourcesById[String(layer.resourceId || '')]);
         return stickerUrl ? <Image pointerEvents="none" key={layer.id} source={{ uri: stickerUrl }} resizeMode="contain" style={[styles.stickerLayer, { left: `${layer.x}%`, top: `${layer.y}%`, width: `${layer.width}%`, height: `${layer.height}%`, transform: [{ rotate: `${Number(layer.rotation || 0)}deg` }] }]} /> : null;
       })}
-      {(config.layout.textLayers || []).filter((layer) => layer.text).map((layer) => (
-        <Text pointerEvents="none" key={layer.id} numberOfLines={2} style={[styles.textLayer, { color: layer.color, left: `${layer.x}%`, top: `${layer.y}%`, width: `${layer.width}%`, fontSize: compact ? tokens.typography.caption : layer.size }]}>{layer.text}</Text>
+      {(config.layout.textLayers || []).filter((layer) => layer.text).slice().sort((left, right) => Number(left.order || 0) - Number(right.order || 0)).map((layer) => (
+        <RuntimeFontText pointerEvents="none" key={layer.id} layer={layer} resource={resourcesById[String(layer.fontResourceId || '')]} numberOfLines={2} style={[styles.textLayer, { color: layer.color, left: `${layer.x}%`, top: `${layer.y}%`, width: `${layer.width}%`, fontSize: compact ? tokens.typography.caption : layer.size, transform: [{ rotate: `${Number(layer.rotation || 0)}deg` }] }]}>{layer.text}</RuntimeFontText>
       ))}
     </View>
   );
