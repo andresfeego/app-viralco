@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
@@ -51,7 +51,7 @@ jest.mock('../src/services/media/imagePicker', () => ({
 import { useAuth } from '../src/hooks/useAuth';
 import { useToast } from '../src/providers/ToastProvider';
 import { listAccountsApi } from '../src/services/api/accounts';
-import { createEventApi, deleteEventApi, getEventDetailApi, getPublishedMagicMirrorConfigApi, listEventModesApi, listEventsApi, listEventTypesApi } from '../src/services/api/events';
+import { createEventApi, deleteEventApi, getEventDetailApi, getPublishedMagicMirrorConfigApi, listEventModesApi, listEventsApi, listEventTypesApi, updateEventApi } from '../src/services/api/events';
 import { EventListCard } from '../src/components/EventListCard';
 import { EventModeRow } from '../src/components/EventModeRow';
 import { AccountRequiredEmptyState } from '../src/components/AccountRequiredEmptyState';
@@ -70,6 +70,7 @@ const mockedGetPublishedMirrorConfig = getPublishedMagicMirrorConfigApi as jest.
 const mockedListEvents = listEventsApi as jest.Mock;
 const mockedListEventTypes = listEventTypesApi as jest.Mock;
 const mockedListModes = listEventModesApi as jest.Mock;
+const mockedUpdateEvent = updateEventApi as jest.Mock;
 
 function hasText(root: ReactTestRenderer.ReactTestInstance, text: string) {
   return root.findAll((node) => node.children.includes(text)).length > 0;
@@ -249,6 +250,34 @@ test('enables launch only for an active mode with a published configuration and 
   expect(modeRow.props.canLaunch).toBe(true);
   ReactTestRenderer.act(() => modeRow.props.onLaunch());
   expect(onLaunchMirror).toHaveBeenCalledWith(expect.objectContaining({ eventMode: expect.objectContaining({ id: '30' }) }));
+});
+
+test('confirms and activates a draft event from its information card', async () => {
+  const draftEvent = { id: '10', accountId: '1', name: 'Evento borrador', status: 'draft', modes: [{ id: '30', isActive: true, mode: { slug: 'espejo', name: 'Espejo' } }] };
+  const activeEvent = { ...draftEvent, status: 'active' };
+  mockedListAccounts.mockResolvedValue({ accounts: [{ id: '1', name: 'Cuenta Uno', slug: 'cuenta-uno' }] });
+  mockedListEvents.mockResolvedValue({ events: [draftEvent] });
+  mockedGetEventDetail.mockResolvedValue({ event: draftEvent });
+  mockedUpdateEvent.mockResolvedValue({ event: activeEvent });
+  const showToast = jest.fn();
+  mockedUseToast.mockReturnValue({ showToast, hideToast: jest.fn() });
+  let confirmAction: undefined | (() => void | Promise<void>);
+  jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
+    confirmAction = buttons?.[1]?.onPress;
+  });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<EventsScreen allowedSections={['list', 'detail']} onLaunchMirror={jest.fn()} />);
+  });
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(EventListCard).props.onPress());
+  await ReactTestRenderer.act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-activate' }).props.onPress());
+  expect(Alert.alert).toHaveBeenCalledWith('Activar evento', expect.any(String), expect.any(Array));
+  await ReactTestRenderer.act(async () => { await confirmAction?.(); });
+
+  expect(mockedUpdateEvent).toHaveBeenCalledWith('10', { status: 'active' });
+  expect(showToast).toHaveBeenCalledWith({ message: 'Evento activado', type: 'success' });
 });
 
 test('groups mode rows without card gaps and omits the final divider', async () => {

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Menu } from 'react-native-paper';
 import { AppButton } from '../design-system/components/AppButton';
@@ -146,6 +146,7 @@ export function EventsScreen({
   const [library, setLibrary] = useState([]);
   const [resources, setResources] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [activatingEvent, setActivatingEvent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
@@ -434,6 +435,36 @@ export function EventsScreen({
       setError(message);
       showToast({ message, type: 'error' });
     } finally { setSaving(false); }
+  };
+
+  const activateSelectedEvent = async () => {
+    if (!selectedEventId || !canEdit || activatingEvent) return;
+    setActivatingEvent(true);
+    clearMessages();
+    try {
+      const payload = await updateEventApi(selectedEventId, { status: 'active' });
+      const activated = normalizeEvent(payload?.event || payload);
+      if (activated) {
+        setSelectedEvent(activated);
+        setEventForm((current) => ({ ...current, status: activated.status }));
+      }
+      await Promise.all([loadEventDetail(selectedEventId), loadEvents()]);
+      setOk(t('event_140'));
+      showToast({ message: t('event_140'), type: 'success' });
+    } catch (err) {
+      const message = userErrorMessage(err, t('event_141'));
+      setError(message);
+      showToast({ message, type: 'error' });
+    } finally {
+      setActivatingEvent(false);
+    }
+  };
+
+  const confirmActivateSelectedEvent = () => {
+    Alert.alert(t('event_138'), t('event_139'), [
+      { text: t('common_cancel'), style: 'cancel' },
+      { text: t('event_138'), onPress: activateSelectedEvent },
+    ]);
   };
 
   const onSaveEventModes = async () => {
@@ -781,11 +812,14 @@ export function EventsScreen({
               identifier: t('event_133'),
               description: t('event_134'),
               edit: t('event_117'),
+              activate: t('event_138'),
             }}
             statusLabel={statusLabel}
             statusFlag={statusFlag}
             canEdit={canEdit}
             onEdit={() => setEditEventVisible(true)}
+            onActivate={confirmActivateSelectedEvent}
+            activating={activatingEvent}
           />
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
               <View style={styles.cardHeaderCluster}>

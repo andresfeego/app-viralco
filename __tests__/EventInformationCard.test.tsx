@@ -16,6 +16,7 @@ const labels = {
   identifier: 'Identificador',
   description: 'Descripción',
   edit: 'Editar datos',
+  activate: 'Activar evento',
 };
 
 test.each(['light', 'dark'] as const)('presents event information semantically in %s mode', (mode) => {
@@ -53,4 +54,27 @@ test.each(['light', 'dark'] as const)('presents event information semantically i
   expect(renderer!.root.findByType(StatusBadge).props).toEqual(expect.objectContaining({ label: 'Activo', flag: 'success' }));
   ReactTestRenderer.act(() => renderer!.root.findByType(IconTextButton).props.onPress());
   expect(onEdit).toHaveBeenCalledTimes(1);
+});
+
+test('offers activation only for editable draft events', () => {
+  const onActivate = jest.fn();
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <EventInformationCard
+        theme={getTheme('dark')}
+        event={{ status: 'draft', eventType: { name: 'Boda' }, slug: 'boda-demo' }}
+        title="Datos del evento"
+        labels={labels}
+        statusLabel="Borrador"
+        statusFlag="warn"
+        canEdit
+        onEdit={jest.fn()}
+        onActivate={onActivate}
+      />,
+    );
+  });
+
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-activate' }).props.onPress());
+  expect(onActivate).toHaveBeenCalledTimes(1);
 });

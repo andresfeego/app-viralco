@@ -29,6 +29,8 @@ export function EventInformationCard({
   statusFlag = 'warn',
   canEdit = false,
   onEdit = null,
+  onActivate = null,
+  activating = false,
 }) {
   const rows = [
     { key: 'type', icon: 'shapes', label: labels.type, value: event?.eventType?.name },
@@ -63,7 +65,26 @@ export function EventInformationCard({
             value={row.value}
             last={index === rows.length - 1}
           >
-            {row.status ? <StatusBadge label={statusLabel} flag={statusFlag} compact /> : null}
+            {row.status ? (
+              <View style={styles.statusCluster}>
+                <StatusBadge label={statusLabel} flag={statusFlag} compact />
+                {event?.status === 'draft' && canEdit && onActivate ? (
+                  <IconTextButton
+                    theme={theme}
+                    label={labels.activate}
+                    icon="circle-check"
+                    variant="filled"
+                    backgroundColor={tokens.colors.success[500]}
+                    pressedBackgroundColor={tokens.colors.success[600]}
+                    borderColor={tokens.colors.success[500]}
+                    iconColor={theme.buttonText}
+                    disabled={activating}
+                    onPress={onActivate}
+                    testID="event-activate"
+                  />
+                ) : null}
+              </View>
+            ) : null}
           </InformationRow>
         ))}
       </View>
@@ -104,6 +125,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: tokens.spacing.none,
     gap: tokens.spacing.xxs,
+  },
+  statusCluster: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: tokens.spacing.sm,
   },
   label: {
     fontSize: tokens.typography.caption,
