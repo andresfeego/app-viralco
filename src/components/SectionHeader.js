@@ -1,12 +1,33 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StatusBar, StyleSheet, Text, View } from 'react-native';
 import Icon from '@react-native-vector-icons/fontawesome6';
+import LinearGradient from 'react-native-linear-gradient';
 import { tokens } from '../design-system/tokens';
 import { IconTextButton } from './IconTextButton';
 
-export function SectionHeader({ title, subtitle = '', iconName, theme, onBack = null, backLabel = 'Volver' }) {
+export function SectionHeader({ title, subtitle = '', iconName, theme, onBack = null, backLabel = 'Volver', gradient = theme.headerGradient, topInset = 0, startAccessory = null, endAccessory = null, statusBarStyle = 'light-content' }) {
   return (
-    <View style={[styles.wrap, { borderBottomColor: theme.primary, backgroundColor: theme.primary }]}>
+    <View testID="section-header" style={[styles.wrap, {
+      borderBottomColor: theme.primary,
+      backgroundColor: theme.primary,
+      minHeight: headerMinHeight + topInset,
+      paddingTop: tokens.spacing.xs + topInset,
+    }]}>
+      {gradient ? <StatusBar barStyle={statusBarStyle} /> : null}
+      {gradient ? (
+        <LinearGradient
+          pointerEvents="none"
+          colors={[...gradient.colors]}
+          start={gradient.start}
+          end={gradient.end}
+          locations={gradient.locations ? [...gradient.locations] : undefined}
+          useAngle={typeof gradient.angle === 'number'}
+          angle={gradient.angle}
+          angleCenter={gradient.angleCenter}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
+      {startAccessory}
       <View testID="section-header-content" style={styles.leftCol}>
         {onBack ? (
           <IconTextButton
@@ -29,16 +50,16 @@ export function SectionHeader({ title, subtitle = '', iconName, theme, onBack = 
           </Text>
         ) : null}
       </View>
-      <View style={styles.iconWrap}>
-        <Icon name={iconName} iconStyle="solid" size={tokens.typography.heading} color={theme.buttonText} />
-      </View>
+      {endAccessory || iconName ? <View style={styles.iconWrap}>
+        {endAccessory || <Icon name={iconName} iconStyle="solid" size={tokens.typography.heading} color={theme.buttonText} />}
+      </View> : null}
     </View>
   );
 }
 
+const headerMinHeight = tokens.spacing.xl * 2 + tokens.typography.caption;
 const styles = StyleSheet.create({
   wrap: {
-    minHeight: tokens.spacing.xl * 2 + tokens.typography.caption,
     borderBottomWidth: tokens.border.thin,
     paddingHorizontal: tokens.spacing.md,
     paddingVertical: tokens.spacing.xs,

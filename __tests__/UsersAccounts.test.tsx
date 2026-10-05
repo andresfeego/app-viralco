@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, StyleSheet, TextInput } from 'react-native';
+import { Modal, StyleSheet, TextInput, ScrollView } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
@@ -22,7 +22,7 @@ jest.mock('../src/hooks/useAuth', () => ({ useAuth: jest.fn() }));
 jest.mock('../src/providers/ToastProvider', () => ({ ToastViewport: () => null, useToast: () => ({ showToast: jest.fn(), hideToast: jest.fn() }) }));
 jest.mock('../src/services/media/imagePicker', () => ({ pickLogoImage: jest.fn() }));
 jest.mock('../src/services/api/admin', () => ({ createAccountApi: jest.fn() }));
-jest.mock('../src/services/api/events', () => ({ listEventModesApi: jest.fn() }));
+jest.mock('../src/services/api/billing', () => ({ billingRequest: jest.fn() }));
 jest.mock('../src/services/api/accounts', () => ({
   addAccountMemberApi: jest.fn(),
   createAccountApi: jest.fn(),
@@ -39,6 +39,8 @@ jest.mock('../src/services/api/accounts', () => ({
 import { useAuth } from '../src/hooks/useAuth';
 import { AccountDetailScreen } from '../src/screens/AccountDetailScreen';
 import { AccountsScreen } from '../src/screens/AccountsScreen';
+import { IconTextButton } from '../src/components/IconTextButton';
+import { AccountInformationCards } from '../src/components/AccountInformationCards';
 import { RegisterScreen } from '../src/screens/RegisterScreen';
 import {
   addAccountMemberApi,
@@ -52,7 +54,7 @@ import {
   updateAccountMemberApi,
 } from '../src/services/api/accounts';
 import { pickLogoImage } from '../src/services/media/imagePicker';
-import { listEventModesApi } from '../src/services/api/events';
+import { billingRequest } from '../src/services/api/billing';
 
 const mockedUseAuth = useAuth as jest.Mock;
 const mockedListAccounts = listAccountsApi as jest.Mock;
@@ -65,18 +67,74 @@ const mockedDeleteAccount = deleteAccountApi as jest.Mock;
 const mockedUpdateAccount = updateAccountApi as jest.Mock;
 const mockedUpdateMember = updateAccountMemberApi as jest.Mock;
 const mockedPickLogoImage = pickLogoImage as jest.Mock;
-const mockedListEventModes = listEventModesApi as jest.Mock;
+const mockedListEventModes = billingRequest as jest.Mock;
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockedDeleteAccount.mockResolvedValue({ deleted: true, archived: false, accountId: '10' });
   mockedListEventModes.mockResolvedValue({
-    modes: [
-      { id: '1', slug: 'espejo', name: 'Espejo', description: 'Experiencia tipo espejo', priceAmount: 50, priceCurrency: 'USD', isDefault: true },
-      { id: '2', slug: 'cabina', name: 'Cabina', description: 'Experiencia tipo cabina', priceAmount: 60, priceCurrency: 'USD', isDefault: false },
-      { id: '3', slug: 'video-360', name: 'Video 360', description: 'Video 360', priceAmount: 80, priceCurrency: 'USD', isDefault: false },
+    catalog: [
+      { modeId: '1', slug: 'espejo', name: 'Espejo', description: 'Experiencia tipo espejo', available: true, implemented: true, prices: { 30: 50000, 365: 500000 } },
+      { modeId: '2', slug: 'cabina', name: 'Cabina', available: false, implemented: true, prices: { 30: 60000, 365: 600000 } },
+      { modeId: '3', slug: 'video-360', name: 'Video 360', available: false, implemented: true, prices: { 30: null, 365: null } },
     ],
   });
+});
+
+test.each(['light', 'dark'])('account details refresh data and members without hiding the current account in %s', async themeMode => {
+  mockedUseAuth.mockReturnValue({ user: { themeMode, globalRoles: [], accounts: [{ account: { id: '10' }, role: { slug: 'owner' }, status: 'active' }] }, reloadMe: jest.fn() });
+  mockedGetAccount.mockResolvedValue({ account: { id: '10', name: 'ViralCo', status: 'active' } });
+  mockedGetMembers.mockResolvedValue({ members: [] });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<AccountDetailScreen accountId="10" />); });
+  const scroll = () => renderer!.root.findAllByType(ScrollView).find(node => node.props.testID === 'account-detail-scroll')!;
+  expect(scroll().props.alwaysBounceVertical).toBe(true);
+  expect(renderer!.root.findByType(AccountInformationCards).props.canManageBilling).toBe(true);
+  mockedGetAccount.mockResolvedValue({ account: { id: '10', name: 'Nombre actualizado', status: 'active' } });
+  await ReactTestRenderer.act(async () => scroll().props.refreshControl.props.onRefresh());
+  expect(mockedGetAccount).toHaveBeenCalledTimes(2);
+  expect(mockedGetMembers).toHaveBeenCalledTimes(2);
+  expect(renderer!.root.findByType(AccountInformationCards).props.account.name).toBe('Nombre actualizado');
+  expect(scroll().props.refreshControl.props.refreshing).toBe(false);
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'account-detail-edit-open' }).props.onPress());
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'account-edit-name-input' }).props.onChangeText('Borrador sin guardar'));
+  await ReactTestRenderer.act(async () => scroll().props.refreshControl.props.onRefresh());
+  expect(mockedGetAccount).toHaveBeenCalledTimes(2);
+  expect(renderer!.root.findByProps({ testID: 'account-edit-name-input' }).props.value).toBe('Borrador sin guardar');
+  await ReactTestRenderer.act(async () => renderer!.unmount());
+});
+
+test.each(['light', 'dark'])('account creation uses only available commercial modes and COP prices in %s', async themeMode => {
+  mockedUseAuth.mockReturnValue({ user: { themeMode, globalRoles: [] }, reloadMe: jest.fn() });
+  mockedListAccounts.mockResolvedValue({ accounts: [] });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<AccountsScreen openCreateOnMount />); });
+  const createButtons = renderer!.root.findAllByType(IconTextButton).filter(button => ['account-create-open', 'account-empty-create-open'].includes(button.props.testID));
+  expect(createButtons).toHaveLength(2);
+  createButtons.forEach(button => expect(button.props).toMatchObject({ icon: 'plus', label: 'Crear nueva cuenta' }));
+  expect(StyleSheet.flatten(createButtons[0].props.style).alignSelf).toBe('flex-end');
+  expect(mockedListEventModes).toHaveBeenCalledWith('/catalog');
+  expect(renderer!.root.findAllByProps({ testID: 'account-mode-espejo' }).length).toBeGreaterThan(0);
+  expect(renderer!.root.findAllByProps({ testID: 'account-mode-cabina' })).toHaveLength(0);
+  expect(JSON.stringify(renderer!.toJSON())).toContain('50.000');
+  expect(JSON.stringify(renderer!.toJSON())).not.toContain('500.000');
+  await ReactTestRenderer.act(async () => { renderer!.root.findByProps({ testID: 'billing-period-switch' }).props.onValueChange(true); });
+  expect(JSON.stringify(renderer!.toJSON())).toContain('500.000');
+  await ReactTestRenderer.act(async () => { renderer!.unmount(); });
+});
+
+test('an unavailable catalog blocks creation and is refreshed when reopening', async () => {
+  mockedUseAuth.mockReturnValue({ user: { themeMode: 'dark', globalRoles: [] }, reloadMe: jest.fn() });
+  mockedListAccounts.mockResolvedValue({ accounts: [] });
+  mockedListEventModes.mockResolvedValueOnce({ catalog: [] });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<AccountsScreen openCreateOnMount />); });
+  expect(renderer!.root.findByProps({ testID: 'account-create-save' }).props.disabled).toBe(true);
+  await ReactTestRenderer.act(async () => { renderer!.root.findByType(Modal).props.onRequestClose(); });
+  await ReactTestRenderer.act(async () => { renderer!.root.findByProps({ testID: 'account-create-open' }).props.onPress(); });
+  expect(mockedListEventModes).toHaveBeenCalledTimes(2);
+  expect(renderer!.root.findByProps({ testID: 'account-create-save' }).props.disabled).toBe(false);
+  await ReactTestRenderer.act(async () => { renderer!.unmount(); });
 });
 
 test('registration sends name and optional phone with credentials', async () => {
@@ -142,7 +200,7 @@ test('account creation blocks invalid required fields before api call', async ()
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'account-empty-create-open' }).props.onPress();
   });
-  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'account-create-modal-card' }).props.style).flex).toBe(1);
+  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'account-create-modal-card' }).props.style)).toMatchObject({ flex: 1, flexShrink: 1, maxHeight: '100%' });
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'account-create-email-input' }).props.onChangeText('correo-invalido');
   });
@@ -204,6 +262,7 @@ test('account creation sends contracted service modes instead of a plan slug', a
     renderer!.root.findByProps({ testID: 'account-empty-create-open' }).props.onPress();
   });
   await ReactTestRenderer.act(async () => {
+    renderer!.root.findByProps({ testID: 'billing-period-switch' }).props.onValueChange(true);
     renderer!.root.findByProps({ testID: 'account-create-name-input' }).props.onChangeText('ViralCo');
     renderer!.root.findByProps({ testID: 'account-create-slug-input' }).props.onChangeText('viralco');
   });
@@ -215,6 +274,7 @@ test('account creation sends contracted service modes instead of a plan slug', a
     name: 'ViralCo',
     slug: 'viralco',
     modeSlugs: ['espejo'],
+    durationDays: 365,
   }));
   expect(mockedCreateAccount.mock.calls[0][0].planSlug).toBeUndefined();
 });
@@ -264,7 +324,7 @@ test('account detail adds an existing user as member', async () => {
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'account-add-member-open' }).props.onPress();
   });
-  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'account-member-modal-card' }).props.style).flex).toBe(1);
+  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'account-member-modal-card' }).props.style)).toMatchObject({ flex: 1, flexShrink: 1, maxHeight: '100%' });
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'account-add-member-user-input' }).props.onChangeText('77');
   });
@@ -313,7 +373,8 @@ test('account detail edits account business data', async () => {
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'account-detail-edit-open' }).props.onPress();
   });
-  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'account-edit-modal-card' }).props.style).flex).toBe(1);
+  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'account-edit-modal-card' }).props.style)).toMatchObject({ flex: 1, flexShrink: 1, maxHeight: '100%' });
+  expect(renderer!.root.findAllByProps({ testID: 'account-edit-modal-safe-area' }).find(node => node.props.topSpacing !== undefined)?.props.topSpacing).toBe(8);
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'account-edit-name-input' }).props.onChangeText('ViralCo Pro');
   });

@@ -16,7 +16,7 @@ import { t } from '../i18n';
 import { listAccountsApi } from '../services/api/accounts';
 import { createAccountPrintProfileApi, listAccountLibraryApi, listEventTypesApi, updateAccountLibraryFavoriteApi, uploadAccountLibraryFileApi } from '../services/api/events';
 import { userErrorMessage } from '../services/errorHandling';
-import { pickLibraryResourceFile } from '../services/media/documentPicker';
+import { pickResourceFromDevice } from '../services/media/resourcePicker';
 import { detectPrinter, detectedPrinterProfileInput } from '../services/printers';
 
 const INITIAL_FILTERS = { tab: 'favorites', search: '', type: '', eventType: '', motion: '' };
@@ -67,6 +67,8 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
   const [uploadVisible, setUploadVisible] = useState(false);
   const [uploadPurpose, setUploadPurpose] = useState('background');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const uploadInFlight = useRef(false);
   const favoriteSavingIds = useRef(new Set());
   const requestSequence = useRef(0);
 
@@ -175,8 +177,10 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
     loadLibrary({ page: pagination.page + 1, append: true });
   };
 
-  const uploadFromDevice = async (purpose) => {
-    if (!canManage || !purpose) return;
+  const uploadFromDevice = async (purpose, source = 'files') => {
+    if (!canManage || !purpose || uploadInFlight.current) return;
+    uploadInFlight.current = true;
+    setUploadBusy(true);
     try {
       if (purpose === 'print_profile') {
         const binding = await detectPrinter(accountId);
@@ -193,7 +197,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
         showToast({ message: t('print_023'), type: 'success' });
         return;
       }
-      const file = await pickLibraryResourceFile();
+      const file = await pickResourceFromDevice(purpose, source);
       if (!file) return;
       const maxBytes = String(file.type || '').startsWith('video/') ? MAX_VIDEO_UPLOAD_BYTES : MAX_STANDARD_UPLOAD_BYTES;
       if (!file.fileSize || file.fileSize > maxBytes) throw new Error(t('resource_043'));
@@ -207,6 +211,9 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
     } catch (uploadError) {
       setUploadProgress(0);
       showToast({ message: userErrorMessage(uploadError, purpose === 'print_profile' ? t('print_024') : t('resource_033')), type: 'error' });
+    } finally {
+      uploadInFlight.current = false;
+      setUploadBusy(false);
     }
   };
 
@@ -215,6 +222,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
     <View style={styles.header}>
       <ResourceFilters
         theme={theme}
+        chipVariant="outlined"
         tab={filters.tab}
         onTabChange={(tab) => setFilters((current) => ({ ...current, tab }))}
         search={filters.search}
@@ -226,7 +234,6 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
         onEventTypeChange={(eventType) => setFilters((current) => ({ ...current, eventType }))}
         motion={filters.motion}
         onMotionChange={(motion) => setFilters((current) => ({ ...current, motion }))}
-        horizontalTypes
         showTabs={false}
       />
     </View>
@@ -257,12 +264,10 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
         onSelect={(tab) => setFilters((current) => ({ ...current, tab }))}
         items={[{ key: 'favorites', label: t('resource_002') }, { key: 'pool', label: t('resource_045') }]}
       />
-      <View style={styles.accountTools}>
-        <View style={styles.accountSelector}>
-          <CompactAccountSelector accounts={accounts} value={accountId} onChange={changeAccount} theme={theme} roleLabel={isSuperAdmin ? 'super_admin' : accountRole(user, accountId)} />
-        </View>
-        {canManage ? <IconTextButton testID="resource-upload-open" theme={theme} icon="plus" accessibilityLabel={t('resource_060')} backgroundColor={theme.buttonBg} pressedBackgroundColor={theme.buttonBgPressed} iconColor={theme.buttonText} onPress={() => setUploadVisible(true)} style={styles.uploadButton} /> : null}
-      </View>
+      <CompactAccountSelector accounts={accounts} value={accountId} onChange={changeAccount} theme={theme} roleLabel={isSuperAdmin ? 'super_admin' : accountRole(user, accountId)} />
+      {canManage ? <View style={styles.accountTools}>
+        <IconTextButton testID="resource-upload-open" theme={theme} icon="plus" label={t('resource_058')} onPress={() => setUploadVisible(true)} />
+      </View> : null}
       <ResourceGallery
         items={items}
         theme={theme}
@@ -283,8 +288,8 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
         emptySecondaryLabel={t('resource_060')}
         onEmptySecondary={() => setUploadVisible(true)}
       />
-      <ResourcePreviewModal item={previewItem} theme={theme} canManage={canManage} onClose={() => setPreviewItem(null)} onToggleFavorite={toggleFavorite} />
-      <ResourceUploadModal visible={uploadVisible} theme={theme} purpose={uploadPurpose} progress={uploadProgress} disabled={Boolean(uploadProgress)} onPurposeChange={setUploadPurpose} onUpload={uploadFromDevice} onClose={() => { if (!uploadProgress) setUploadVisible(false); }} />
+      <ResourcePreviewModal item={previewItem} theme={theme} canManage={canManage} isSuperAdmin={isSuperAdmin} onGuideSaved={guide => { setPreviewItem(value => ({ ...value, asset: { ...value.asset, metadata: { ...value.asset.metadata, printGuide: guide } } })); loadLibrary({ refresh: true }); }} onClose={() => setPreviewItem(null)} onToggleFavorite={toggleFavorite} />
+      <ResourceUploadModal visible={uploadVisible} theme={theme} purpose={uploadPurpose} progress={uploadProgress} disabled={uploadBusy} onPurposeChange={setUploadPurpose} onUpload={uploadFromDevice} onClose={() => { if (!uploadInFlight.current) setUploadVisible(false); }} />
     </View>
   );
 }
@@ -293,8 +298,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: { padding: tokens.spacing.md, gap: tokens.spacing.md },
-  accountTools: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs, paddingRight: tokens.spacing.md },
-  accountSelector: { flex: 1, minWidth: 0 },
-  uploadButton: { flexShrink: 0 },
+  accountTools: { alignItems: 'flex-end', paddingHorizontal: tokens.spacing.md, paddingTop: tokens.spacing.md },
   feedback: { fontSize: tokens.typography.caption, fontWeight: '700' },
 });

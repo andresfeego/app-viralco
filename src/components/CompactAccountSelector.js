@@ -46,7 +46,7 @@ export function CompactAccountSelector({ accounts, value, onChange, theme, roleL
           variant="ghost"
           onPress={() => setVisible(true)}
           style={styles.changeButton}
-        />
+ />
       </View>
       <Modal visible={visible} transparent animationType="slide" onRequestClose={() => setVisible(false)}>
         <ModalSafeArea style={styles.overlay}>
@@ -77,13 +77,13 @@ export function CompactAccountSelector({ accounts, value, onChange, theme, roleL
                 );
               })}
             </ScrollView>
-            <AppButton
+            <AppButton variant="outlined" borderColor={theme.textSecondary}
               label={t('account_028')}
               onPress={() => setVisible(false)}
               backgroundColor={theme.surface}
               pressedColor={theme.background}
               textColor={theme.textPrimary}
-            />
+ />
           </View>
         </ModalSafeArea>
       </Modal>

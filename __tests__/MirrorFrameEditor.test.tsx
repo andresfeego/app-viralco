@@ -69,3 +69,23 @@ test('opens contextual frame help', () => {
   ReactTestRenderer.act(() => help.onPress());
   expect(renderer!.root.findByType(MirrorEditorHelpModal).props.visible).toBe(true);
 });
+
+test('lowering a frame crosses the photo layer and undo/redo restores the shared order', () => {
+  function Editor() {
+    const [config, setConfig] = React.useState(configured());
+    return <MirrorFrameEditor config={config} onChange={setConfig} theme={getTheme('dark')} />;
+  }
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  ReactTestRenderer.act(() => { renderer = ReactTestRenderer.create(<Editor />); });
+  const action = (key: string) => renderer!.root.findByType(MirrorEditorToolbar).props.actions.find((item: any) => item.key === key);
+  const layout = () => renderer!.root.findByType(MirrorConfigPreview).props.config.layout;
+  expect(action('lower').disabled).toBe(false);
+  ReactTestRenderer.act(() => action('lower').onPress());
+  const ordered = layout().photoFrameOrder;
+  expect(ordered[0]).toBe('frame:frame-40');
+  expect(ordered[1]).toBe('slot:slot-1');
+  ReactTestRenderer.act(() => action('undo').onPress());
+  expect(layout().photoFrameOrder).toBeUndefined();
+  ReactTestRenderer.act(() => action('redo').onPress());
+  expect(layout().photoFrameOrder).toEqual(ordered);
+});

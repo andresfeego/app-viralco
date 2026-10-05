@@ -292,6 +292,32 @@ export function moveSelectedSlotsLayer(slots, slotIds, direction) {
   return next;
 }
 
+// Back-to-front order shared only by photo slots and frames. Legacy layouts
+// retain their original appearance: all slots, then all frames.
+export function photoFrameLayers(layout) {
+  const layers = [
+    ...(layout.slots || []).map((item) => ({ kind: 'slot', item, slotId: `slot:${slotIdentity(item)}` })),
+    ...(layout.frameLayers || []).slice().sort((a, b) => Number(a.order || 0) - Number(b.order || 0)).map((item) => ({ kind: 'frame', item, slotId: `frame:${item.id}` })),
+  ];
+  const remaining = new Map(layers.map((layer) => [layer.slotId, layer]));
+  const ordered = [];
+  for (const id of Array.isArray(layout.photoFrameOrder) ? layout.photoFrameOrder : []) {
+    if (remaining.has(id)) { ordered.push(remaining.get(id)); remaining.delete(id); }
+  }
+  return [...ordered, ...remaining.values()];
+}
+
+export function movePhotoFrameLayer(config, kind, ids, direction) {
+  const layers = photoFrameLayers(config.layout);
+  const moved = moveSelectedSlotsLayer(layers, ids.map((id) => `${kind}:${id}`), direction);
+  if (moved.every((layer, index) => layer === layers[index])) return config;
+  return { ...config, layout: { ...config.layout,
+    photoFrameOrder: moved.map((layer) => layer.slotId),
+    slots: moved.filter((layer) => layer.kind === 'slot').map((layer) => layer.item),
+    frameLayers: moved.filter((layer) => layer.kind === 'frame').map((layer, order) => ({ ...layer.item, order })),
+  } };
+}
+
 export function resizeSlotsFromPointer(slots, slotIds, activeSlotId, deltaX, deltaY, canvasSize) {
   if (!canvasSize?.width || !canvasSize?.height) return slots;
   const active = slots.find((slot) => slotIdentity(slot) === String(activeSlotId));
@@ -531,6 +557,8 @@ function nextFrameLayerId(layers, resourceId) {
 export function addFrameLayer(config, resourceId) {
   const layers = config.layout.frameLayers || [];
   if (!resourceId || layers.length >= MIRROR_MAX_FRAME_LAYERS) return config;
+  const previous = layers.filter((layer) => String(layer.resourceId) === String(resourceId)).at(-1);
+  if (previous) return duplicateFrameLayer(config, previous.id);
   const layer = { id: nextFrameLayerId(layers, resourceId), resourceId: String(resourceId), x: 0, y: 0, width: 100, height: 100, rotation: 0, order: layers.length };
   return { ...config, layout: { ...config.layout, frameLayers: [...layers, layer] }, resources: { ...config.resources, frameResourceId: null } };
 }
@@ -633,6 +661,8 @@ function nextStickerLayerId(layers, resourceId) {
 export function addStickerLayer(config, resourceId) {
   const layers = config.layout.stickerLayers || [];
   if (!resourceId || layers.length >= MIRROR_MAX_STICKER_LAYERS) return config;
+  const previous = layers.filter((layer) => String(layer.resourceId) === String(resourceId)).at(-1);
+  if (previous) return duplicateStickerLayer(config, previous.id);
   const offset = (layers.length * 5) % 30;
   const layer = { id: nextStickerLayerId(layers, resourceId), resourceId: String(resourceId), x: 10 + offset, y: 10 + offset, width: 25, height: 25, rotation: 0, order: layers.length };
   return { ...config, layout: { ...config.layout, stickerLayers: [...layers, layer] } };

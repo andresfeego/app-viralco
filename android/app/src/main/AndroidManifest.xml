@@ -2,6 +2,10 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <queries>
+      <package android:name="com.whatsapp" />
+      <intent><action android:name="android.intent.action.VIEW" /><data android:mimeType="application/pdf" /></intent>
+    </queries>
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -16,6 +20,9 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
+      <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.manuals" android:exported="false" android:grantUriPermissions="true">
+        <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/manual_paths" />
+      </provider>
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

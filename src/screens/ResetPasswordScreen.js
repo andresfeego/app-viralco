@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Text } from 'react-native';
+import { AuthForm } from '../components/AuthForm';
+import { PaperFormInput } from '../components/PaperFormInput';
+import { getTheme } from '../design-system/theme';
+import { t } from '../i18n';
 import { useAuth } from '../hooks/useAuth';
 import { userErrorMessage } from '../services/errorHandling';
 
 export function ResetPasswordScreen({ onGoLogin }) {
-  const { resetPassword } = useAuth();
+  const { resetPassword, user } = useAuth();
+  const theme = getTheme(user?.themeMode || 'dark');
   const [token, setToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [message, setMessage] = useState('');
@@ -26,41 +31,15 @@ export function ResetPasswordScreen({ onGoLogin }) {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Reset password</Text>
-      <TextInput placeholder="Token" style={styles.input} value={token} onChangeText={setToken} />
-      <TextInput
-        placeholder="Nueva contrasena"
-        style={styles.input}
+    <AuthForm theme={theme} title={t('auth_reset_title')} error={error} message={message} loading={loading} submitLabel={t(loading ? 'auth_processing' : 'auth_update_password')} onSubmit={onSubmit} links={<Pressable accessibilityRole="button" onPress={onGoLogin}><Text style={{ color: theme.primary }}>{t('auth_007')}</Text></Pressable>}>
+      <PaperFormInput theme={theme} label="Token" autoCapitalize="none" value={token} onChangeText={setToken} />
+      <PaperFormInput theme={theme}
+        label={t('auth_new_password')}
         secureTextEntry
+        autoCapitalize="none"
         value={newPassword}
         onChangeText={setNewPassword}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {message ? <Text style={styles.ok}>{message}</Text> : null}
-      <Pressable style={styles.button} onPress={onSubmit} disabled={loading}>
-        <Text style={styles.buttonText}>{loading ? 'Procesando...' : 'Actualizar contrasena'}</Text>
-      </Pressable>
-      <Pressable onPress={onGoLogin}>
-        <Text style={styles.link}>Volver a login</Text>
-      </Pressable>
-    </View>
+    </AuthForm>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20, gap: 10 },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  button: { backgroundColor: '#1f6feb', borderRadius: 10, padding: 12, alignItems: 'center' },
-  buttonText: { color: '#fff', fontWeight: '700' },
-  link: { color: '#1f6feb', fontWeight: '600' },
-  error: { color: '#dc2626' },
-  ok: { color: '#047857' },
-});

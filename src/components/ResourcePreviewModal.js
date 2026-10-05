@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { PrinterGuideModal } from './PrinterGuideModal';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppButton } from '../design-system/components/AppButton';
@@ -9,7 +10,8 @@ import { t } from '../i18n';
 import { StatusBadge } from './StatusBadge';
 import { resourceOriginalUri, resourceThumbnailUri, resourceTypeLabel } from './ResourceGalleryTile';
 
-export function ResourcePreviewModal({ item, theme, canManage, onClose, onToggleFavorite }) {
+export function ResourcePreviewModal({ item, theme, canManage, isSuperAdmin = false, onClose, onToggleFavorite, onGuideSaved }) {
+  const [help, setHelp] = useState(false);
   const insets = useSafeAreaInsets();
   const asset = item?.asset || {};
   const name = item?.displayName || asset.name || t('resource_018');
@@ -23,9 +25,10 @@ export function ResourcePreviewModal({ item, theme, canManage, onClose, onToggle
       <SafeAreaView edges={['left', 'right', 'bottom']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
         <View style={[styles.header, { borderBottomColor: theme.border, paddingTop: insets.top + tokens.spacing.md }]}>
           <Text numberOfLines={1} style={[styles.title, { color: theme.textPrimary }]}>{name}</Text>
-          <AppButton label={t('resource_048')} onPress={onClose} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} style={styles.closeButton} />
+          <AppButton variant="outlined" borderColor={theme.textSecondary} label={t('resource_048')} onPress={onClose} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} style={styles.closeButton} />
         </View>
         <ScrollView contentContainerStyle={styles.content}>
+          {asset.type === 'print_profile' ? <AppButton label={t('guide_title')} onPress={() => setHelp(true)} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} /> : null}
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
             {previewUri ? (
               <MediaPreview
@@ -39,7 +42,7 @@ export function ResourcePreviewModal({ item, theme, canManage, onClose, onToggle
                 buttonBackgroundColor={theme.buttonBg}
                 buttonPressedColor={theme.buttonBgPressed}
                 buttonTextColor={theme.buttonText}
-              />
+ />
             ) : (
               <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('resource_041')}: {asset.mimeType || asset.type}</Text>
             )}
@@ -55,8 +58,9 @@ export function ResourcePreviewModal({ item, theme, canManage, onClose, onToggle
             backgroundColor={theme.buttonBg}
             pressedColor={theme.buttonBgPressed}
             textColor={theme.buttonText}
-          />
+ />
         </ScrollView>
+        {help && item ? <PrinterGuideModal key={asset.id} metadata={asset.metadata} assetId={item.libraryAssetId || asset.id} theme={theme} canEdit={isSuperAdmin} onClose={() => setHelp(false)} onSaved={onGuideSaved} /> : null}
       </SafeAreaView>
     </Modal>
   );

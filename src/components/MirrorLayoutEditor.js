@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PanResponder, StyleSheet, Text, View } from 'react-native';
 import Icon from '@react-native-vector-icons/fontawesome6';
 import { tokens } from '../design-system/tokens';
-import { addCustomSlot, customizePhotoLayout, duplicateCustomSlot, duplicateSlotInstance, MIRROR_MAX_SLOT_INSTANCES, moveSelectedSlotsLayer, moveSlotsWithSnap, removeCustomSlot, resizeSlotsFromPointer, restoreFormatLayout, slotIdentity } from '../domain/magicMirrorConfig';
+import { addCustomSlot, customizePhotoLayout, duplicateCustomSlot, duplicateSlotInstance, MIRROR_MAX_SLOT_INSTANCES, movePhotoFrameLayer, moveSlotsWithSnap, removeCustomSlot, resizeSlotsFromPointer, restoreFormatLayout, slotIdentity } from '../domain/magicMirrorConfig';
 import { t } from '../i18n';
 import { IconTextButton } from './IconTextButton';
 import { MirrorConfigPreview } from './MirrorConfigPreview';
@@ -233,13 +233,12 @@ export function MirrorLayoutEditor({ config, onChange, onRestore, onSaveTemplate
   const undo = () => { if (!past.length) return; const previous = past[past.length - 1]; setPast((items) => items.slice(0, -1)); setFuture((items) => [clone(config.layout), ...items]); setDraftSlots(previous.slots); onChange({ ...config, layout: clone(previous) }); };
   const redo = () => { if (!future.length) return; const next = future[0]; setFuture((items) => items.slice(1)); setPast((items) => [...items, clone(config.layout)]); setDraftSlots(next.slots); onChange({ ...config, layout: clone(next) }); };
   const moveLayer = (direction) => {
-    const slots = moveSelectedSlotsLayer(draftSlots, selectedSlotIds, direction);
-    applyConfig({ ...config, layout: { ...config.layout, slots } }, true);
+    applyConfig(movePhotoFrameLayer(editorConfig, 'slot', selectedSlotIds, direction), true);
   };
   const editorConfig = { ...config, layout: { ...config.layout, slots: draftSlots } };
   const remove = (slotId) => { const next = removeCustomSlot(customizePhotoLayout(editorConfig), slotId); applyConfig(next); setSelectedSlotIds([slotIdentity(next.layout.slots[0])].filter(Boolean)); };
-  const canRaise = !sameLayout(moveSelectedSlotsLayer(draftSlots, selectedSlotIds, 1), draftSlots);
-  const canLower = !sameLayout(moveSelectedSlotsLayer(draftSlots, selectedSlotIds, -1), draftSlots);
+  const canRaise = movePhotoFrameLayer(editorConfig, 'slot', selectedSlotIds, 1) !== editorConfig;
+  const canLower = movePhotoFrameLayer(editorConfig, 'slot', selectedSlotIds, -1) !== editorConfig;
   const canvasGuides = (
     <>
     {guides.x !== null ? <View pointerEvents="none" style={[styles.guideVertical, { backgroundColor: theme.secondary, left: `${guides.x}%` }]} /> : null}

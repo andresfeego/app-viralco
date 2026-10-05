@@ -11,6 +11,7 @@ export function PermissionProvider({ children }) {
   const [loadingPermissions, setLoadingPermissions] = useState(false);
 
   useEffect(() => {
+    let current = true;
     (async () => {
       if (!isAuthenticated || !user || user.status?.slug !== 'active') {
         setPermissions([]);
@@ -20,14 +21,15 @@ export function PermissionProvider({ children }) {
       setLoadingPermissions(true);
       try {
         const payload = await myPermissionsApi();
-        setPermissions(Array.isArray(payload.permissions) ? payload.permissions : []);
+        if (current) setPermissions(Array.isArray(payload.permissions) ? payload.permissions : []);
       } catch (error) {
         await recordClientTechnicalError({ code: 'PERMISSIONS_LOAD_FAILED', path: 'PermissionProvider.load', detail: error?.message || String(error) });
-        setPermissions([]);
+        if (current) setPermissions([]);
       } finally {
-        setLoadingPermissions(false);
+        if (current) setLoadingPermissions(false);
       }
     })();
+    return () => { current = false; };
   }, [isAuthenticated, user]);
 
   const permissionSet = useMemo(() => new Set(permissions.map((item) => item.slug)), [permissions]);

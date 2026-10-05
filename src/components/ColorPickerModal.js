@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import Icon from '@react-native-vector-icons/fontawesome6';
 import LinearGradient from 'react-native-linear-gradient';
 import { AppButton } from '../design-system/components/AppButton';
-import { ModalSafeArea } from '../design-system/components/ModalSafeArea';
+import { FormModal } from './FormModal';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { tokens } from '../design-system/tokens';
 import { t } from '../i18n';
-import { IconTextButton } from './IconTextButton';
 import { PaperFormInput } from './PaperFormInput';
 
 const COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
@@ -124,13 +123,10 @@ export function ColorPickerModal({ visible, initialColor, theme, onClose, onSele
   const normalizedHex = hexValue.startsWith('#') ? hexValue : `#${hexValue}`;
   const valid = COLOR_PATTERN.test(normalizedHex);
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <ModalSafeArea style={[styles.safeArea, { backgroundColor: theme.background }]} testID="color-picker-modal">
-        <View style={styles.header}>
-          <Text style={[styles.heading, { color: theme.textPrimary }]}>{t('color_picker_title')}</Text>
-          <IconTextButton theme={theme} icon="xmark" compactIconOnly variant="ghost" accessibilityLabel={t('resource_048')} onPress={onClose} />
-        </View>
-        <View style={styles.content}>
+    <FormModal visible={visible} theme={theme} title={t('color_picker_title')} onClose={onClose} testID="color-picker" safeAreaTestID="color-picker-modal" actions={<>
+      <AppButton variant="outlined" borderColor={theme.buttonSecondaryBorder} label={t('common_cancel')} onPress={onClose} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} />
+      <AppButton label={t('color_picker_apply')} onPress={() => { onSelect(normalizedHex.toUpperCase()); onClose(); }} disabled={!valid} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
+    </>}>
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
             <SaturationBrightnessField hue={hue} saturation={saturation} brightness={brightness} onChange={(nextSaturation, nextBrightness) => { setSaturation(nextSaturation); setBrightness(nextBrightness); }} theme={theme} />
             <HueField hue={hue} onChange={setHue} theme={theme} />
@@ -139,21 +135,11 @@ export function ColorPickerModal({ visible, initialColor, theme, onClose, onSele
               <View style={styles.hexField}><PaperFormInput theme={theme} label={t('mirror_background_hex')} value={hexValue} onChangeText={changeHex} autoCapitalize="characters" errorText={hexValue && !valid ? t('mirror_background_hex_invalid') : ''} /></View>
             </View>
           </SurfaceCard>
-          <View style={styles.actions}>
-            <AppButton label={t('common_cancel')} onPress={onClose} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} style={styles.action} />
-            <AppButton label={t('color_picker_apply')} onPress={() => { onSelect(normalizedHex.toUpperCase()); onClose(); }} disabled={!valid} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.action} />
-          </View>
-        </View>
-      </ModalSafeArea>
-    </Modal>
+    </FormModal>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: tokens.spacing.md, paddingBottom: tokens.spacing.sm },
-  heading: { flex: 1, minWidth: tokens.spacing.none, fontSize: tokens.typography.heading, fontWeight: '700' },
-  content: { paddingHorizontal: tokens.spacing.md, paddingBottom: tokens.spacing.xl, gap: tokens.spacing.md },
   colorField: { height: tokens.spacing.xl * 6, overflow: 'hidden', borderWidth: tokens.border.thin, borderRadius: tokens.radius.md },
   marker: { position: 'absolute', width: tokens.spacing.lg, height: tokens.spacing.lg, borderRadius: tokens.radius.pill, borderWidth: tokens.border.medium, transform: [{ translateX: -tokens.spacing.sm }, { translateY: -tokens.spacing.sm }] },
   hueWrap: { height: tokens.spacing.lg, justifyContent: 'center' },
@@ -162,8 +148,8 @@ const styles = StyleSheet.create({
   valueCluster: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm },
   colorPreview: { width: tokens.spacing.xl * 2, height: tokens.spacing.xl * 2, borderRadius: tokens.radius.pill, borderWidth: tokens.border.thin },
   hexField: { flex: 1, minWidth: tokens.spacing.none },
-  actions: { flexDirection: 'row', gap: tokens.spacing.sm },
-  action: { flex: 1 },
+
+
   trigger: { width: tokens.spacing.xl, height: tokens.spacing.xl, borderRadius: tokens.radius.pill, borderWidth: tokens.border.medium, padding: tokens.spacing.xxs, overflow: 'hidden' },
   triggerFill: { flex: 1, borderRadius: tokens.radius.pill, alignItems: 'center', justifyContent: 'center' },
 });

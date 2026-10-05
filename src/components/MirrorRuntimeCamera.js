@@ -4,12 +4,15 @@ import { AppButton } from '../design-system/components/AppButton';
 import { tokens } from '../design-system/tokens';
 import { t } from '../i18n';
 import { recordClientTechnicalError } from '../services/errorHandling';
+import { runtimeQuality } from '../domain/mirrorRuntime';
+import { MirrorSimulatorCamera } from './MirrorSimulatorCamera';
+
+let simulator = false;
+try { simulator = __DEV__ && require('react-native-device-info').default.isEmulatorSync(); } catch { /* Older binaries never pretend to be a simulator. */ }
 
 let cameraModule = {};
 try { cameraModule = require('react-native-vision-camera') || {}; } catch { cameraModule = {}; }
-const { Camera, useCameraPermission, usePhotoOutput, VisionCamera } = cameraModule;
-
-const ZOOM_BY_LENS = { normal: 2, wide: 1.5, 'ultra-wide': 1 };
+const { Camera, useCameraPermission, usePhotoOutput, useCameraDevice, VisionCamera } = cameraModule;
 
 function CameraState({ theme, children }) {
   return (
@@ -19,22 +22,24 @@ function CameraState({ theme, children }) {
   );
 }
 
-const NativeRuntimeCamera = forwardRef(function NativeRuntimeCamera({ active, flashEnabled, lens, theme, onAvailabilityChange }, ref) {
+const NativeRuntimeCamera = forwardRef(function NativeRuntimeCamera({ active, lens, quality = 'high', position = 'front', theme, onAvailabilityChange }, ref) {
   const { hasPermission, requestPermission } = useCameraPermission();
-  const photoOutput = usePhotoOutput({ containerFormat: 'jpeg', quality: 0.92, qualityPrioritization: 'quality' });
+  const device = useCameraDevice(position, { physicalDevices: [lens === 'ultra-wide' ? 'ultra-wide-angle' : 'wide-angle'] });
+  const photoOutput = usePhotoOutput({ containerFormat: 'jpeg', quality: runtimeQuality(quality), qualityPrioritization: quality === 'medium' ? 'speed' : 'quality' });
   const [ready, setReady] = useState(false);
   const [cameraError, setCameraError] = useState(false);
 
-  useEffect(() => { onAvailabilityChange?.({ permission: hasPermission, ready: hasPermission && ready && !cameraError }); }, [cameraError, hasPermission, onAvailabilityChange, ready]);
+  const lensFallback = lens === 'ultra-wide' && ![device?.type, ...(device?.physicalDevices || []).map((item) => item.type)].includes('ultra-wide-angle');
+  useEffect(() => { onAvailabilityChange?.({ permission: hasPermission, ready: hasPermission && ready && !cameraError, lensFallback }); }, [cameraError, hasPermission, lensFallback, onAvailabilityChange, ready]);
 
   useImperativeHandle(ref, () => ({
     requestPermission,
     takePhoto: async () => {
       if (!hasPermission || !ready || cameraError) throw new Error('MIRROR_CAMERA_NOT_READY');
-      const file = await photoOutput.capturePhotoToFile({ flashMode: flashEnabled ? 'on' : 'off' }, {});
+      const file = await photoOutput.capturePhotoToFile({ flashMode: 'off' }, {});
       return { path: file.filePath, width: file.width, height: file.height, orientation: file.orientation };
     },
-  }), [cameraError, flashEnabled, hasPermission, photoOutput, ready, requestPermission]);
+  }), [cameraError, hasPermission, photoOutput, ready, requestPermission]);
 
   const reportError = (error) => {
     setCameraError(true);
@@ -55,13 +60,15 @@ const NativeRuntimeCamera = forwardRef(function NativeRuntimeCamera({ active, fl
   return (
     <View style={[styles.frame, { backgroundColor: theme.background, borderColor: theme.border }]}> 
       <Camera
-        style={StyleSheet.absoluteFill}
-        device="back"
+        style={[StyleSheet.absoluteFill, position === 'front' ? styles.mirrored : null]}
+        device={device || position}
+        mirrorMode="off"
         outputs={[photoOutput]}
         isActive={active}
-        zoom={ZOOM_BY_LENS[lens] || ZOOM_BY_LENS.wide}
+        zoom={Math.max(device?.minZoom || 1, Math.min(device?.maxZoom || 1, lens === 'normal' ? 2 : 1))}
         resizeMode="cover"
-        orientationSource="custom"
+        implementationMode="compatible"
+        orientationSource="interface"
         onPreviewStarted={() => setReady(true)}
         onPreviewStopped={() => setReady(false)}
         onError={reportError}
@@ -71,14 +78,15 @@ const NativeRuntimeCamera = forwardRef(function NativeRuntimeCamera({ active, fl
 });
 
 export const MirrorRuntimeCamera = forwardRef(function MirrorRuntimeCamera(props, ref) {
-  const nativeAvailable = Boolean(Camera && typeof useCameraPermission === 'function' && typeof usePhotoOutput === 'function' && VisionCamera?.createDeviceFactory);
+  const nativeAvailable = Boolean(Camera && typeof useCameraDevice === 'function' && typeof useCameraPermission === 'function' && typeof usePhotoOutput === 'function' && VisionCamera?.createDeviceFactory);
   const onAvailabilityChange = props.onAvailabilityChange;
   useEffect(() => {
-    if (!nativeAvailable) {
+    if (!nativeAvailable && !simulator) {
       onAvailabilityChange?.({ permission: false, ready: false });
       recordClientTechnicalError({ code: 'MIRROR_RUNTIME_CAMERA_MODULE_UNAVAILABLE' });
     }
   }, [nativeAvailable, onAvailabilityChange]);
+  if (simulator) return <MirrorSimulatorCamera ref={ref} {...props} />;
   if (!nativeAvailable) {
     return <CameraState theme={props.theme}><Text style={[styles.stateText, { color: props.theme.textSecondary }]}>{t('runtime_camera_update')}</Text></CameraState>;
   }
@@ -87,13 +95,10 @@ export const MirrorRuntimeCamera = forwardRef(function MirrorRuntimeCamera(props
 
 const styles = StyleSheet.create({
   frame: {
-    width: '100%',
-    flex: 1,
-    minHeight: tokens.spacing.xl * 8,
-    borderWidth: tokens.border.thin,
-    borderRadius: tokens.radius.lg,
+    ...StyleSheet.absoluteFill,
     overflow: 'hidden',
   },
+  mirrored: { transform: [{ scaleX: -1 }] },
   state: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: tokens.spacing.md, padding: tokens.spacing.lg },
   stateText: { fontSize: tokens.typography.body, textAlign: 'center' },
 });

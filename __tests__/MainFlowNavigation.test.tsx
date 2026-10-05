@@ -55,6 +55,8 @@ import { MainFlow } from '../App';
 import { BottomMainMenu } from '../src/components/BottomMainMenu';
 import { SectionHeader } from '../src/components/SectionHeader';
 import { useAuth } from '../src/hooks/useAuth';
+import { EventsScreen } from '../src/screens/EventsScreen';
+import { tokens } from '../src/design-system/tokens';
 
 const mockedUseAuth = useAuth as jest.Mock;
 
@@ -74,6 +76,26 @@ test('authenticated sessions open on Events even for Super Admin', async () => {
 
   expect(renderer!.root.findAllByProps({ testID: 'events-create-account' }).length).toBeGreaterThan(0);
   expect(renderer!.root.findAllByProps({ testID: 'superadmin-screen' })).toHaveLength(0);
+});
+
+test('shares the gradient across navigation and details while retaining the top safe area', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MainFlow topInset={59} />);
+  });
+  expect(renderer!.root.findByType('LinearGradient').props.colors).toEqual(tokens.gradients.header.colors);
+  expect(renderer!.root.findByType(SectionHeader).props.topInset).toBe(59);
+  ReactTestRenderer.act(() => {
+    renderer!.root.findByType(EventsScreen).props.onHeaderChange({ title: 'Event', subtitle: 'Detalle de evento', iconName: 'calendar-check' });
+  });
+  expect(renderer!.root.findByType('LinearGradient').props.colors).toEqual(tokens.gradients.header.colors);
+  expect(renderer!.root.findByType(SectionHeader).props.topInset).toBe(59);
+  for (const key of ['cuenta', 'recursos', 'configuracion', 'superadmin']) {
+    ReactTestRenderer.act(() => renderer!.root.findByType(BottomMainMenu).props.onSelect(key));
+    expect(renderer!.root.findByType('LinearGradient').props.colors).toEqual(tokens.gradients.header.colors);
+    expect(renderer!.root.findByType(SectionHeader).props.topInset).toBe(59);
+  }
+  ReactTestRenderer.act(() => renderer!.unmount());
 });
 
 test('the account-required action routes to account creation', async () => {
@@ -106,4 +128,5 @@ test('account detail shows the account name as heading and the detail label as s
     title: 'Cuenta de celebraciones empresariales',
     subtitle: 'Detalle de cuenta',
   }));
+  expect(renderer!.root.findByType('LinearGradient').props.colors).toEqual(tokens.gradients.header.colors);
 });

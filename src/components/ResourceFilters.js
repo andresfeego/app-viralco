@@ -6,7 +6,7 @@ import { HorizontalSubMenu } from './HorizontalSubMenu';
 import { PaperFormInput } from './PaperFormInput';
 import { SelectableChipGroup } from './SelectableChipGroup';
 
-export function ResourceFilters({ theme, tab, onTabChange, search, onSearchChange, type, onTypeChange, eventTypes = [], eventType = '', onEventTypeChange = () => {}, motion = '', onMotionChange = () => {}, poolLabel = t('resource_001'), horizontalTypes = false, showTabs = true }) {
+export function ResourceFilters({ theme, tab, onTabChange, search, onSearchChange, type, onTypeChange, eventTypes = [], eventType = '', onEventTypeChange = () => {}, motion = '', onMotionChange = () => {}, poolLabel = t('resource_001'), showTabs = true, chipVariant = 'filled' }) {
   const typeOptions = [
     { label: t('resource_006'), value: '' },
     { label: t('resource_012'), value: 'background' },
@@ -34,9 +34,9 @@ export function ResourceFilters({ theme, tab, onTabChange, search, onSearchChang
         />
       ) : null}
       <PaperFormInput theme={theme} label={t('resource_003')} value={search} onChangeText={onSearchChange} />
-      <SelectableChipGroup theme={theme} label={t('resource_005')} options={typeOptions} value={type} onChange={onTypeChange} horizontal={horizontalTypes} />
-      <SelectableChipGroup theme={theme} label={t('resource_054')} options={eventTypeOptions} value={eventType} onChange={onEventTypeChange} horizontal />
-      {type === 'sticker' ? <SelectableChipGroup theme={theme} label={t('resource_057')} options={motionOptions} value={motion} onChange={onMotionChange} horizontal /> : null}
+      <SelectableChipGroup theme={theme} variant={chipVariant} label={t('resource_005')} options={typeOptions} value={type} onChange={onTypeChange} />
+      <SelectableChipGroup theme={theme} variant={chipVariant} label={t('resource_054')} options={eventTypeOptions} value={eventType} onChange={onEventTypeChange} />
+      {type === 'sticker' ? <SelectableChipGroup theme={theme} variant={chipVariant} label={t('resource_057')} options={motionOptions} value={motion} onChange={onMotionChange} /> : null}
     </View>
   );
 }

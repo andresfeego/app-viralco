@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Menu } from 'react-native-paper';
 import { AppButton } from '../design-system/components/AppButton';
-import { ModalSafeArea } from '../design-system/components/ModalSafeArea';
+import { ButtonRow } from '../design-system/components/ButtonRow';
+import { FormModal } from '../components/FormModal';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
 import { useAuth } from '../hooks/useAuth';
+import { DocumentDirectoryPath } from '@dr.pogodin/react-native-fs';
 import { t } from '../i18n';
 import { AccountRequiredEmptyState } from '../components/AccountRequiredEmptyState';
 import { CompactAccountSelector } from '../components/CompactAccountSelector';
@@ -17,7 +19,9 @@ import { EventEditModal } from '../components/EventEditModal';
 import { EventInformationCard } from '../components/EventInformationCard';
 import { EventListCard } from '../components/EventListCard';
 import { EventModeRow } from '../components/EventModeRow';
+import { EventMirrorGallery } from '../components/EventMirrorGallery';
 import { IconTextButton } from '../components/IconTextButton';
+import { ArchivedMirrorCompositions } from '../components/ArchivedMirrorCompositions';
 import { PaperDateInput } from '../components/PaperDateInput';
 import { PaperFormInput } from '../components/PaperFormInput';
 import { SelectableChipGroup } from '../components/SelectableChipGroup';
@@ -99,6 +103,8 @@ function normalizeResource(item) {
 }
 
 function resourcePreviewUrl(resource) {
+  const local = resource?.offlineLogoPath;
+  if (local && local.split('/').every(part => /^[A-Za-z0-9_.-]+$/.test(part) && part !== '.' && part !== '..')) return `file://${DocumentDirectoryPath}/kaptura-mirror-packages/${local}`;
   const asset = resource?.asset;
   return asset?.variants?.card?.signedUrl
     || asset?.variants?.card?.fileUrl
@@ -128,7 +134,7 @@ export function EventsScreen({
   onLaunchMirror = null,
   onCreateAccount = () => {},
 }) {
-  const { user } = useAuth();
+  const { user, offlineMode } = useAuth();
   const { showToast } = useToast();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
@@ -162,14 +168,14 @@ export function EventsScreen({
   const [resourceForm, setResourceForm] = useState({ libraryAssetId: '', purpose: 'overlay', placement: '', orderIndex: '0', isActive: true });
 
   const roleSlug = activeAccountRole(user, accountId);
-  const canEdit = isSuperAdmin || ['owner', 'admin'].includes(roleSlug);
+  const canEdit = !offlineMode && (isSuperAdmin || ['owner', 'admin'].includes(roleSlug));
   const activeAccount = accounts.find((account) => String(account.id) === String(accountId)) || null;
   const contractedModeSlugs = useMemo(() => accountContractedModeSlugs(activeAccount), [activeAccount]);
   const availableModes = useMemo(
     () => (contractedModeSlugs.length ? modes.filter((mode) => contractedModeSlugs.includes(mode.slug)) : modes),
     [contractedModeSlugs, modes]
   );
-  const canCreateEvent = normalizedSections.includes('create');
+  const canCreateEvent = !offlineMode && normalizedSections.includes('create');
 
   const filteredEvents = useMemo(
     () => (eventStatus ? events.filter((event) => event.status === eventStatus) : events),
@@ -567,7 +573,7 @@ export function EventsScreen({
       multiline={Boolean(props.multiline)}
       keyboardType={props.keyboardType || 'default'}
       inputStyle={props.inputStyle || null}
-    />
+ />
   );
 
   const renderEventInput = ({ testID, label, field, value, multiline = false, keyboardType = 'default', autoCapitalize = 'sentences' }) => (
@@ -582,20 +588,21 @@ export function EventsScreen({
       autoCapitalize={autoCapitalize}
       multiline={multiline}
       editable={canEdit}
-    />
+ />
   );
 
   const renderEventTypePicker = () => (
     <SelectableChipGroup
       testID="event-type-selector"
       theme={theme}
+      variant="outlined"
       label={t('event_105')}
       options={eventTypes.map((type) => ({ label: type.name, value: type.slug }))}
       value={eventForm.eventTypeSlug}
       disabled={!canEdit}
       errorText={eventFormErrors.eventTypeSlug}
       onChange={(eventTypeSlug) => updateEventFormField('eventTypeSlug', eventTypeSlug)}
-    />
+ />
   );
 
   const renderVisualResourceMenu = (purpose) => (
@@ -610,7 +617,7 @@ export function EventsScreen({
           compactIconOnly
           onPress={() => setVisualMenuPurpose(purpose)}
           testID={`event-${purpose}-edit`}
-        />
+ />
       )}
     >
       <Menu.Item onPress={() => onPickEventLogo('camera')} title={t('event_115')} />
@@ -619,34 +626,27 @@ export function EventsScreen({
   );
 
   const renderCreateEventModal = () => (
-    <Modal
+    <FormModal
       visible={createEventVisible}
-      animationType="slide"
-      transparent
-      onRequestClose={closeCreateEventModal}
+      theme={theme}
+      title={t('event_001')}
+      onClose={closeCreateEventModal}
+      testID="event-create-modal"
+      sheetTestID="event-create-modal-card"
+      overlay={<ToastViewport theme={theme} topOffset={MODAL_TOAST_TOP_OFFSET} />}
+      actions={accounts.length ? <>
+        <AppButton variant="outlined" borderColor={theme.buttonSecondaryBorder} label={t('account_028')} onPress={closeCreateEventModal} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} />
+        <AppButton testID="event-create-save" label={t('event_076')} onPress={onCreateEvent} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} disabled={saving || !canEdit} />
+      </> : <AppButton variant="outlined" borderColor={theme.buttonSecondaryBorder} label={t('account_028')} onPress={closeCreateEventModal} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} />}
     >
-      <ModalSafeArea testID="event-create-modal-safe-area" style={styles.modalOverlay}>
-        <View
-          testID="event-create-modal-card"
-          style={[
-            styles.modalCard,
-            {
-              backgroundColor: theme.background,
-              borderColor: theme.border,
-            },
-          ]}
-        >
           {accounts.length === 0 ? (
             <AccountRequiredEmptyState
               theme={theme}
               onCreateAccount={onCreateAccount}
               testID="events-account-required"
-            />
+ />
           ) : (
-            <ScrollView contentContainerStyle={styles.modalList}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-                {t('event_001')}
-              </Text>
+            <>
               {error ? (
                 <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text>
               ) : null}
@@ -665,6 +665,7 @@ export function EventsScreen({
               <SelectableChipGroup
                 testID="event-mode-selector"
                 theme={theme}
+                variant="outlined"
                 label={t('event_111')}
                 options={availableModes.map((mode) => ({
                   label: mode.name,
@@ -677,33 +678,10 @@ export function EventsScreen({
                 onChange={(modeSlugs) =>
                   updateEventFormField('modeSlugs', modeSlugs)
                 }
-              />
-              <View style={styles.row}>
-                <AppButton
-                  label={t('account_028')}
-                  onPress={closeCreateEventModal}
-                  backgroundColor={theme.surface}
-                  pressedColor={theme.surface}
-                  textColor={theme.textPrimary}
-                  style={styles.smallButton}
-                />
-                <AppButton
-                  testID="event-create-save"
-                  label={t('event_076')}
-                  onPress={onCreateEvent}
-                  backgroundColor={theme.buttonBg}
-                  pressedColor={theme.buttonBgPressed}
-                  textColor={theme.buttonText}
-                  disabled={saving || !canEdit}
-                  style={styles.smallButton}
-                />
-              </View>
-            </ScrollView>
+ />
+            </>
           )}
-        </View>
-        <ToastViewport theme={theme} topOffset={MODAL_TOAST_TOP_OFFSET} />
-      </ModalSafeArea>
-    </Modal>
+    </FormModal>
   );
 
   const renderEditEventModal = () => (
@@ -735,7 +713,7 @@ export function EventsScreen({
             }}
             testID="event-delete-open"
             style={styles.dangerAction}
-          />
+ />
         </View>
       ) : null}
     >
@@ -749,7 +727,7 @@ export function EventsScreen({
         disabled={!canEdit}
         helperLabel={t('event_104')}
         onChangeDate={(startDate) => updateEventFormField('startDate', startDate)}
-      />
+ />
       {renderEventInput({ testID: 'event-edit-description-input', label: t('event_075'), field: 'description', value: eventForm.description, multiline: true })}
     </EventEditModal>
   );
@@ -770,6 +748,7 @@ export function EventsScreen({
       <SelectableChipGroup
         testID="event-edit-mode-selector"
         theme={theme}
+        variant="outlined"
         label={t('event_111')}
         options={availableModes.map((mode) => ({ label: mode.name, value: mode.slug }))}
         values={eventForm.modeSlugs}
@@ -777,7 +756,7 @@ export function EventsScreen({
         disabled={!canEdit}
         errorText={eventFormErrors.modeSlugs}
         onChange={(modeSlugs) => updateEventFormField('modeSlugs', modeSlugs)}
-      />
+ />
     </EventEditModal>
   );
 
@@ -796,8 +775,9 @@ export function EventsScreen({
           subtitle={event?.eventType?.name || event?.eventDate || ''}
           logoImageUrl={logoUrl}
           logoAction={canEdit ? renderVisualResourceMenu('logo') : null}
-        />
+ />
         <View testID="event-detail-content" style={styles.detailContentStack}>
+          {canEdit ? <ArchivedMirrorCompositions eventId={event?.id} eventName={event?.name} eventModeIds={(event?.modes || []).filter((mode) => mode.mode?.slug === 'espejo').map((mode) => mode.id)} theme={theme} /> : null}
           {error ? <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text> : null}
           {ok ? <Text style={[styles.feedback, { color: theme.secondary }]}>{ok}</Text> : null}
           {saving || loading ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('event_020')}</Text> : null}
@@ -820,7 +800,7 @@ export function EventsScreen({
             onEdit={() => setEditEventVisible(true)}
             onActivate={confirmActivateSelectedEvent}
             activating={activatingEvent}
-          />
+ />
           <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
               <View style={styles.cardHeaderCluster}>
                 <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('event_111')}</Text>
@@ -832,7 +812,7 @@ export function EventsScreen({
                     onPress={() => setEditModesVisible(true)}
                     testID="event-modes-edit"
                     accessibilityLabel={t('event_118')}
-                  />
+ />
                 ) : null}
               </View>
               {event?.modes?.length ? (
@@ -851,13 +831,14 @@ export function EventsScreen({
                         configureLabel={`${t('mirror_008')} ${item.mode?.name || ''}`.trim()}
                         launchLabel={`${t('event_130')} ${item.mode?.name || ''}`.trim()}
                         canConfigure={configureEnabled}
+                        galleryAction={isMirror && item.isActive !== false ? <EventMirrorGallery eventId={event.id} eventModeId={item.id} eventName={event.name} theme={theme} /> : null}
                         canLaunch={launchEnabled}
                         showDivider={index < event.modes.length - 1}
                         onConfigure={() => onConfigureMirror?.({ event, eventMode: item, accountId, canEdit })}
                         onLaunch={() => onLaunchMirror?.({ event, eventMode: item, accountId, canEdit })}
                         configureTestID={isMirror ? 'event-configure-mirror' : `event-configure-${item.mode?.slug || item.id}`}
                         launchTestID={isMirror ? 'event-launch-mirror' : `event-launch-${item.mode?.slug || item.id}`}
-                      />
+ />
                     );
                   })}
                 </View>
@@ -884,7 +865,7 @@ export function EventsScreen({
         onChange={selectAccount}
         theme={theme}
         roleLabel={isSuperAdmin ? 'super_admin' : roleSlug || ''}
-      />
+ />
       <ScrollView contentContainerStyle={[styles.scrollContent, section === 'detail' ? styles.detailScrollContent : null]}>
         {section !== 'detail' && error ? <Text style={[styles.feedback, { color: theme.alert }]}>{error}</Text> : null}
         {section !== 'detail' && ok ? <Text style={[styles.feedback, { color: theme.secondary }]}>{ok}</Text> : null}
@@ -893,29 +874,28 @@ export function EventsScreen({
         {section === 'list' ? (
           <View style={styles.sectionWrap}>
             {canCreateEvent ? (
-              <AppButton
+              <IconTextButton
                 testID="event-create-open"
+                theme={theme}
+                icon="plus"
                 label={t('event_001')}
                 onPress={openCreateEventModal}
-                backgroundColor={theme.buttonBg}
-                pressedColor={theme.buttonBgPressed}
-                textColor={theme.buttonText}
                 style={styles.compactCreateButton}
-              />
+ />
             ) : null}
             {showKpi ? (
               <SelectableChipGroup
                 testID="event-status-filter"
                 theme={theme}
+                variant="outlined"
                 label={t('event_010')}
                 options={eventStatusOptions}
                 value={eventStatus}
                 onChange={setEventStatus}
-                horizontal
-              />
+ />
             ) : null}
             {filteredEvents.length === 0 ? <Text style={{ color: theme.textSecondary }}>{events.length === 0 ? t('event_022') : t('event_128')}</Text> : null}
-            <FlatList data={filteredEvents} keyExtractor={(item) => item.id} scrollEnabled={false} contentContainerStyle={styles.listContent} renderItem={({ item }) => <EventListCard item={item} selected={item.id === selectedEventId} theme={theme} onPress={() => { setSelectedEventId(item.id); setSelectedEvent(item); setSection('detail'); }} />} />
+            <FlatList data={filteredEvents} keyExtractor={(item) => item.id} scrollEnabled={false} contentContainerStyle={styles.listContent} renderItem={({ item }) => <EventListCard item={item} logoImageUrl={resourcePreviewUrl(item.branding?.logoResource)} selected={item.id === selectedEventId} theme={theme} onPress={() => { setSelectedEventId(item.id); setSelectedEvent(item); setSection('detail'); }} />} />
           </View>
         ) : null}
 
@@ -975,10 +955,10 @@ export function EventsScreen({
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{item.asset?.name || item.libraryAssetId} · {item.purpose}</Text>
                 <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>orden: {item.orderIndex} · activo: {item.isActive ? 'si' : 'no'}</Text>
                 <Text numberOfLines={1} style={[styles.cardMeta, { color: theme.textSecondary }]}>{item.asset?.fileUrl || '-'}</Text>
-                <View style={styles.row}>
-                  <AppButton label={t('event_093')} onPress={() => moveResource(item, -1)} backgroundColor={theme.primary} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.smallButton} />
-                  <AppButton label={t('event_094')} onPress={() => moveResource(item, 1)} backgroundColor={theme.primary} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.smallButton} />
-                </View>
+                <ButtonRow>
+                  <AppButton label={t('event_093')} onPress={() => moveResource(item, -1)} backgroundColor={theme.primary} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
+                  <AppButton label={t('event_094')} onPress={() => moveResource(item, 1)} backgroundColor={theme.primary} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
+                </ButtonRow>
               </SurfaceCard>
             ))}
           </View>
@@ -998,7 +978,7 @@ export function EventsScreen({
         onConfirm={onDeleteEvent}
         busy={saving}
         testID="event-delete"
-      />
+ />
     </View>
   );
 }
@@ -1021,12 +1001,9 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   cardTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
   cardMeta: { fontSize: tokens.typography.caption },
-  row: { flexDirection: 'row', gap: tokens.spacing.xs },
+
   cardHeaderCluster: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
-  smallButton: { flex: 1 },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalCard: { flex: 1, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg, padding: tokens.spacing.md, gap: tokens.spacing.sm },
-  modalList: { gap: tokens.spacing.sm, paddingBottom: tokens.spacing.md },
+
   dangerZone: { gap: tokens.spacing.xs, borderTopWidth: tokens.border.thin, paddingTop: tokens.spacing.md },
   dangerTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
   dangerMessage: { fontSize: tokens.typography.caption },

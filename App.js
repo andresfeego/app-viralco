@@ -21,6 +21,7 @@ import { MagicMirrorConfigScreen } from './src/screens/MagicMirrorConfigScreen';
 import { MagicMirrorLaunchScreen } from './src/screens/MagicMirrorLaunchScreen';
 import { SectionHeader } from './src/components/SectionHeader';
 import { BottomMainMenu } from './src/components/BottomMainMenu';
+import { StatusBadge } from './src/components/StatusBadge';
 import { getTheme } from './src/design-system/theme';
 import { t } from './src/i18n';
 
@@ -42,8 +43,8 @@ function AuthFlow() {
   return <LoginScreen onGoRegister={() => setScreen('register')} onGoForgot={() => setScreen('forgot')} />;
 }
 
-export function MainFlow({ bottomInset = 0 }) {
-  const { initializing, isAuthenticated, user } = useAuth();
+export function MainFlow({ bottomInset = 0, topInset = 0, onImmersiveChange }) {
+  const { initializing, isAuthenticated, user, offlineMode } = useAuth();
   const mode = user?.themeMode || 'dark';
   const [screen, setScreen] = useState('eventos');
   const [accountRoute, setAccountRoute] = useState({ name: 'list', account: null, openCreateRequest: 0 });
@@ -80,6 +81,9 @@ export function MainFlow({ bottomInset = 0 }) {
     setEventRoute({ name: 'list', event: null, eventMode: null, accountId: '' });
   }, [isAuthenticated, user?.id]);
 
+  const immersiveRoute = isAuthenticated && user?.status?.slug === 'active' && screen === 'eventos' && eventRoute.name === 'mirror-launch';
+  useEffect(() => { onImmersiveChange?.(immersiveRoute); }, [immersiveRoute, onImmersiveChange]);
+
   if (initializing) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
@@ -97,16 +101,16 @@ export function MainFlow({ bottomInset = 0 }) {
   }
 
   const menuItems = [
-    ...(isSuperAdmin
+    ...(isSuperAdmin && !offlineMode
       ? [{ key: 'superadmin', label: t('menu_000'), iconName: 'shield-halved', headerTitle: t('menu_000') }]
       : []),
-    { key: 'cuenta', label: t('menu_001'), iconName: 'building', headerTitle: t('menu_001') },
+    ...(!offlineMode ? [{ key: 'cuenta', label: t('menu_001'), iconName: 'building', headerTitle: t('menu_001') }] : []),
     { key: 'eventos', label: t('menu_002'), iconName: 'champagne-glasses', headerTitle: t('menu_002') },
-    { key: 'recursos', label: t('menu_004'), iconName: 'images', headerTitle: t('menu_004') },
+    ...(!offlineMode ? [{ key: 'recursos', label: t('menu_004'), iconName: 'images', headerTitle: t('menu_004') }] : []),
     { key: 'configuracion', label: t('config_000'), iconName: 'gear', headerTitle: t('config_000') },
   ];
 
-  const defaultKey = isSuperAdmin ? 'superadmin' : 'eventos';
+  const defaultKey = isSuperAdmin && !offlineMode ? 'superadmin' : 'eventos';
   const selectedKey = menuItems.some((item) => item.key === screen) ? screen : defaultKey;
   const selectedItem = menuItems.find((item) => item.key === selectedKey) || menuItems[0];
 
@@ -139,9 +143,11 @@ export function MainFlow({ bottomInset = 0 }) {
           onBack={headerOnBack}
           backLabel={headerBackLabel}
           theme={theme}
+          topInset={topInset}
         />
       ) : null}
       <View style={styles.panelBody}>
+        {offlineMode && !isMirrorLaunch ? <StatusBadge label={t('offline_operating')} flag="info" /> : null}
         {selectedKey === 'superadmin' ? <SuperAdminUsersScreen /> : null}
         {selectedKey === 'cuenta' && accountRoute.name === 'list' ? (
           <AccountsScreen
@@ -159,6 +165,7 @@ export function MainFlow({ bottomInset = 0 }) {
         ) : null}
         {selectedKey === 'eventos' && !['mirror-config', 'mirror-launch'].includes(eventRoute.name) ? (
           <EventsScreen
+            key={String(user.id)}
             initialSection={eventRoute.name === 'detail' ? 'detail' : 'list'}
             initialEventId={eventRoute.event?.id || ''}
             allowedSections={['list', 'create', 'detail']}
@@ -168,7 +175,8 @@ export function MainFlow({ bottomInset = 0 }) {
             onCreateAccount={openAccountCreation}
           />
         ) : null}
-        {selectedKey === 'eventos' && eventRoute.name === 'mirror-config' ? (
+        {selectedKey === 'eventos' && eventRoute.name === 'mirror-config' && offlineMode ? <Text style={{ color: theme.textSecondary }}>{t('offline_online_required')}</Text> : null}
+        {selectedKey === 'eventos' && eventRoute.name === 'mirror-config' && !offlineMode ? (
           <MagicMirrorConfigScreen
             event={eventRoute.event}
             eventMode={eventRoute.eventMode}
@@ -185,12 +193,13 @@ export function MainFlow({ bottomInset = 0 }) {
             accountId={eventRoute.accountId}
             canManage={eventRoute.canEdit}
             onBack={closeMirrorLaunch}
+            onConfigure={() => openMirrorConfig(eventRoute)}
           />
         ) : null}
         {selectedKey === 'recursos' ? (
           <ResourceLibraryScreen onHeaderChange={setEventsHeaderConfig} onCreateAccount={openAccountCreation} />
         ) : null}
-        {selectedKey === 'configuracion' ? <ConfigurationScreen onCreateAccount={openAccountCreation} /> : null}
+        {selectedKey === 'configuracion' ? <ConfigurationScreen /> : null}
       </View>
       {!isMirrorLaunch ? (
         <BottomMainMenu
@@ -206,21 +215,22 @@ export function MainFlow({ bottomInset = 0 }) {
 }
 
 function AppContainer() {
-  const { user, isAuthenticated } = useAuth();
+  const [immersive, setImmersive] = useState(false);
+  const { user, isAuthenticated, initializing } = useAuth();
   const insets = useSafeAreaInsets();
   const mode = isAuthenticated ? user?.themeMode || 'dark' : 'dark';
   const theme = useMemo(() => getTheme(mode), [mode]);
-  const hasMainNavigation = isAuthenticated && user?.status?.slug === 'active';
+  const hasMainNavigation = !initializing && isAuthenticated && user?.status?.slug === 'active';
 
   return (
     <View style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      <View style={{ height: insets.top, backgroundColor: theme.primary }} />
+      {!immersive && !hasMainNavigation ? <View style={{ height: insets.top, backgroundColor: theme.primary }} /> : null}
       <SafeAreaView
         edges={hasMainNavigation ? ['left', 'right'] : ['left', 'right', 'bottom']}
         style={[styles.safeArea, { backgroundColor: theme.background }]}
       >
-        <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
-        <MainFlow bottomInset={hasMainNavigation ? insets.bottom : 0} />
+        <StatusBar hidden={immersive} barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
+        <MainFlow bottomInset={hasMainNavigation ? insets.bottom : 0} topInset={hasMainNavigation ? insets.top : 0} onImmersiveChange={setImmersive} />
       </SafeAreaView>
     </View>
   );

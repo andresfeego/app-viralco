@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PanResponder, StyleSheet, View } from 'react-native';
 import Icon from '@react-native-vector-icons/fontawesome6';
 import { tokens } from '../design-system/tokens';
-import { clearFrameLayers, duplicateFrameLayer, MIRROR_MAX_FRAME_LAYERS, moveSelectedSlotsLayer, moveSlotsWithSnap, removeFrameLayer, resizeSlotsFromPointer } from '../domain/magicMirrorConfig';
+import { clearFrameLayers, duplicateFrameLayer, MIRROR_MAX_FRAME_LAYERS, movePhotoFrameLayer, moveSlotsWithSnap, removeFrameLayer, resizeSlotsFromPointer } from '../domain/magicMirrorConfig';
 import { t } from '../i18n';
 import { IconTextButton } from './IconTextButton';
 import { hitTestMirrorGesture } from './MirrorLayoutEditor';
 import { MirrorConfigPreview } from './MirrorConfigPreview';
+import { MirrorInstanceLabel } from './MirrorInstanceLabel';
 import { MirrorEditorHelpModal } from './MirrorEditorHelpModal';
 import { MirrorEditorToolbar } from './MirrorEditorToolbar';
 
@@ -41,7 +42,7 @@ function RotationHandle({ corner, theme }) {
   );
 }
 
-function EditableFrameLayer({ layer, selectedIds, theme, disabled, tool, onSelect, onDelete }) {
+function EditableFrameLayer({ layer, number, selectedIds, theme, disabled, tool, onSelect, onDelete }) {
   const selected = selectedIds.includes(String(layer.id));
   const geometryStyle = { left: `${layer.x}%`, top: `${layer.y}%`, width: `${layer.width}%`, height: `${layer.height}%`, transform: [{ rotate: `${Number(layer.rotation || 0)}deg` }] };
   return (
@@ -52,17 +53,28 @@ function EditableFrameLayer({ layer, selectedIds, theme, disabled, tool, onSelec
       onAccessibilityTap={() => onSelect(String(layer.id))}
       style={[styles.frameLayer, geometryStyle, { borderColor: selected ? theme.secondary : theme.border, borderWidth: selected ? tokens.border.medium : StyleSheet.hairlineWidth }]}
     >
-      {!disabled ? <View style={styles.deleteButton}><IconTextButton theme={theme} icon="trash-can" denseIconOnly iconSize={tokens.typography.caption} variant="ghost" backgroundColor={theme.alert} pressedBackgroundColor={theme.background} iconColor={theme.buttonText} accessibilityLabel={t('mirror_frame_remove')} onPress={() => onDelete(String(layer.id))} /></View> : null}
+      {!disabled && selected ? <View style={styles.deleteButton}><IconTextButton theme={theme} icon="trash-can" denseIconOnly iconSize={tokens.typography.caption} variant="ghost" backgroundColor={theme.alert} pressedBackgroundColor={theme.background} iconColor={theme.buttonText} accessibilityLabel={t('mirror_frame_remove')} onPress={() => onDelete(String(layer.id))} /></View> : null}
       {!disabled && selected && tool === 'move' ? <View pointerEvents="none" style={[styles.resizeHandle, { backgroundColor: theme.primary }]} /> : null}
+      {selected ? <MirrorInstanceLabel kind="frame" number={number} theme={theme} /> : null}
       {!disabled && selected && tool === 'rotate' ? ['topHandle', 'rightHandle', 'bottomHandle', 'leftHandle'].map((corner) => <RotationHandle key={corner} corner={corner} theme={theme} />) : null}
     </View>
   );
 }
 
-export function MirrorFrameEditor({ config, onChange, resourcesById = {}, theme, disabled = false, onInteractionChange }) {
+export function MirrorFrameEditor({ config, onChange, resourcesById = {}, theme, disabled = false, onInteractionChange, selectionRequest }) {
   const initialLayers = config.layout.frameLayers || [];
+  const knownIds = useRef(initialLayers.map((layer) => layer.id));
+  useEffect(() => {
+    const layers = config.layout.frameLayers || [];
+    const added = layers.filter((layer) => !knownIds.current.includes(layer.id));
+    if (added.length) setSelectedIds([String(added.at(-1).id)]);
+    knownIds.current = layers.map((layer) => layer.id);
+  }, [config.layout.frameLayers]);
   const [draftLayers, setDraftLayers] = useState(initialLayers);
   const [selectedIds, setSelectedIds] = useState([String(initialLayers[0]?.id || '')].filter(Boolean));
+  useEffect(() => {
+    if (selectionRequest?.id) setSelectedIds([String(selectionRequest.id)]);
+  }, [selectionRequest]);
   const [multi, setMulti] = useState(false);
   const [tool, setTool] = useState('move');
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
@@ -88,8 +100,8 @@ export function MirrorFrameEditor({ config, onChange, resourcesById = {}, theme,
     return current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
   });
   const applyConfig = useCallback((next, record = true) => {
-    if (same(next.layout.frameLayers || [], config.layout.frameLayers || [])) return;
-    if (record) { setPast((items) => [...items, clone(config.layout.frameLayers || [])]); setFuture([]); }
+    if (same(next.layout, config.layout)) return;
+    if (record) { setPast((items) => [...items, clone(config.layout)]); setFuture([]); }
     setDraftLayers(next.layout.frameLayers || []);
     onChange(next);
   }, [config, onChange]);
@@ -101,7 +113,7 @@ export function MirrorFrameEditor({ config, onChange, resourcesById = {}, theme,
   const endInteraction = useCallback(() => {
     const gesture = interactionStart.current;
     if (gesture && !same(gesture.layers, draftRef.current)) {
-      setPast((items) => [...items, gesture.layers]);
+      setPast((items) => [...items, clone(gesture.config.layout)]);
       setFuture([]);
       onChange({ ...gesture.config, layout: { ...gesture.config.layout, frameLayers: clone(draftRef.current) } });
     }
@@ -172,12 +184,12 @@ export function MirrorFrameEditor({ config, onChange, resourcesById = {}, theme,
   }), [current]);
 
   const editorConfig = { ...config, layout: { ...config.layout, frameLayers: draftLayers } };
-  const moveLayer = (direction) => applyConfig({ ...config, layout: { ...config.layout, frameLayers: moveSelectedSlotsLayer(draftLayers, selectedIds, direction).map((layer, index) => ({ ...layer, order: index })) } });
+  const moveLayer = (direction) => applyConfig(movePhotoFrameLayer(editorConfig, 'frame', selectedIds, direction));
   const remove = (id) => { const next = removeFrameLayer(editorConfig, id); applyConfig(next); setSelectedIds([]); };
-  const undo = () => { if (!past.length) return; const previous = past[past.length - 1]; setPast((items) => items.slice(0, -1)); setFuture((items) => [clone(config.layout.frameLayers || []), ...items]); applyConfig({ ...config, layout: { ...config.layout, frameLayers: clone(previous) } }, false); };
-  const redo = () => { if (!future.length) return; const next = future[0]; setFuture((items) => items.slice(1)); setPast((items) => [...items, clone(config.layout.frameLayers || [])]); applyConfig({ ...config, layout: { ...config.layout, frameLayers: clone(next) } }, false); };
-  const canRaise = !same(moveSelectedSlotsLayer(draftLayers, selectedIds, 1), draftLayers);
-  const canLower = !same(moveSelectedSlotsLayer(draftLayers, selectedIds, -1), draftLayers);
+  const undo = () => { if (!past.length) return; const previous = past[past.length - 1]; setPast((items) => items.slice(0, -1)); setFuture((items) => [clone(config.layout), ...items]); applyConfig({ ...config, layout: clone(previous) }, false); };
+  const redo = () => { if (!future.length) return; const next = future[0]; setFuture((items) => items.slice(1)); setPast((items) => [...items, clone(config.layout)]); applyConfig({ ...config, layout: clone(next) }, false); };
+  const canRaise = movePhotoFrameLayer(editorConfig, 'frame', selectedIds, 1) !== editorConfig;
+  const canLower = movePhotoFrameLayer(editorConfig, 'frame', selectedIds, -1) !== editorConfig;
   const actions = [
     { key: 'move', icon: 'hand', label: t('mirror_150'), onPress: () => setTool('move'), selected: tool === 'move' },
     { key: 'rotate', icon: 'rotate', label: t('mirror_151'), onPress: () => setTool('rotate'), selected: tool === 'rotate' },
@@ -205,7 +217,7 @@ export function MirrorFrameEditor({ config, onChange, resourcesById = {}, theme,
   const overlay = (
     <View style={StyleSheet.absoluteFill} {...canvasResponder.panHandlers}>
       {draftLayers.slice().sort((left, right) => Number(left.order || 0) - Number(right.order || 0)).map((layer) => (
-        <EditableFrameLayer key={layer.id} layer={layer} selectedIds={selectedIds} theme={theme} disabled={disabled} tool={tool} onSelect={select} onDelete={remove} />
+        <EditableFrameLayer key={layer.id} layer={layer} number={draftLayers.findIndex((item) => item.id === layer.id) + 1} selectedIds={selectedIds} theme={theme} disabled={disabled} tool={tool} onSelect={select} onDelete={remove} />
       ))}
       {guides.x !== null ? <View pointerEvents="none" style={[styles.guideVertical, { backgroundColor: theme.secondary, left: `${guides.x}%` }]} /> : null}
       {guides.y !== null ? <View pointerEvents="none" style={[styles.guideHorizontal, { backgroundColor: theme.secondary, top: `${guides.y}%` }]} /> : null}

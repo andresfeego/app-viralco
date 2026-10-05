@@ -7,6 +7,7 @@ import { t } from '../i18n';
 import { IconTextButton } from './IconTextButton';
 import { hitTestMirrorGesture } from './MirrorLayoutEditor';
 import { MirrorConfigPreview } from './MirrorConfigPreview';
+import { MirrorInstanceLabel } from './MirrorInstanceLabel';
 import { MirrorEditorHelpModal } from './MirrorEditorHelpModal';
 import { MirrorEditorToolbar } from './MirrorEditorToolbar';
 
@@ -41,7 +42,7 @@ function RotationHandle({ corner, theme }) {
   );
 }
 
-function EditableStickerLayer({ layer, selectedIds, theme, disabled, tool, onSelect, onDelete }) {
+function EditableStickerLayer({ layer, number, selectedIds, theme, disabled, tool, onSelect, onDelete }) {
   const selected = selectedIds.includes(String(layer.id));
   const geometryStyle = { left: `${layer.x}%`, top: `${layer.y}%`, width: `${layer.width}%`, height: `${layer.height}%`, transform: [{ rotate: `${Number(layer.rotation || 0)}deg` }] };
   return (
@@ -52,17 +53,28 @@ function EditableStickerLayer({ layer, selectedIds, theme, disabled, tool, onSel
       onAccessibilityTap={() => onSelect(String(layer.id))}
       style={[styles.stickerLayer, geometryStyle, { borderColor: selected ? theme.secondary : theme.border, borderWidth: selected ? tokens.border.medium : StyleSheet.hairlineWidth }]}
     >
-      {!disabled ? <View style={styles.deleteButton}><IconTextButton theme={theme} icon="trash-can" denseIconOnly iconSize={tokens.typography.caption} variant="ghost" backgroundColor={theme.alert} pressedBackgroundColor={theme.background} iconColor={theme.buttonText} accessibilityLabel={t('mirror_sticker_remove')} onPress={() => onDelete(String(layer.id))} /></View> : null}
+      {!disabled && selected ? <View style={styles.deleteButton}><IconTextButton theme={theme} icon="trash-can" denseIconOnly iconSize={tokens.typography.caption} variant="ghost" backgroundColor={theme.alert} pressedBackgroundColor={theme.background} iconColor={theme.buttonText} accessibilityLabel={t('mirror_sticker_remove')} onPress={() => onDelete(String(layer.id))} /></View> : null}
       {!disabled && selected && tool === 'move' ? <View pointerEvents="none" style={[styles.resizeHandle, { backgroundColor: theme.primary }]} /> : null}
+      {selected ? <MirrorInstanceLabel kind="sticker" number={number} theme={theme} /> : null}
       {!disabled && selected && tool === 'rotate' ? ['topHandle', 'rightHandle', 'bottomHandle', 'leftHandle'].map((corner) => <RotationHandle key={corner} corner={corner} theme={theme} />) : null}
     </View>
   );
 }
 
-export function MirrorStickerEditor({ config, onChange, resourcesById = {}, theme, disabled = false, onInteractionChange }) {
+export function MirrorStickerEditor({ config, onChange, resourcesById = {}, theme, disabled = false, onInteractionChange, selectionRequest }) {
   const initialLayers = config.layout.stickerLayers || [];
+  const knownIds = useRef(initialLayers.map((layer) => layer.id));
+  useEffect(() => {
+    const layers = config.layout.stickerLayers || [];
+    const added = layers.filter((layer) => !knownIds.current.includes(layer.id));
+    if (added.length) setSelectedIds([String(added.at(-1).id)]);
+    knownIds.current = layers.map((layer) => layer.id);
+  }, [config.layout.stickerLayers]);
   const [draftLayers, setDraftLayers] = useState(initialLayers);
   const [selectedIds, setSelectedIds] = useState([String(initialLayers[0]?.id || '')].filter(Boolean));
+  useEffect(() => {
+    if (selectionRequest?.id) setSelectedIds([String(selectionRequest.id)]);
+  }, [selectionRequest]);
   const [multi, setMulti] = useState(false);
   const [tool, setTool] = useState('move');
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
@@ -205,7 +217,7 @@ export function MirrorStickerEditor({ config, onChange, resourcesById = {}, them
   const overlay = (
     <View style={StyleSheet.absoluteFill} {...canvasResponder.panHandlers}>
       {draftLayers.slice().sort((left, right) => Number(left.order || 0) - Number(right.order || 0)).map((layer) => (
-        <EditableStickerLayer key={layer.id} layer={layer} selectedIds={selectedIds} theme={theme} disabled={disabled} tool={tool} onSelect={select} onDelete={remove} />
+        <EditableStickerLayer key={layer.id} layer={layer} number={draftLayers.findIndex((item) => item.id === layer.id) + 1} selectedIds={selectedIds} theme={theme} disabled={disabled} tool={tool} onSelect={select} onDelete={remove} />
       ))}
       {guides.x !== null ? <View pointerEvents="none" style={[styles.guideVertical, { backgroundColor: theme.secondary, left: `${guides.x}%` }]} /> : null}
       {guides.y !== null ? <View pointerEvents="none" style={[styles.guideHorizontal, { backgroundColor: theme.secondary, top: `${guides.y}%` }]} /> : null}

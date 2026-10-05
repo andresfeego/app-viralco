@@ -24,7 +24,7 @@ export function ResourcePicker({ items, theme, canManage, loading, error, filter
         onEventTypeChange={(eventType) => onFiltersChange({ ...filters, eventType, page: 1 })}
         motion={filters.motion}
         onMotionChange={(motion) => onFiltersChange({ ...filters, motion, page: 1 })}
-      />
+ />
       {loading ? <Text style={[styles.feedback, { color: theme.textSecondary }]}>{t('resource_022')}</Text> : null}
       {error ? (
         <View style={styles.feedbackWrap}>
@@ -43,13 +43,13 @@ export function ResourcePicker({ items, theme, canManage, loading, error, filter
           selected={selectedId === item.id}
           onSelect={onSelect}
           onToggleFavorite={onToggleFavorite}
-        />
+ />
       ))}
       {pagination?.pageCount > 1 ? (
         <View style={styles.pagination}>
-          <AppButton label={t('resource_026')} onPress={() => onPageChange(pagination.page - 1)} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} style={styles.pageButton} />
+          <AppButton variant="outlined" borderColor={theme.textSecondary} label={t('resource_026')} onPress={() => onPageChange(pagination.page - 1)} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} style={styles.pageButton} />
           <Text style={[styles.feedback, { color: theme.textSecondary }]}>{pagination.page}/{pagination.pageCount}</Text>
-          <AppButton label={t('resource_027')} onPress={() => onPageChange(pagination.page + 1)} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} style={styles.pageButton} />
+          <AppButton variant="outlined" borderColor={theme.textSecondary} label={t('resource_027')} onPress={() => onPageChange(pagination.page + 1)} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} style={styles.pageButton} />
         </View>
       ) : null}
     </View>

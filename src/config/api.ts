@@ -1,7 +1,9 @@
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
+import { resolveApiBaseUrl } from './resolveApiBaseUrl';
 
-const explicitBaseUrl = String(process?.env?.VIRALCO_API_URL || '').trim();
-const host = Platform.OS === 'android' ? '10.0.2.2' : 'Mac-mini-de-Andres.local';
-const port = '4000';
-
-export const API_BASE_URL = explicitBaseUrl || `http://${host}:${port}`;
+export const API_BASE_URL = resolveApiBaseUrl({
+  explicitUrl: process.env.VIRALCO_API_URL,
+  scriptURL: NativeModules.SourceCode?.scriptURL,
+  platform: Platform.OS,
+  development: __DEV__,
+});

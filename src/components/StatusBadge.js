@@ -25,7 +25,7 @@ const VARIANT_STYLES = {
   },
 };
 
-export function StatusBadge({ label, flag = 'info', compact = false }) {
+export function StatusBadge({ label, flag = 'info', compact = false, dense = false }) {
   const variant = VARIANT_STYLES[flag] || VARIANT_STYLES.info;
 
   return (
@@ -33,6 +33,7 @@ export function StatusBadge({ label, flag = 'info', compact = false }) {
       style={[
         styles.badge,
         compact ? styles.badgeCompact : null,
+        dense ? styles.badgeDense : null,
         { backgroundColor: variant.backgroundColor, borderColor: variant.borderColor },
       ]}
     >
@@ -52,6 +53,9 @@ const styles = StyleSheet.create({
   badgeCompact: {
     paddingHorizontal: tokens.spacing.xs,
     paddingVertical: 2,
+  },
+  badgeDense: {
+    paddingVertical: tokens.spacing.none,
   },
   label: {
     fontSize: 12,

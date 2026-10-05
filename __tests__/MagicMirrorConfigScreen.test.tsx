@@ -1,5 +1,7 @@
 import React from 'react';
 import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
+import { LaunchPatternGate } from '../src/components/LaunchPatternGate';
+import { setMirrorRecoveryApi } from '../src/services/api/events';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -15,17 +17,19 @@ jest.mock('react-native-paper', () => {
   return { ...actual, TextInput: 'PaperTextInput', HelperText: 'HelperText' };
 });
 jest.mock('../src/hooks/useAuth', () => ({ useAuth: jest.fn() }));
-jest.mock('../src/providers/ToastProvider', () => ({ useToast: jest.fn() }));
+jest.mock('../src/providers/ToastProvider', () => ({ useToast: jest.fn(), ToastViewport: () => null }));
 jest.mock('../src/services/api/events', () => ({
   createAccountPhotoLayoutTemplateApi: jest.fn(),
   createEventResourceApi: jest.fn(), deleteEventResourceApi: jest.fn(),
   getMagicMirrorConfigApi: jest.fn(), getPublishedMagicMirrorConfigApi: jest.fn(), getAccountPhotoLayoutTemplateApi: jest.fn(),
   listAccountLibraryApi: jest.fn(), listEventResourcesApi: jest.fn(), listEventTypesApi: jest.fn(() => Promise.resolve({ types: [] })),
   publishMagicMirrorConfigApi: jest.fn(), saveMagicMirrorConfigApi: jest.fn(),
+  setMirrorRecoveryApi: jest.fn(),
   updateAccountLibraryFavoriteApi: jest.fn(), uploadAccountLibraryFileApi: jest.fn(),
   validateMagicMirrorConfigApi: jest.fn(),
 }));
 jest.mock('../src/services/media/documentPicker', () => ({ pickLibraryResourceFile: jest.fn() }));
+jest.mock('../src/services/media/resourcePicker', () => ({ ...jest.requireActual('../src/services/media/resourcePicker'), pickResourceFromDevice: jest.fn() }));
 
 import { DesignAssetCarousel } from '../src/components/DesignAssetCarousel';
 import { DesignAssetGrid } from '../src/components/DesignAssetGrid';
@@ -41,6 +45,8 @@ import { MirrorConfigurationSummary } from '../src/components/MirrorConfiguratio
 import { HorizontalSubMenu } from '../src/components/HorizontalSubMenu';
 import { CaptureTimeSlider } from '../src/components/CaptureTimeSlider';
 import { CameraLensPreview } from '../src/components/CameraLensPreview';
+import { ResourceUploadModal } from '../src/components/ResourceUploadModal';
+import { pickResourceFromDevice } from '../src/services/media/resourcePicker';
 import { applyMirrorFormat, defaultMirrorConfig, moveSlots } from '../src/domain/magicMirrorConfig';
 import { useAuth } from '../src/hooks/useAuth';
 import { useToast } from '../src/providers/ToastProvider';
@@ -56,9 +62,12 @@ import {
   publishMagicMirrorConfigApi,
   saveMagicMirrorConfigApi,
   validateMagicMirrorConfigApi,
+  uploadAccountLibraryFileApi,
+  updateAccountLibraryFavoriteApi,
 } from '../src/services/api/events';
 import { MagicMirrorConfigScreen } from '../src/screens/MagicMirrorConfigScreen';
 import { tokens } from '../src/design-system/tokens';
+import { getTheme } from '../src/design-system/theme';
 
 const account = { id: '10', name: 'Cuenta' };
 const event = { id: '20', accountId: '10', name: 'Boda', eventDate: '2026-09-01' };
@@ -111,6 +120,23 @@ beforeEach(() => {
   (createAccountPhotoLayoutTemplateApi as jest.Mock).mockResolvedValue({ asset: { id: '100', type: 'template' } });
 });
 
+test.each(['sticker', 'frame', 'background', 'animation', 'font'])('routes %s device uploads by purpose without changing the event draft', async purpose => {
+  const file = { uri: 'file:///resource.png', fileName: 'resource.png', type: 'image/png', fileSize: 100 };
+  (pickResourceFromDevice as jest.Mock).mockResolvedValue(file);
+  (uploadAccountLibraryFileApi as jest.Mock).mockResolvedValue({ id: '99' });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  const source = purpose === 'font' ? 'files' : 'gallery';
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceUploadModal).props.onUpload(purpose, source));
+  expect(pickResourceFromDevice).toHaveBeenCalledWith(purpose, source, { staticOnly: purpose === 'sticker' });
+  expect(uploadAccountLibraryFileApi).toHaveBeenCalledWith('10', file, purpose, expect.any(Function));
+  expect(updateAccountLibraryFavoriteApi).toHaveBeenCalledWith('10', '99', true);
+  expect(saveMagicMirrorConfigApi).not.toHaveBeenCalled();
+  expect(renderer!.root.findByType(ResourceUploadModal).props.disabled).toBe(false);
+  await ReactTestRenderer.act(async () => renderer!.unmount());
+});
+
 test('uses the event name as the configurator header title', async () => {
   const onHeaderChange = jest.fn();
   await ReactTestRenderer.act(async () => {
@@ -130,6 +156,20 @@ test('uses the event name as the configurator header title', async () => {
     title: 'Boda',
     subtitle: 'Configurar Espejo magico',
   }));
+});
+
+test('owner sets recovery from Operation independently of saving or publishing the design', async () => {
+  (setMirrorRecoveryApi as jest.Mock).mockResolvedValue({ configured: true });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('operation'));
+  const action = renderer!.root.findAll(node => node.props.label === 'Recuperación de acceso' && typeof node.props.onPress === 'function')[0];
+  ReactTestRenderer.act(() => action.props.onPress());
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(LaunchPatternGate).props.onReady([0, 1, 2, 5]));
+  expect(setMirrorRecoveryApi).toHaveBeenCalledWith('20', '30', [0, 1, 2, 5]);
+  expect(saveMagicMirrorConfigApi).not.toHaveBeenCalled();
+  expect(publishMagicMirrorConfigApi).not.toHaveBeenCalled();
 });
 
 test('shows only the four supported animation stages and excludes countdown', async () => {
@@ -160,17 +200,59 @@ test('presents capture settings in timing, lens, quality and other cards without
   expect(text).not.toContain('Modo itinerante');
 });
 
-test('uses a full-width seconds slider for automatic operator reset', async () => {
+test('no longer offers automatic reset in operator configuration', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
   ReactTestRenderer.act(() => renderer!.root.findAllByType(HorizontalSubMenu)[0].props.onSelect('operation'));
   const slider = renderer!.root.findAllByType(CaptureTimeSlider).find((node) => node.props.testID === 'runtime-auto-reset');
-  expect(slider).toBeTruthy();
-  expect(slider!.props.layout).toBe('stacked');
-  expect(slider!.props.minimumValue).toBe(5);
-  expect(slider!.props.maximumValue).toBe(300);
-  expect(slider!.props.step).toBe(5);
+  expect(slider).toBeUndefined();
+});
+
+test.each(['light', 'dark'])('keeps capture and print selections editable with outlined chips in %s', async themeMode => {
+  mockedAuth.mockReturnValue({ user: { themeMode, globalRoles: [], accounts: [{ account, status: 'active', role: { slug: 'owner' } }] } });
+  const config = defaultMirrorConfig();
+  config.print.profileResourceId = '71';
+  (getMagicMirrorConfigApi as jest.Mock).mockResolvedValue({ config: { revision: 2, config } });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  ReactTestRenderer.act(() => renderer!.root.findAllByType(HorizontalSubMenu)[0].props.onSelect('capture'));
+  for (const [id, value] of [['mirror-capture-lens', 'ultra-wide'], ['mirror-capture-quality', 'superior']]) {
+    expect(renderer!.root.findByProps({ testID: id }).props).toMatchObject({ variant: 'outlined', disabled: false, backgroundColor: getTheme(themeMode).surface });
+    ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: `${id}-${value}` }).props.onPress());
+    expect(renderer!.root.findByProps({ testID: id }).props.value).toBe(value);
+  }
+  expect(renderer!.root.findByType(CameraLensPreview).props.lens).toBe('ultra-wide');
+  ReactTestRenderer.act(() => renderer!.root.findAllByType(HorizontalSubMenu)[0].props.onSelect('operation'));
+  for (const [id, value] of [['mirror-print-orientation', 'landscape'], ['mirror-print-fit', 'cover']]) {
+    expect(renderer!.root.findByProps({ testID: id }).props).toMatchObject({ variant: 'outlined', disabled: false, backgroundColor: getTheme(themeMode).surface });
+    ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: `${id}-${value}` }).props.onPress());
+    expect(renderer!.root.findByProps({ testID: id }).props.value).toBe(value);
+  }
+  ReactTestRenderer.act(() => renderer!.root.findAllByType(HorizontalSubMenu)[0].props.onSelect('review'));
+  await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-save' }).props.onPress());
+  expect(saveMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30', expect.objectContaining({ config: expect.objectContaining({
+    capture: expect.objectContaining({ lens: 'ultra-wide', quality: 'superior' }),
+    print: expect.objectContaining({ orientation: 'landscape', fit: 'cover', profileResourceId: '71' }),
+  }) }));
+  ReactTestRenderer.act(() => renderer!.unmount());
+});
+
+test('keeps outlined capture and print selectors disabled for operators', async () => {
+  mockedAuth.mockReturnValue({ user: { themeMode: 'dark', globalRoles: [], accounts: [{ account, status: 'active', role: { slug: 'operator' } }] } });
+  const config = defaultMirrorConfig();
+  config.print.profileResourceId = '71';
+  (getPublishedMagicMirrorConfigApi as jest.Mock).mockResolvedValue({ version: { id: '90', version: 1, config }, manifest: [] });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  for (const [section, ids] of [['capture', ['mirror-capture-lens', 'mirror-capture-quality']], ['operation', ['mirror-print-orientation', 'mirror-print-fit']]] as const) {
+    ReactTestRenderer.act(() => renderer!.root.findAllByType(HorizontalSubMenu)[0].props.onSelect(section));
+    ids.forEach(testID => expect(renderer!.root.findByProps({ testID }).props).toMatchObject({ variant: 'outlined', disabled: true }));
+  }
+  expect(saveMagicMirrorConfigApi).not.toHaveBeenCalled();
+  ReactTestRenderer.act(() => renderer!.unmount());
 });
 
 test('applies a photo layout template locally without saving or creating an event resource', async () => {
@@ -355,6 +437,31 @@ test('adds a favorite static sticker as a positioned design layer', async () => 
   ]);
 });
 
+test.each(['frame', 'sticker'])('counts, adds and cycles %s instances without removing them from the gallery', async (purpose) => {
+  const item = { libraryAssetId: '70', asset: { id: '70', name: 'Recurso', type: purpose, motionType: 'static', mimeType: 'image/png' } };
+  (listAccountLibraryApi as jest.Mock).mockImplementation((_id, query) => Promise.resolve({ library: query.type === purpose ? [item] : [] }));
+  (createEventResourceApi as jest.Mock).mockResolvedValue({ resource: { id: '80', libraryAssetId: '70', purpose, asset: item.asset } });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: `horizontal-submenu-${purpose}` }).props.onPress());
+  const grid = () => renderer!.root.findByType(DesignAssetGrid);
+  const editor = () => renderer!.root.findByType(purpose === 'frame' ? MirrorFrameEditor : MirrorStickerEditor);
+  await ReactTestRenderer.act(async () => grid().props.onSelect(item));
+  expect(grid().props.instanceCounts['70']).toBe(1);
+  expect(grid().props.onRemove).toBeUndefined();
+  await ReactTestRenderer.act(async () => grid().props.onAddInstance(item));
+  const layers = editor().props.config.layout[`${purpose}Layers`];
+  expect(grid().props.instanceCounts['70']).toBe(2);
+  expect(createEventResourceApi).toHaveBeenCalledTimes(1);
+  expect(editor().props.selectionRequest.id).toBe(layers[1].id);
+  ReactTestRenderer.act(() => grid().props.onSelect(item));
+  expect(editor().props.selectionRequest.id).toBe(layers[0].id);
+  expect(grid().props.instanceCounts['70']).toBe(2);
+  ReactTestRenderer.act(() => editor().props.onChange({ ...editor().props.config, layout: { ...editor().props.config.layout, [`${purpose}Layers`]: [layers[1]] } }));
+  expect(grid().props.instanceCounts['70']).toBe(1);
+});
+
 test('operator sees only the active publication', async () => {
   mockedAuth.mockReturnValue({ user: { themeMode: 'dark', globalRoles: [], accounts: [{ account, status: 'active', role: { slug: 'operator' } }] } });
   let renderer: ReactTestRenderer.ReactTestRenderer;
@@ -390,6 +497,91 @@ test('publish saves dirty state, validates and creates an immutable version afte
   expect(saveMagicMirrorConfigApi).toHaveBeenCalled();
   expect(validateMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30', expect.objectContaining({ publish: true }));
   expect(publishMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30', 3);
+  alert.mockRestore();
+});
+
+test('validation preserves unsaved changes and publishing then saves the exact validated draft', async () => {
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => { buttons?.[1]?.onPress?.(); });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  changeFormat(renderer!, 'doble');
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
+  await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-validate' }).props.onPress());
+  expect(saveMagicMirrorConfigApi).not.toHaveBeenCalled();
+  const badgeText = renderer!.root.findByProps({ testID: 'mirror-config-status' }).findAllByType(Text).map(node => node.props.children).join(' ');
+  expect(badgeText).toContain('Cambios sin guardar');
+  expect(JSON.parse((await AsyncStorage.getItem('mirror-config-draft:v1:10:20:30'))!).config.layout.shotCount).toBe(2);
+  await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-publish' }).props.onPress());
+  await flush();
+  expect(saveMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30', expect.objectContaining({ expectedRevision: 2, config: expect.objectContaining({ layout: expect.objectContaining({ shotCount: 2 }) }) }));
+  expect(publishMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30', 3);
+  alert.mockRestore();
+});
+
+test('a new untouched configuration is persisted before publication', async () => {
+  (getMagicMirrorConfigApi as jest.Mock).mockResolvedValue({ config: { revision: 0, config: defaultMirrorConfig(), status: 'draft' } });
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => { buttons?.[1]?.onPress?.(); });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
+  await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-publish' }).props.onPress());
+  await flush();
+  expect(saveMagicMirrorConfigApi).toHaveBeenCalled();
+  expect(publishMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30', 1);
+  alert.mockRestore();
+});
+
+test('a previous publication does not label a newer server draft as published', async () => {
+  (getMagicMirrorConfigApi as jest.Mock).mockResolvedValue({ config: { revision: 3, config: defaultMirrorConfig(), status: 'draft', publishedVersionId: '90' } });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  const text = renderer!.root.findByProps({ testID: 'mirror-config-status' }).findAllByType(Text).map(node => node.props.children).join(' ');
+  expect(text).not.toContain('Publicado');
+});
+
+test('review shows the publication number, never the global id or draft revision, after saving', async () => {
+  const draft = { revision: 19, config: defaultMirrorConfig(), status: 'draft', publishedVersionId: '987', publishedVersion: 3 };
+  (getMagicMirrorConfigApi as jest.Mock).mockResolvedValue({ config: draft });
+  (saveMagicMirrorConfigApi as jest.Mock).mockResolvedValue({ config: { ...draft, revision: 20 } });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
+  const badgeText = () => renderer!.root.findByProps({ testID: 'mirror-publication-status' }).findAllByType(Text).map(node => node.props.children).join(' ');
+  expect(badgeText()).toBe('Publicación 3');
+  await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-save' }).props.onPress());
+  expect(badgeText()).toBe('Publicación 3');
+});
+
+test('review displays unpublished until a publication is created', async () => {
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => { buttons?.[1]?.onPress?.(); });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
+  const badgeText = () => renderer!.root.findByProps({ testID: 'mirror-publication-status' }).findAllByType(Text).map(node => node.props.children).join(' ');
+  expect(badgeText()).toBe('Sin publicar');
+  await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-publish' }).props.onPress());
+  await flush();
+  expect(badgeText()).toBe('Publicación 2');
+  alert.mockRestore();
+});
+
+test('confirmation cannot publish a configuration edited after validation', async () => {
+  let confirm: (() => void) | undefined;
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => { confirm = buttons?.[1]?.onPress; });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
+  await flush();
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'design' }).props.onSelect('review'));
+  await ReactTestRenderer.act(async () => renderer!.root.findByProps({ testID: 'mirror-publish' }).props.onPress());
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ selectedKey: 'review' }).props.onSelect('design'));
+  changeFormat(renderer!, 'doble');
+  await ReactTestRenderer.act(async () => { await confirm?.(); });
+  expect(publishMagicMirrorConfigApi).not.toHaveBeenCalled();
   alert.mockRestore();
 });
 

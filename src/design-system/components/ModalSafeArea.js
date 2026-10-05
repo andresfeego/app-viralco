@@ -3,11 +3,11 @@ import { StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tokens } from '../tokens';
 
-export function modalSurfaceTopOffset(insetTop = tokens.spacing.none) {
-  return Math.max(tokens.spacing.xl * 2, insetTop + tokens.spacing.xs);
+export function modalSurfaceTopOffset(insetTop = tokens.spacing.none, topSpacing = tokens.spacing.xs) {
+  return Math.max(tokens.spacing.xl * 2, insetTop + topSpacing);
 }
 
-export function ModalSafeArea({ children, style, testID }) {
+export function ModalSafeArea({ children, style, testID, topSpacing = tokens.spacing.xs }) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -15,7 +15,7 @@ export function ModalSafeArea({ children, style, testID }) {
       testID={testID}
       edges={['left', 'right', 'bottom']}
       accessibilityViewIsModal
-      style={[styles.container, style, { paddingTop: modalSurfaceTopOffset(insets.top) }]}
+      style={[styles.container, style, { paddingTop: modalSurfaceTopOffset(insets.top, topSpacing) }]}
     >
       {children}
     </SafeAreaView>

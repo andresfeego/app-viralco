@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AccountLogoPicker } from '../components/AccountLogoPicker';
 import { AccountLogoPreview } from '../components/AccountLogoPreview';
+import { IconTextButton } from '../components/IconTextButton';
 import { PaperFormInput } from '../components/PaperFormInput';
 import { AppButton } from '../design-system/components/AppButton';
-import { ModalSafeArea } from '../design-system/components/ModalSafeArea';
+import { FormModal } from '../components/FormModal';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { useAuth } from '../hooks/useAuth';
 import { t } from '../i18n';
 import { createAccountApi as createAdminAccountApi } from '../services/api/admin';
 import { createAccountApi, createAccountLogoAssetApi, listAccountsApi, updateAccountApi } from '../services/api/accounts';
-import { listEventModesApi } from '../services/api/events';
+import { billingRequest } from '../services/api/billing';
+import { BillingPeriodSwitch } from '../components/BillingPeriodSwitch';
 import { pickLogoImage } from '../services/media/imagePicker';
 import { getTheme } from '../design-system/theme';
 import { tokens } from '../design-system/tokens';
@@ -62,6 +64,8 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
   const [accounts, setAccounts] = useState([]);
   const [subscriptionModes, setSubscriptionModes] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [durationDays, setDurationDays] = useState(30);
   const [error, setError] = useState('');
   const [isCreateModalVisible, setCreateModalVisible] = useState(false);
   const [accountForm, setAccountForm] = useState({ slug: '', name: '', phone: '', email: '', modeSlugs: [], ownerUserId: '' });
@@ -82,18 +86,26 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
 
   const loadSubscriptionModes = useCallback(async () => {
+    setCatalogLoading(true);
+    setSubscriptionModes([]);
     try {
-      const payload = await listEventModesApi();
-      const rows = Array.isArray(payload?.modes) ? payload.modes : [];
+      const payload = await billingRequest('/catalog');
+      const rows = (Array.isArray(payload?.catalog) ? payload.catalog : []).filter(mode =>
+        mode.available && mode.implemented && [30, 365].every(days => Number.isSafeInteger(mode.prices?.[days]) && mode.prices[days] > 0));
       setSubscriptionModes(rows);
-      const defaults = rows.filter((mode) => mode.isDefault).map((mode) => mode.slug);
-      if (defaults.length) setAccountForm((current) => ({ ...current, modeSlugs: current.modeSlugs.length ? current.modeSlugs : defaults }));
+      setAccountForm(current => {
+        const selected = current.modeSlugs.filter(slug => rows.some(mode => mode.slug === slug));
+        return { ...current, modeSlugs: selected.length ? selected : rows.slice(0, 1).map(mode => mode.slug) };
+      });
     } catch (err) {
+      setAccountForm(current => ({ ...current, modeSlugs: [] }));
       setError(userErrorMessage(err, t('account_071')));
+    } finally {
+      setCatalogLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadSubscriptionModes(); }, [loadSubscriptionModes]);
+  useEffect(() => { if (isCreateModalVisible) loadSubscriptionModes(); }, [isCreateModalVisible, loadSubscriptionModes]);
 
   const closeCreateModal = () => {
     setSelectedLogo(null);
@@ -127,7 +139,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
     else if (!isValidSlug(accountForm.slug)) nextErrors.slug = t('account_066');
     if (!isValidEmail(accountForm.email)) nextErrors.email = t('account_067');
     if (!isNumericId(accountForm.ownerUserId)) nextErrors.ownerUserId = t('account_069');
-    if (!accountForm.modeSlugs.length) nextErrors.modeSlugs = t('account_072');
+    if (catalogLoading || !accountForm.modeSlugs.length || accountForm.modeSlugs.some(slug => !subscriptionModes.some(mode => mode.slug === slug))) nextErrors.modeSlugs = t('account_072');
     setFormErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -141,9 +153,9 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
     try {
       let created;
       if (isSuperAdmin && accountForm.ownerUserId) {
-        created = await createAdminAccountApi(accountForm);
+        created = await createAdminAccountApi({ ...accountForm, durationDays });
       } else {
-        created = await createAccountApi({ name: accountForm.name, slug: accountForm.slug, phone: accountForm.phone || undefined, email: accountForm.email || undefined, modeSlugs: accountForm.modeSlugs });
+        created = await createAccountApi({ name: accountForm.name, slug: accountForm.slug, phone: accountForm.phone || undefined, email: accountForm.email || undefined, modeSlugs: accountForm.modeSlugs, durationDays });
       }
       const accountId = created?.account?.id;
       if (accountId && selectedLogo) {
@@ -154,9 +166,10 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
           showToast({ message: userErrorMessage(err, t('account_059')), type: 'error' });
         }
       }
-      setAccountForm({ slug: '', name: '', phone: '', email: '', modeSlugs: subscriptionModes.filter((mode) => mode.isDefault).map((mode) => mode.slug), ownerUserId: '' });
+      setAccountForm({ slug: '', name: '', phone: '', email: '', modeSlugs: [], ownerUserId: '' });
       setSelectedLogo(null);
       setCreateModalVisible(false);
+      setDurationDays(30);
       await loadAccounts();
       await reloadMe();
     } catch (err) {
@@ -196,24 +209,17 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
       helperAction={helperAction}
       keyboardType={keyboardType}
       autoCapitalize={autoCapitalize}
-    />
+ />
   );
-
-  const formatModePrice = (mode) => `${mode.priceCurrency || 'USD'} ${mode.priceAmount || 0}`;
-  const selectedSubscriptionTotal = useMemo(
-    () => subscriptionModes
-      .filter((mode) => accountForm.modeSlugs.includes(mode.slug))
-      .reduce((sum, mode) => sum + Number(mode.priceAmount || 0), 0),
-    [accountForm.modeSlugs, subscriptionModes]
-  );
-  const selectedSubscriptionCurrency = subscriptionModes.find((mode) => accountForm.modeSlugs.includes(mode.slug))?.priceCurrency || 'USD';
 
   const renderServiceCards = () => (
     <View style={styles.planGrid}>
+      {catalogLoading ? <ActivityIndicator color={theme.primary} /> : null}
+      {!catalogLoading && !subscriptionModes.length ? <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('billing_pricesMissing')}</Text> : null}
       {subscriptionModes.map((mode) => {
         const selectedMode = accountForm.modeSlugs.includes(mode.slug);
         return (
-          <Pressable key={mode.slug} onPress={() => updateFormField('modeSlugs', selectedMode ? accountForm.modeSlugs.filter((slug) => slug !== mode.slug) : [...accountForm.modeSlugs, mode.slug])} style={styles.pressableCard}>
+          <Pressable key={mode.slug} testID={`account-mode-${mode.slug}`} accessibilityRole="checkbox" accessibilityState={{ checked: selectedMode }} onPress={() => updateFormField('modeSlugs', selectedMode ? accountForm.modeSlugs.filter((slug) => slug !== mode.slug) : [...accountForm.modeSlugs, mode.slug])} style={styles.pressableCard}>
             <SurfaceCard
               surfaceColor={theme.surface}
               borderColor={theme.border}
@@ -221,24 +227,24 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
             >
               <View style={styles.planHeader}>
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{mode.name}</Text>
-                <Text style={[styles.planPrice, { color: selectedMode ? theme.primary : theme.textSecondary }]}>{formatModePrice(mode)}</Text>
               </View>
               <Text style={[styles.helperText, { color: theme.textSecondary }]}>{mode.description || '-'}</Text>
+              <View style={styles.tariffs}>
+                <Text style={[styles.planPrice, { color: theme.primary }]}>{t(`billing_price${durationDays}`)}: {new Intl.NumberFormat('es-CO').format(mode.prices[durationDays])}</Text>
+              </View>
             </SurfaceCard>
           </Pressable>
         );
       })}
       {formErrors.modeSlugs ? <Text style={[styles.errorText, { color: theme.alert }]}>{formErrors.modeSlugs}</Text> : null}
-      <Text style={[styles.planTotal, { color: theme.textPrimary }]}>
-        {t('account_074')} ${selectedSubscriptionTotal} {selectedSubscriptionCurrency}
-      </Text>
+      {subscriptionModes.length ? <Text style={[styles.planTotal, { color: theme.textPrimary }]}>{t('billing_total')}: {new Intl.NumberFormat('es-CO').format(subscriptionModes.filter(mode => accountForm.modeSlugs.includes(mode.slug)).reduce((sum, mode) => sum + mode.prices[durationDays], 0))} COP</Text> : null}
     </View>
   );
 
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <AppButton testID="account-create-open" label={t('account_024')} onPress={() => setCreateModalVisible(true)} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.compactCreateButton} />
+        <IconTextButton testID="account-create-open" theme={theme} icon="plus" label={t('account_024')} onPress={() => setCreateModalVisible(true)} style={styles.compactCreateButton} />
         {error ? <Text style={[styles.errorText, { color: theme.alert }]}>{error}</Text> : null}
 
         {accounts.length === 0 ? (
@@ -246,7 +252,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
             <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
               <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>{t('account_023')}</Text>
               <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('account_032')}</Text>
-              <AppButton testID="account-empty-create-open" label={t('account_024')} onPress={() => setCreateModalVisible(true)} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.fullButton} />
+              <IconTextButton testID="account-empty-create-open" theme={theme} icon="plus" label={t('account_024')} onPress={() => setCreateModalVisible(true)} style={styles.fullButton} />
             </SurfaceCard>
           </View>
         ) : null}
@@ -259,6 +265,7 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
                   <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{account.name}</Text>
                   <Text style={[styles.helperText, { color: theme.textSecondary }]}>{account.slug} - {account.status}</Text>
                   <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('account_073')}: {account.subscription?.totalAmount ?? '-'} {account.subscription?.currency || ''} - {account.subscription?.statusLabel || account.subscription?.status || t('account_039')}</Text>
+                  {account.subscription?.billingNotice?.kind === 'expiring' ? <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('billing_expiresSoon')}: {account.subscription.billingNotice.daysRemaining}</Text> : null}
                 </View>
                 <AccountLogoPreview theme={theme} imageUri={logoPreviewUrl(account)} size="md" />
               </View>
@@ -267,11 +274,10 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
         ))}
       </ScrollView>
 
-      <Modal visible={isCreateModalVisible} animationType="slide" transparent onRequestClose={closeCreateModal}>
-        <ModalSafeArea style={styles.modalOverlay}>
-          <View testID="account-create-modal-card" style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
-            <ScrollView contentContainerStyle={styles.modalContent}>
-              <Text style={[styles.title, { color: theme.textPrimary }]}>{isSuperAdmin ? t('account_010') : t('account_024')}</Text>
+      <FormModal visible={isCreateModalVisible} theme={theme} title={isSuperAdmin ? t('account_010') : t('account_024')} onClose={closeCreateModal} testID="account-create-modal" sheetTestID="account-create-modal-card" overlay={<ToastViewport theme={theme} topOffset={MODAL_TOAST_TOP_OFFSET} />} actions={<>
+        <AppButton variant="outlined" borderColor={theme.buttonSecondaryBorder} label={t('account_028')} onPress={closeCreateModal} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} />
+        <AppButton testID="account-create-save" label={t('account_013')} disabled={catalogLoading || !subscriptionModes.length || !accountForm.modeSlugs.length} onPress={createAccount} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
+      </>}>
               <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('account_026')}</Text>
               {error ? <Text style={[styles.errorText, { color: theme.alert }]}>{error}</Text> : null}
               {renderFormInput({ testID: 'account-create-name-input', label: t('account_011'), value: accountForm.name, errorText: formErrors.name, onChangeText: (name) => updateFormField('name', name) })}
@@ -285,20 +291,13 @@ export function AccountsScreen({ onOpenAccount = () => {}, openCreateOnMount = f
                 imageUri={selectedLogo?.uri || ''}
                 buttonLabel={selectedLogo ? t('account_057') : t('account_060')}
                 onPress={selectLogo}
-              />
+ />
               {isSuperAdmin ? renderFormInput({ testID: 'account-create-owner-input', label: t('account_012'), value: accountForm.ownerUserId, errorText: formErrors.ownerUserId, keyboardType: 'number-pad', onChangeText: (ownerUserId) => updateFormField('ownerUserId', ownerUserId) }) : null}
               <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('account_025')}</Text>
+              <BillingPeriodSwitch theme={theme} durationDays={durationDays} onChange={setDurationDays} disabled={catalogLoading} />
               {renderServiceCards()}
               <Text style={[styles.helperText, { color: theme.textSecondary }]}>{t('account_027')}</Text>
-              <View style={styles.actions}>
-                <AppButton label={t('account_028')} onPress={closeCreateModal} backgroundColor={theme.surface} pressedColor={theme.surface} textColor={theme.textPrimary} style={styles.smallButton} />
-                <AppButton testID="account-create-save" label={t('account_013')} onPress={createAccount} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.smallButton} />
-              </View>
-            </ScrollView>
-          </View>
-          <ToastViewport theme={theme} topOffset={MODAL_TOAST_TOP_OFFSET} />
-        </ModalSafeArea>
-      </Modal>
+      </FormModal>
     </View>
   );
 }
@@ -315,16 +314,14 @@ const styles = StyleSheet.create({
   emptyWrap: { justifyContent: 'center', minHeight: EMPTY_STATE_MIN_HEIGHT },
   emptyTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
   planGrid: { gap: tokens.spacing.sm },
+  tariffs: { gap: tokens.spacing.xxs, minWidth: 0 },
   planHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   planPrice: { fontSize: tokens.typography.caption, fontWeight: '700' },
   planTotal: { fontSize: tokens.typography.body, fontWeight: '700', textAlign: 'center' },
   helperText: { fontSize: tokens.typography.caption, fontWeight: '600' },
   errorText: { fontSize: tokens.typography.caption, fontWeight: '700' },
-  actions: { flexDirection: 'row', gap: tokens.spacing.xs },
-  smallButton: { flex: 1, minWidth: 0 },
+
+
   fullButton: { width: '100%' },
   cardTitle: { fontSize: tokens.typography.body, fontWeight: '700' },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalCard: { flex: 1, borderTopWidth: 1, borderTopLeftRadius: tokens.radius.lg, borderTopRightRadius: tokens.radius.lg },
-  modalContent: { gap: tokens.spacing.sm, padding: tokens.spacing.md, paddingBottom: tokens.spacing.lg },
 });

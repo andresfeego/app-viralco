@@ -14,6 +14,8 @@ export function IconTextButton({
   disabled = false,
   selected,
   onPress = () => {},
+  onLongPress,
+  delayLongPress,
   accessibilityLabel,
   backgroundColor: customBackgroundColor,
   pressedBackgroundColor,
@@ -31,7 +33,7 @@ export function IconTextButton({
   const isGhost = variant === 'ghost';
   const backgroundColor = customBackgroundColor ?? (variant === 'filled' ? theme.buttonBg : theme.surface);
   const pressedColor = pressedBackgroundColor ?? (variant === 'filled' ? theme.buttonBgPressed : theme.background);
-  const borderColor = customBorderColor ?? (variant === 'filled' ? theme.buttonBg : theme.border);
+  const borderColor = customBorderColor ?? (variant === 'filled' ? theme.buttonBg : theme.textSecondary);
   const contentColor = iconColor ?? (variant === 'filled' ? theme.buttonText : isGhost ? theme.primary : theme.textPrimary);
 
   const iconNode = <Icon name={icon} iconStyle={iconStyle} size={iconSize} color={contentColor} />;
@@ -46,6 +48,8 @@ export function IconTextButton({
       hitSlop={isIconOnly && compactIconOnly ? tokens.spacing.md : undefined}
       disabled={disabled}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={delayLongPress}
       style={({ pressed }) => [
         styles.button,
         isGhost ? styles.ghost : null,
@@ -71,7 +75,7 @@ export function IconTextButton({
 
 const styles = StyleSheet.create({
   button: {
-    borderWidth: 1,
+    borderWidth: tokens.border.thin,
     borderRadius: tokens.radius.pill,
     minHeight: tokens.spacing.xl + tokens.spacing.xs,
     alignItems: 'center',
@@ -91,7 +95,7 @@ const styles = StyleSheet.create({
     height: tokens.spacing.xl + tokens.spacing.xs,
     minHeight: tokens.spacing.xl + tokens.spacing.xs,
     borderRadius: tokens.radius.pill,
-    paddingVertical: 0,
+    paddingVertical: tokens.spacing.none,
     paddingHorizontal: tokens.spacing.xs,
   },
   compactIconOnly: {

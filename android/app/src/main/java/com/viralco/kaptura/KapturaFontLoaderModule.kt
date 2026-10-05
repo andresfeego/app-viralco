@@ -33,7 +33,19 @@ class KapturaFontLoaderModule(reactContext: ReactApplicationContext) : NativeKap
 
   private fun download(sourceUrl: String, target: File) {
     val temporary = File(target.parentFile, "${target.name}.download")
-    val connection = URL(sourceUrl).openConnection() as HttpURLConnection
+    val source = URL(sourceUrl)
+    if (source.protocol == "file") {
+      val local = File(source.toURI()).canonicalFile
+      val roots = listOf(reactApplicationContext.cacheDir, reactApplicationContext.filesDir)
+      require(roots.any { local.path.startsWith(it.canonicalPath + File.separator) }) { "Font outside private app storage" }
+      local.copyTo(temporary, overwrite = true)
+      if (!temporary.renameTo(target)) {
+        temporary.copyTo(target, overwrite = true)
+        temporary.delete()
+      }
+      return
+    }
+    val connection = source.openConnection() as HttpURLConnection
     connection.connectTimeout = 15000
     connection.readTimeout = 30000
     connection.instanceFollowRedirects = true

@@ -159,7 +159,7 @@ function appliedItems(config, issues, resourcesById, translate) {
     const delivery = [config.delivery.qr && translate('mirror_091'), config.delivery.share && translate('mirror_092'), config.delivery.download && translate('mirror_093')].filter(Boolean);
     items.push({ id: 'applied-delivery', title: translate('mirror_summary_applied_delivery'), detail: delivery.length ? delivery.join(' · ') : translate('mirror_summary_disabled') });
   }
-  if (!hasIssue('runtime')) items.push({ id: 'applied-runtime', title: translate('mirror_summary_applied_runtime'), detail: `${config.runtime.autoResetSeconds} ${translate('mirror_seconds')} · ${config.runtime.operatorMenuEnabled ? translate('mirror_summary_enabled') : translate('mirror_summary_disabled')}` });
+  if (!hasIssue('runtime')) items.push({ id: 'applied-runtime', title: translate('mirror_summary_applied_runtime'), detail: config.runtime.operatorMenuEnabled ? translate('mirror_summary_enabled') : translate('mirror_summary_disabled') });
   if (!hasIssue('print')) items.push({ id: 'applied-print', title: translate('print_009'), detail: config.print.enabled ? `${config.print.paperWidthCm} × ${config.print.paperHeightCm} cm · ${config.print.dpi} DPI` : translate('mirror_summary_disabled') });
   return items;
 }

@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
 jest.mock('react-native-video', () => 'Video');
+jest.mock('../src/providers/ToastProvider', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 
 import { ResourceGalleryTile, resourceOriginalUri, resourceThumbnailUri } from '../src/components/ResourceGalleryTile';
 import { ResourcePreviewModal } from '../src/components/ResourcePreviewModal';

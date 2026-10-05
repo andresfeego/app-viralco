@@ -15,6 +15,7 @@ export function EventModeRow({
   onLaunch = () => {},
   configureTestID,
   launchTestID,
+  galleryAction = null,
 }) {
   const launchColor = canLaunch ? tokens.colors.success[400] : tokens.colors.gray[4];
 
@@ -45,6 +46,7 @@ export function EventModeRow({
           disabled={!canConfigure}
           onPress={onConfigure}
         />
+        {galleryAction}
         <IconTextButton
           testID={launchTestID}
           theme={theme}
@@ -74,6 +76,7 @@ const styles = StyleSheet.create({
   },
   name: {
     flex: 1,
+    minWidth: 0,
     fontSize: tokens.typography.body,
     fontWeight: '700',
   },

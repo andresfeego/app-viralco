@@ -1,0 +1,55 @@
+import React from 'react';
+import { RefreshControl, ScrollView, Text } from 'react-native';
+import renderer, { act } from 'react-test-renderer';
+import { ProfileScreen } from '../src/screens/ProfileScreen';
+import { useAuth } from '../src/hooks/useAuth';
+import { AppButton } from '../src/design-system/components/AppButton';
+import { SelectableChipGroup } from '../src/components/SelectableChipGroup';
+import { ConfigurationScreen } from '../src/screens/ConfigurationScreen';
+import { HorizontalSubMenu } from '../src/components/HorizontalSubMenu';
+import { ManagementCard } from '../src/components/ManagementCard';
+import { SurfaceCard } from '../src/design-system/components/SurfaceCard';
+import { getTheme } from '../src/design-system/theme';
+import { setLocale, t } from '../src/i18n';
+
+jest.mock('../src/hooks/useAuth', () => ({ useAuth: jest.fn() }));
+jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
+beforeEach(() => jest.clearAllMocks());
+afterEach(() => setLocale('es'));
+it.each(['light', 'dark'])('refreshes profile by gesture while keeping theme changes explicit in %s', async themeMode => {
+  const reloadMe = jest.fn().mockResolvedValue(null), updateThemeMode = jest.fn();
+  useAuth.mockReturnValue({ user: { name: 'Ana', email: 'ana@example.test', themeMode }, reloadMe, updateThemeMode });
+  let tree;
+  act(() => { tree = renderer.create(<ProfileScreen />); });
+  expect(tree.root.findAllByType(ScrollView).find(scroll => scroll.props.testID === 'profile-scroll').props.alwaysBounceVertical).toBe(true);
+  expect(tree.root.findAllByType(AppButton)).toHaveLength(0);
+  expect(tree.root.findByType(SelectableChipGroup).props).toMatchObject({ value: themeMode, variant: 'outlined' });
+  await act(async () => tree.root.findByType(RefreshControl).props.onRefresh());
+  expect(reloadMe).toHaveBeenCalledTimes(1);
+  expect(updateThemeMode).not.toHaveBeenCalled();
+  await act(async () => tree.root.findByType(SelectableChipGroup).props.onChange(themeMode === 'light' ? 'dark' : 'light'));
+  expect(updateThemeMode).toHaveBeenCalledWith(themeMode === 'light' ? 'dark' : 'light');
+  reloadMe.mockRejectedValue(new Error('Offline'));
+  await act(async () => tree.root.findByType(RefreshControl).props.onRefresh());
+  expect(tree.root.findByType(RefreshControl).props.refreshing).toBe(false);
+  expect(tree.root.findAllByType(Text).some(node => node.props.children === 'Ana')).toBe(true);
+  act(() => tree.unmount());
+});
+
+it.each([['light', 'es'], ['dark', 'en']])('removes Branding and redundant navigation while preserving logout in %s/%s', async (themeMode, locale) => {
+  setLocale(locale);
+  const logout = jest.fn(), updateThemeMode = jest.fn().mockResolvedValue(null);
+  useAuth.mockReturnValue({ user: { name: 'Name with a very long surname', email: 'long-email@example.test', themeMode, globalRoles: [{ slug: 'super_admin' }], status: { slug: 'active' } }, logout, updateThemeMode, reloadMe: jest.fn() });
+  let tree;
+  await act(async () => { tree = renderer.create(<ConfigurationScreen />); });
+  expect(tree.root.findAllByType(HorizontalSubMenu)).toHaveLength(0);
+  expect(tree.root.findAllByType(Text).some(node => node.props.children === 'Branding')).toBe(false);
+  expect(tree.root.findAllByType(ManagementCard).map(card => card.props.testID)).toEqual(['settings-profile', 'settings-appearance']);
+  tree.root.findAllByType(SurfaceCard).forEach(card => expect(card.props.surfaceColor).toBe(getTheme(themeMode).surface));
+  expect(tree.root.findByType(SelectableChipGroup).props.options.map(item => item.label)).toEqual([t('settings_light'), t('settings_dark')]);
+  await act(async () => tree.root.findByType(SelectableChipGroup).props.onChange(themeMode));
+  expect(updateThemeMode).not.toHaveBeenCalled();
+  act(() => tree.root.findByProps({ testID: 'settings-logout' }).props.onPress());
+  expect(logout).toHaveBeenCalledTimes(1);
+  await act(async () => tree.unmount());
+});

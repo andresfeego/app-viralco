@@ -38,10 +38,19 @@ test.each(['light', 'dark'] as const)('creates a text layer from the main input 
   expect(renderer.root.findByType(TextLayerList).props.layers).toEqual([expect.objectContaining({ text: 'Bienvenidos' })]);
 });
 
-test('adds event data through shortcuts and removes it from the vertical list', () => {
-  const { renderer, onChange } = renderEditor();
+test.each(['light', 'dark'] as const)('selects outlined event and date shortcuts without duplicating text in %s', mode => {
+  const { renderer, onChange } = renderEditor(mode);
+  expect(renderer.root.findByProps({ testID: 'mirror-text-shortcuts' }).props.variant).toBe('outlined');
+  expect(renderer.root.findByProps({ testID: 'mirror-text-shortcuts' }).props.backgroundColor).toBe(getTheme(mode).surface);
   ReactTestRenderer.act(() => renderer.root.findByProps({ testID: 'mirror-text-shortcuts-event' }).props.onPress());
   expect(renderer.root.findByType(TextLayerList).props.layers).toEqual([expect.objectContaining({ id: 'event', text: 'Boda Ana' })]);
+  expect(renderer.root.findByProps({ testID: 'mirror-text-shortcuts' }).props.value).toBe('event');
+  ReactTestRenderer.act(() => renderer.root.findByProps({ testID: 'mirror-text-shortcuts-date' }).props.onPress());
+  expect(renderer.root.findByProps({ testID: 'mirror-text-shortcuts' }).props.value).toBe('date');
+  expect(renderer.root.findByType(TextLayerList).props.layers).toContainEqual(expect.objectContaining({ id: 'date', text: '2026-09-05' }));
+  ReactTestRenderer.act(() => renderer.root.findByProps({ testID: 'mirror-text-shortcuts-event' }).props.onPress());
+  expect(renderer.root.findByType(TextLayerList).props.layers).toHaveLength(2);
+  ReactTestRenderer.act(() => renderer.root.findByType(TextLayerList).props.onRemove('date'));
   ReactTestRenderer.act(() => renderer.root.findByType(TextLayerList).props.onRemove('event'));
   expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ layout: expect.objectContaining({ textLayers: [] }) }));
 });

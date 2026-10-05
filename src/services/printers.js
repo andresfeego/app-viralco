@@ -37,7 +37,8 @@ export function detectedPrinterProfileInput(binding) {
   return {
     name: `${binding.manufacturer} ${binding.model} · Postal 100 × 148 mm`,
     appliesToAllEventTypes: true,
-    metadata: { source: 'native-printer-detection' },
+    // Discovery identifies a destination, not supported media or borderless capabilities.
+    metadata: { source: 'native-printer-detection', capabilitiesVerified: false },
     profile: {
       schemaVersion: 1,
       kind: 'print-profile',

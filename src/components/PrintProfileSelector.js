@@ -1,7 +1,9 @@
-import React, { useMemo } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { PrinterGuideModal } from './PrinterGuideModal';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Icon from '@react-native-vector-icons/fontawesome6';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
+import { AppButton } from '../design-system/components/AppButton';
 import { tokens } from '../design-system/tokens';
 import { t } from '../i18n';
 import { PaperFormInput } from './PaperFormInput';
@@ -27,6 +29,7 @@ function ProfileCard({ item, selected, theme, disabled, onPress }) {
 }
 
 export function PrintProfileSelector({ items = [], selected = null, search = '', binding = null, theme, disabled = false, onSearchChange, onSelect, onRemove, onOpenResources, onDetect }) {
+  const [help, setHelp] = useState(false);
   const filtered = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     if (!query) return items;
@@ -35,7 +38,8 @@ export function PrintProfileSelector({ items = [], selected = null, search = '',
   return (
     <View style={styles.stack}>
       <PaperFormInput theme={theme} label={t('print_003')} value={search} onChangeText={onSearchChange} editable={!disabled} />
-      {binding ? <View style={styles.binding}><Icon name="wifi" iconStyle="solid" size={tokens.typography.caption} color={theme.success} /><Text style={[styles.bindingText, { color: theme.textSecondary }]}>{t('print_004')}: {binding.name}</Text></View> : null}
+      {Platform.OS === 'android' ? <Text style={[styles.emptyText, { color: theme.textSecondary }]}>{t('print_android_destination')}</Text> : null}
+      {binding ? <View style={styles.binding}><Icon name="wifi" iconStyle="solid" size={tokens.typography.caption} color={theme.primary} /><Text style={[styles.bindingText, { color: theme.textSecondary }]}>{t('print_004')}: {binding.name}</Text></View> : null}
       {filtered.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.reel}>
           {filtered.map((item) => <ProfileCard key={String(item.libraryAssetId)} item={item} selected={String(selected?.libraryAssetId || '') === String(item.libraryAssetId)} theme={theme} disabled={disabled} onPress={onSelect} />)}
@@ -43,7 +47,9 @@ export function PrintProfileSelector({ items = [], selected = null, search = '',
       ) : (
         <View style={styles.empty}>
           <Text style={[styles.emptyText, { color: theme.textSecondary }]}>{search ? t('print_006') : t('print_005')}</Text>
-          {!search ? <ResourceEmptyActions theme={theme} primaryLabel={t('mirror_148')} onPrimary={onOpenResources} secondaryLabel={t('print_007')} onSecondary={onDetect} disabled={disabled} /> : null}
+          {!search ? Platform.OS === 'android'
+            ? <AppButton label={t('mirror_148')} onPress={onOpenResources} disabled={disabled} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
+            : <ResourceEmptyActions theme={theme} primaryLabel={t('mirror_148')} onPrimary={onOpenResources} secondaryLabel={t('print_007')} onSecondary={onDetect} disabled={disabled} /> : null}
         </View>
       )}
       {selected ? (
@@ -55,8 +61,10 @@ export function PrintProfileSelector({ items = [], selected = null, search = '',
             </View>
             <IconTextButton theme={theme} icon="trash-can" variant="ghost" compactIconOnly accessibilityLabel={t('print_008')} disabled={disabled} onPress={onRemove} />
           </View>
+          <IconTextButton theme={theme} icon="circle-question" label={t('guide_title')} onPress={() => setHelp(true)} />
         </SurfaceCard>
       ) : null}
+      {help && selected ? <PrinterGuideModal metadata={selected.asset?.metadata} theme={theme} onClose={() => setHelp(false)} /> : null}
     </View>
   );
 }

@@ -1,24 +1,10 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Icon from '@react-native-vector-icons/fontawesome6';
 import { SurfaceCard } from '../design-system/components/SurfaceCard';
 import { tokens } from '../design-system/tokens';
 import { IconTextButton } from './IconTextButton';
 import { StatusBadge } from './StatusBadge';
-
-function InformationRow({ theme, icon, label, value, last = false, children = null }) {
-  return (
-    <View style={[styles.informationRow, last ? null : { borderBottomColor: theme.border, borderBottomWidth: tokens.border.thin }]}>
-      <View style={[styles.iconFrame, { backgroundColor: theme.background }]}>
-        <Icon name={icon} iconStyle="solid" size={tokens.typography.caption} color={theme.primary} />
-      </View>
-      <View style={styles.valueStack}>
-        <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text>
-        {children || <Text selectable style={[styles.value, { color: theme.textPrimary }]}>{value || '-'}</Text>}
-      </View>
-    </View>
-  );
-}
+import { InformationRow } from './InformationRow';
 
 export function EventInformationCard({
   theme,
@@ -108,36 +94,10 @@ const styles = StyleSheet.create({
   informationStack: {
     gap: tokens.spacing.none,
   },
-  informationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: tokens.spacing.sm,
-    paddingVertical: tokens.spacing.sm,
-  },
-  iconFrame: {
-    width: tokens.spacing.xl,
-    height: tokens.spacing.xl,
-    borderRadius: tokens.radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  valueStack: {
-    flex: 1,
-    minWidth: tokens.spacing.none,
-    gap: tokens.spacing.xxs,
-  },
   statusCluster: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: tokens.spacing.sm,
-  },
-  label: {
-    fontSize: tokens.typography.caption,
-    fontWeight: '600',
-  },
-  value: {
-    fontSize: tokens.typography.body,
-    fontWeight: '700',
   },
 });

@@ -1,5 +1,16 @@
 import { apiRequest } from './http';
 
+export function registerOfflineMirrorSessionApi(eventId, eventModeId, input) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/offline`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function getMirrorRecoveryApi(eventId, eventModeId) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/recovery-access`, { method: 'GET' });
+}
+export function setMirrorRecoveryApi(eventId, eventModeId, pattern) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/recovery-access`, { method: 'PUT', body: JSON.stringify({ pattern }) });
+}
+
 export function listEventsApi(accountId) {
   return apiRequest(`/api/accounts/${accountId}/events`, { method: 'GET' });
 }
@@ -109,10 +120,12 @@ export async function uploadFileToPreparedUrl(uploadUrl, file, onProgress = null
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
     };
+    request.timeout = 120000;
+    request.ontimeout = () => reject(new Error('UPLOAD_TIMEOUT'));
     request.onerror = () => reject(new Error('Upload failed'));
     request.onload = () => request.status >= 200 && request.status < 300
       ? resolve()
-      : reject(new Error(`Upload failed (${request.status})`));
+      : reject(new Error(`Upload failed (${request.status}); code=${String(request.responseText || '').match(/<Code>([^<]+)<\/Code>/)?.[1] || 'unknown'}; message=${String(request.responseText || '').match(/<Message>([^<]+)<\/Message>/)?.[1]?.slice(0, 300) || 'unavailable'}`));
     request.send(body);
   });
 }
@@ -160,8 +173,8 @@ export function publishMagicMirrorConfigApi(eventId, eventModeId, expectedRevisi
   return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/config/publish`, { method: 'POST', body: JSON.stringify({ expectedRevision }) });
 }
 
-export function getPublishedMagicMirrorConfigApi(eventId, eventModeId) {
-  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/config/published`, { method: 'GET' });
+export function getPublishedMagicMirrorConfigApi(eventId, eventModeId, meta = {}) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/config/published`, { method: 'GET' }, meta);
 }
 
 export function createAccountPhotoLayoutTemplateApi(accountId, input) {
@@ -186,6 +199,10 @@ export function applyPhotoLayoutTemplateApi(eventId, eventModeId, libraryAssetId
 
 export function getActiveMagicMirrorSessionApi(eventId, eventModeId) {
   return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/sessions/active`, { method: 'GET' });
+}
+
+export function listMirrorCompositionsApi(eventId, eventModeId, cursor = null) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/compositions${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`, { method: 'GET' });
 }
 
 export function startMagicMirrorSessionApi(eventId, eventModeId, input) {
@@ -234,4 +251,11 @@ export function completeMagicMirrorAssetApi(eventId, eventModeId, sessionId, run
 
 export function recordMagicMirrorDeliveryApi(publicHash, method) {
   return apiRequest(`/api/public/assets/${publicHash}/deliveries`, { method: 'POST', body: JSON.stringify({ method }) });
+}
+
+export function getCompositionArchivesApi(eventId, eventModeId) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/compositions/archive`, { method: 'GET' });
+}
+export function setCompositionArchiveApi(eventId, eventModeId, input) {
+  return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/compositions/archive`, { method: 'PUT', body: JSON.stringify(input) });
 }

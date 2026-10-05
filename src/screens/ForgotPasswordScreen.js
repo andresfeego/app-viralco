@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Text } from 'react-native';
+import { AuthForm } from '../components/AuthForm';
+import { PaperFormInput } from '../components/PaperFormInput';
+import { getTheme } from '../design-system/theme';
+import { t } from '../i18n';
 import { useAuth } from '../hooks/useAuth';
 import { userErrorMessage } from '../services/errorHandling';
 
 export function ForgotPasswordScreen({ onGoLogin, onGoReset }) {
-  const { forgotPassword } = useAuth();
+  const { forgotPassword, user } = useAuth();
+  const theme = getTheme(user?.themeMode || 'dark');
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -25,37 +30,11 @@ export function ForgotPasswordScreen({ onGoLogin, onGoReset }) {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Recuperar contrasena</Text>
-      <TextInput placeholder="Correo" style={styles.input} autoCapitalize="none" value={email} onChangeText={setEmail} />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {message ? <Text style={styles.ok}>{message}</Text> : null}
-      <Pressable style={styles.button} onPress={onSubmit} disabled={loading}>
-        <Text style={styles.buttonText}>{loading ? 'Enviando...' : 'Solicitar token'}</Text>
-      </Pressable>
-      <Pressable onPress={onGoReset}>
-        <Text style={styles.link}>Ya tengo token de reset</Text>
-      </Pressable>
-      <Pressable onPress={onGoLogin}>
-        <Text style={styles.link}>Volver a login</Text>
-      </Pressable>
-    </View>
+    <AuthForm theme={theme} title={t('auth_recover_title')} error={error} message={message} loading={loading} submitLabel={t(loading ? 'auth_sending' : 'auth_request_token')} onSubmit={onSubmit} links={<>
+      <Pressable accessibilityRole="button" onPress={onGoReset}><Text style={{ color: theme.primary }}>{t('auth_has_token')}</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={onGoLogin}><Text style={{ color: theme.primary }}>{t('auth_007')}</Text></Pressable>
+    </>}>
+      <PaperFormInput theme={theme} label={t('auth_003')} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
+    </AuthForm>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20, gap: 10 },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  button: { backgroundColor: '#1f6feb', borderRadius: 10, padding: 12, alignItems: 'center' },
-  buttonText: { color: '#fff', fontWeight: '700' },
-  link: { color: '#1f6feb', fontWeight: '600' },
-  error: { color: '#dc2626' },
-  ok: { color: '#047857' },
-});

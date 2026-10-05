@@ -19,6 +19,7 @@ import { ENABLE_DEBUG_LOGIN_PRESETS } from '../config/debug';
 import { t } from '../i18n';
 import { useToast } from '../providers/ToastProvider';
 import { userErrorMessage } from '../services/errorHandling';
+import { DotSelector } from '../components/DotSelector';
 
 const logoKaptura = require('../assets/branding/logo_kaptura.png');
 const QUICK_CREDENTIALS = {
@@ -27,9 +28,9 @@ const QUICK_CREDENTIALS = {
     email: 'adminuseractivo@viralco.local',
     password: 'adminuseractivo1234',
   },
-  AUP: {
-    email: 'useradminpendiente@viralco.local',
-    password: 'useradminpendiente1234',
+  NEW: {
+    email: 'usuarioregistrado@viralco.local',
+    password: 'usuarioregistrado1234',
   },
 };
 
@@ -77,8 +78,8 @@ export function LoginScreen({ onGoRegister, onGoForgot }) {
   const mode = 'dark';
   const theme = useMemo(() => getTheme(mode), [mode]);
 
-  const [email, setEmail] = useState('superadmin@viralco.local');
-  const [password, setPassword] = useState('superadmin1234');
+  const [email, setEmail] = useState(ENABLE_DEBUG_LOGIN_PRESETS ? QUICK_CREDENTIALS.SA.email : '');
+  const [password, setPassword] = useState(ENABLE_DEBUG_LOGIN_PRESETS ? QUICK_CREDENTIALS.SA.password : '');
   const [loading, setLoading] = useState(false);
   const applyQuickCredentials = key => {
     const preset = QUICK_CREDENTIALS[key];
@@ -112,42 +113,14 @@ export function LoginScreen({ onGoRegister, onGoForgot }) {
       >
         <View style={styles.shell}>
           {ENABLE_DEBUG_LOGIN_PRESETS ? (
-            <View
-              testID="debug-login-presets-container"
-              accessibilityLabel="debug-login-presets-container"
-              style={[
-                styles.debugQuickAccessWrap,
-                {
-                  borderColor: theme.border,
-                  backgroundColor: tokens.colors.yellow[500],
-                },
+            <DotSelector testID="debug-login-presets-container" theme={theme} disabled={loading}
+              items={[
+                { key: 'SA', label: t('login_preset_superadmin'), testID: 'debug-login-preset-sa' },
+                { key: 'AUA', label: t('login_preset_admin'), testID: 'debug-login-preset-aua' },
+                { key: 'NEW', label: t('login_preset_new'), testID: 'debug-login-preset-new' },
               ]}
-            >
-              {Object.keys(QUICK_CREDENTIALS).map(key => (
-                <Pressable
-                  key={key}
-                  testID={`debug-login-preset-${key.toLowerCase()}`}
-                  accessibilityLabel={`debug-login-preset-${key.toLowerCase()}`}
-                  onPress={() => applyQuickCredentials(key)}
-                  style={[
-                    styles.debugQuickAccessButton,
-                    {
-                      borderColor: theme.border,
-                      backgroundColor: tokens.colors.yellow[500],
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.debugQuickAccessLabel,
-                      { color: tokens.colors.gray[9] },
-                    ]}
-                  >
-                    {key}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+              selectedKey={Object.keys(QUICK_CREDENTIALS).find((key) => QUICK_CREDENTIALS[key].email === email && QUICK_CREDENTIALS[key].password === password)}
+              onSelect={applyQuickCredentials} />
           ) : null}
           <View style={styles.brandHeader}>
             <Image
@@ -224,25 +197,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     padding: tokens.spacing.xl,
     gap: tokens.spacing.lg,
-  },
-  debugQuickAccessWrap: {
-    borderWidth: 1,
-    borderRadius: tokens.radius.md,
-    padding: tokens.spacing.xs,
-    flexDirection: 'row',
-    gap: tokens.spacing.xs,
-  },
-  debugQuickAccessButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: tokens.radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: tokens.spacing.xs,
-  },
-  debugQuickAccessLabel: {
-    fontSize: tokens.typography.caption,
-    fontWeight: '700',
   },
   brandHeader: {
     alignItems: 'center',

@@ -22,6 +22,7 @@ export function PaperFormInput({
   onPressIn = null,
   showSoftInputOnFocus = true,
   caretHidden = false,
+  secureTextEntry = false,
 }) {
   return (
     <View style={styles.inputGroup}>
@@ -40,6 +41,7 @@ export function PaperFormInput({
         onPressIn={onPressIn}
         showSoftInputOnFocus={showSoftInputOnFocus}
         caretHidden={caretHidden}
+        secureTextEntry={secureTextEntry}
         textColor={theme.textPrimary}
         outlineColor={theme.border}
         activeOutlineColor={theme.primary}

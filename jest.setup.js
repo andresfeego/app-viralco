@@ -1,4 +1,16 @@
 /* global jest */
+jest.mock('@react-native-documents/picker', () => ({ pick: jest.fn(async () => []) }));
+jest.mock('react-native-keychain', () => ({
+  ACCESSIBLE: { AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 'device' },
+  setGenericPassword: jest.fn(async () => true), getGenericPassword: jest.fn(async () => false), resetGenericPassword: jest.fn(async () => true),
+}));
+jest.mock('./src/services/mirrorOperationAccess', () => ({
+  authorizeMirrorOperation: jest.fn(async () => ({ allowed: true })),
+  assertOfflineOperation: jest.fn(async () => {}),
+  readOperationAccess: jest.fn(async () => ({ allowed: true })),
+  subscribeOperationAccess: jest.fn(() => () => {}), revalidateKnownOperations: jest.fn(async () => {}),
+  knownOperations: jest.fn(async () => []),
+}));
 jest.mock('react-native-linear-gradient', () => 'LinearGradient');
 jest.mock('@react-native-community/slider', () => 'Slider');
 jest.mock('react-native-vision-camera', () => {
@@ -20,6 +32,8 @@ jest.mock('@dr.pogodin/react-native-fs', () => ({
   hash: jest.fn(() => Promise.resolve('a'.repeat(64))),
   mkdir: jest.fn(() => Promise.resolve()),
   moveFile: jest.fn(() => Promise.resolve()),
+  copyFile: jest.fn(() => Promise.resolve()),
+  stopDownload: jest.fn(),
   stat: jest.fn(() => Promise.resolve({ size: 100 })),
   unlink: jest.fn(() => Promise.resolve()),
 }));

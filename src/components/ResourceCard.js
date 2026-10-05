@@ -51,8 +51,10 @@ export function ResourceCard({ item, theme, canManage, compatible = true, select
           label={selected ? t('resource_016') : t('resource_015')}
           onPress={() => onSelect(item)}
           disabled={!compatible}
+          variant={selected ? 'outlined' : 'filled'}
+          borderColor={theme.textSecondary}
           backgroundColor={selected ? theme.surface : theme.buttonBg}
-          pressedColor={theme.buttonBgPressed}
+          pressedColor={selected ? theme.background : theme.buttonBgPressed}
           textColor={selected ? theme.textPrimary : theme.buttonText}
           style={styles.action}
         />

@@ -22,7 +22,7 @@ jest.mock('react-native-paper', () => {
   return { ...actual, TextInput: 'PaperTextInput', HelperText: 'HelperText' };
 });
 jest.mock('../src/hooks/useAuth', () => ({ useAuth: jest.fn() }));
-jest.mock('../src/providers/ToastProvider', () => ({ useToast: jest.fn() }));
+jest.mock('../src/providers/ToastProvider', () => ({ useToast: jest.fn(), ToastViewport: () => null }));
 jest.mock('../src/components/ResourceGallery', () => {
   const ReactModule = require('react');
   const { View } = require('react-native');
@@ -41,6 +41,7 @@ jest.mock('../src/services/api/events', () => ({
   uploadAccountLibraryFileApi: jest.fn(),
 }));
 jest.mock('../src/services/media/documentPicker', () => ({ pickLibraryResourceFile: jest.fn() }));
+jest.mock('../src/services/media/resourcePicker', () => ({ ...jest.requireActual('../src/services/media/resourcePicker'), pickResourceFromDevice: jest.fn() }));
 
 import { CompactAccountSelector } from '../src/components/CompactAccountSelector';
 import { AccountRequiredEmptyState } from '../src/components/AccountRequiredEmptyState';
@@ -48,10 +49,14 @@ import { HorizontalSubMenu } from '../src/components/HorizontalSubMenu';
 import { ResourceFilters } from '../src/components/ResourceFilters';
 import { ResourceGallery } from '../src/components/ResourceGallery';
 import { ResourcePreviewModal } from '../src/components/ResourcePreviewModal';
+import { ResourceUploadModal } from '../src/components/ResourceUploadModal';
+import { IconTextButton } from '../src/components/IconTextButton';
+import { getTheme } from '../src/design-system/theme';
 import { useAuth } from '../src/hooks/useAuth';
 import { useToast } from '../src/providers/ToastProvider';
 import { listAccountsApi } from '../src/services/api/accounts';
-import { listAccountLibraryApi, listEventTypesApi, updateAccountLibraryFavoriteApi } from '../src/services/api/events';
+import { listAccountLibraryApi, listEventTypesApi, updateAccountLibraryFavoriteApi, uploadAccountLibraryFileApi } from '../src/services/api/events';
+import { pickResourceFromDevice } from '../src/services/media/resourcePicker';
 import { ResourceLibraryScreen } from '../src/screens/ResourceLibraryScreen';
 
 const mockedUseAuth = useAuth as unknown as jest.Mock;
@@ -114,9 +119,71 @@ test('loads only the global catalog and keeps it read-only for an operator', asy
 
   expect(listAccountLibraryApi).toHaveBeenCalledWith('10', expect.objectContaining({ scope: 'available', favorite: true, page: 1, pageSize: 60 }));
   expect(renderer!.root.findByType(ResourceGallery).props.canManage).toBe(false);
+  expect(renderer!.root.findAllByProps({ testID: 'resource-upload-open' })).toHaveLength(0);
   expect(renderer!.root.findByType(ResourceFilters).props.showTabs).toBe(false);
+  expect(renderer!.root.findByType(ResourceFilters).props.chipVariant).toBe('outlined');
   expect(renderer!.root.findByType(ResourceFilters).props.eventTypes).toEqual([expect.objectContaining({ slug: 'boda' })]);
   expect(renderer!.root.findByType(HorizontalSubMenu).props.items.map((item: any) => item.label)).toEqual(['Favoritos', 'Global']);
+});
+
+test.each(['light', 'dark'])('shows the labeled add-resource action and opens upload in %s', async themeMode => {
+  mockedUseAuth.mockReturnValue({ user: { themeMode, globalRoles: [], accounts: [{ account, status: 'active', role: { slug: 'owner' } }] } });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
+  const button = renderer!.root.findAllByType(IconTextButton).find(node => node.props.testID === 'resource-upload-open')!;
+  expect(button.props).toMatchObject({ icon: 'plus', label: 'Añadir recurso', theme: getTheme(themeMode) });
+  expect(renderer!.root.findByType(ResourceUploadModal).props.visible).toBe(false);
+  await ReactTestRenderer.act(async () => button.props.onPress());
+  expect(renderer!.root.findByType(ResourceUploadModal).props.visible).toBe(true);
+  await ReactTestRenderer.act(async () => renderer!.unmount());
+});
+
+test('uploads from the chosen source and keeps the resource in account favorites', async () => {
+  const file = { uri: 'file:///frame.png', fileName: 'frame.png', type: 'image/png', fileSize: 100 };
+  (pickResourceFromDevice as jest.Mock).mockResolvedValue(file);
+  (uploadAccountLibraryFileApi as jest.Mock).mockResolvedValue({ id: '99' });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
+  await flush();
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceUploadModal).props.onUpload('frame', 'gallery'));
+  expect(pickResourceFromDevice).toHaveBeenCalledWith('frame', 'gallery');
+  expect(uploadAccountLibraryFileApi).toHaveBeenCalledWith('10', file, 'frame', expect.any(Function));
+  expect(updateAccountLibraryFavoriteApi).toHaveBeenCalledWith('10', '99', true);
+  expect(renderer!.root.findByType(ResourceUploadModal).props.disabled).toBe(false);
+  expect(renderer!.root.findByType(ResourceUploadModal).props.visible).toBe(false);
+  await ReactTestRenderer.act(async () => renderer!.unmount());
+});
+
+test('cancelling selection preserves the open form and its purpose and blocks duplicate requests', async () => {
+  let finish!: (value: null) => void;
+  (pickResourceFromDevice as jest.Mock).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
+  await flush();
+  await ReactTestRenderer.act(async () => renderer!.root.findAllByType(IconTextButton).find(node => node.props.testID === 'resource-upload-open')!.props.onPress());
+  ReactTestRenderer.act(() => renderer!.root.findByType(ResourceUploadModal).props.onPurposeChange('animation'));
+  let pending: Promise<void>;
+  ReactTestRenderer.act(() => {
+    pending = renderer!.root.findByType(ResourceUploadModal).props.onUpload('animation', 'gallery');
+    renderer!.root.findByType(ResourceUploadModal).props.onUpload('animation', 'gallery');
+  });
+  expect(pickResourceFromDevice).toHaveBeenCalledTimes(1);
+  expect(renderer!.root.findByType(ResourceUploadModal).props.disabled).toBe(true);
+  await ReactTestRenderer.act(async () => { finish(null); await pending; });
+  expect(renderer!.root.findByType(ResourceUploadModal).props).toMatchObject({ purpose: 'animation', visible: true, disabled: false });
+  expect(uploadAccountLibraryFileApi).not.toHaveBeenCalled();
+  expect(showToast).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer!.unmount());
+});
+
+test('read-only operators cannot invoke device uploads', async () => {
+  setRole('operator');
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
+  await flush();
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceUploadModal).props.onUpload('background', 'camera'));
+  expect(pickResourceFromDevice).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer!.unmount());
 });
 
 test('shows only the account-required empty state and opens account creation when no account exists', async () => {

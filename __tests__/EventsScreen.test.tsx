@@ -56,7 +56,7 @@ import { EventListCard } from '../src/components/EventListCard';
 import { EventModeRow } from '../src/components/EventModeRow';
 import { AccountRequiredEmptyState } from '../src/components/AccountRequiredEmptyState';
 import { SelectableChipGroup } from '../src/components/SelectableChipGroup';
-import { AppButton } from '../src/design-system/components/AppButton';
+import { IconTextButton } from '../src/components/IconTextButton';
 import { tokens } from '../src/design-system/tokens';
 import { EventsScreen } from '../src/screens/EventsScreen';
 
@@ -124,9 +124,12 @@ test('event creation opens in a modal and shows the account-required state when 
   expect(renderer!.root.findAllByProps({ testID: 'event-name-input' })).toHaveLength(0);
   expect(renderer!.root.findAllByProps({ testID: 'event-create-save' })).toHaveLength(0);
   const createButton = renderer!.root
-    .findAllByType(AppButton)
+    .findAllByType(IconTextButton)
     .find((node) => node.props.testID === 'event-create-open');
   expect(createButton).toBeDefined();
+  expect(createButton!.props.icon).toBe('plus');
+  expect(createButton!.props.label).toBe('Crear evento');
+  expect(StyleSheet.flatten(createButton!.props.style).alignSelf).toBe('flex-end');
   expect(renderer!.root.findAllByType(AccountRequiredEmptyState)).toHaveLength(0);
 
   ReactTestRenderer.act(() => {
@@ -159,7 +162,8 @@ test('events list shows account switcher when user has multiple accounts', async
   });
 });
 
-test('filters the event list by status', async () => {
+test.each(['light', 'dark'])('filters the event list by status with outlined chips in %s', async themeMode => {
+  mockedUseAuth.mockReturnValue({ user: { themeMode, globalRoles: [], accounts: [{ account: { id: '1' }, status: 'active', role: { slug: 'owner' } }] } });
   mockedListAccounts.mockResolvedValue({ accounts: [{ id: '1', name: 'Cuenta Uno', slug: 'cuenta-uno' }] });
   mockedListEvents.mockResolvedValue({
     events: [
@@ -179,6 +183,7 @@ test('filters the event list by status', async () => {
     .findAllByType(SelectableChipGroup)
     .find((node) => node.props.testID === 'event-status-filter');
   expect(statusFilter?.props.options.map((option: any) => option.value)).toEqual(['', 'active', 'draft', 'archived']);
+  expect(statusFilter?.props.variant).toBe('outlined');
 
   ReactTestRenderer.act(() => {
     statusFilter!.props.onChange('draft');
@@ -188,13 +193,21 @@ test('filters the event list by status', async () => {
   expect(renderer!.root.findByType(EventListCard).props.item.id).toBe('11');
 });
 
-test('event creation uses the selected account even when selector is hidden', async () => {
+test.each(['light', 'dark'])('event creation preserves selection with outlined chips in %s', async themeMode => {
+  mockedUseAuth.mockReturnValue({ user: { themeMode, globalRoles: [], accounts: [{ account: { id: '1' }, status: 'active', role: { slug: 'owner' } }] } });
   mockedListAccounts.mockResolvedValue({ accounts: [{ id: '1', name: 'Cuenta Uno', slug: 'cuenta-uno' }] });
   let renderer: ReactTestRenderer.ReactTestRenderer;
 
   await ReactTestRenderer.act(async () => {
     renderer = ReactTestRenderer.create(<EventsScreen initialSection="create" allowedSections={['create']} />);
   });
+
+  const groups = renderer!.root.findAllByType(SelectableChipGroup);
+  expect(groups.find(node => node.props.testID === 'event-type-selector')?.props.variant).toBe('outlined');
+  expect(groups.find(node => node.props.testID === 'event-mode-selector')?.props).toMatchObject({ variant: 'outlined', multiple: true, values: ['espejo'] });
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-mode-selector-espejo' }).props.onPress());
+  expect(renderer!.root.findByProps({ testID: 'event-mode-selector' }).props.values).toEqual([]);
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-mode-selector-espejo' }).props.onPress());
 
   await ReactTestRenderer.act(async () => {
     renderer!.root.findByProps({ testID: 'event-type-selector-boda' }).props.onPress();
@@ -229,6 +242,22 @@ test('opens the mirror configurator from event detail', async () => {
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-configure-mirror' }).props.onPress());
   expect(onConfigureMirror).toHaveBeenCalledWith(expect.objectContaining({ event: expect.objectContaining({ id: '10' }), eventMode: expect.objectContaining({ id: '30' }), accountId: '1', canEdit: true }));
   expect(renderer!.root.findByType(EventModeRow).props.canLaunch).toBe(false);
+});
+
+test.each(['light', 'dark'])('uses outlined type and mode selectors in event edit modals in %s', async themeMode => {
+  mockedUseAuth.mockReturnValue({ user: { themeMode, globalRoles: [], accounts: [{ account: { id: '1' }, status: 'active', role: { slug: 'owner' } }] } });
+  const event = { id: '10', accountId: '1', name: 'Boda', status: 'draft', eventType: { slug: 'boda', name: 'Boda' }, modes: [{ id: '30', isActive: true, mode: { slug: 'espejo', name: 'Espejo' } }] };
+  mockedListAccounts.mockResolvedValue({ accounts: [{ id: '1', name: 'Cuenta Uno' }] });
+  mockedListEvents.mockResolvedValue({ events: [event] });
+  mockedGetEventDetail.mockResolvedValue({ event });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<EventsScreen allowedSections={['list', 'detail']} />); });
+  await ReactTestRenderer.act(async () => renderer!.root.findByType(EventListCard).props.onPress());
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-details-edit' }).props.onPress());
+  expect(renderer!.root.findByProps({ testID: 'event-type-selector' }).props).toMatchObject({ variant: 'outlined', value: 'boda', disabled: false });
+  ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'event-modes-edit' }).props.onPress());
+  expect(renderer!.root.findByProps({ testID: 'event-edit-mode-selector' }).props).toMatchObject({ variant: 'outlined', multiple: true, values: ['espejo'], disabled: false });
+  ReactTestRenderer.act(() => renderer!.unmount());
 });
 
 test('enables launch only for an active mode with a published configuration and launch handler', async () => {

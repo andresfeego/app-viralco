@@ -1,9 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { AppButton } from '../design-system/components/AppButton';
-import { ModalSafeArea } from '../design-system/components/ModalSafeArea';
-import { tokens } from '../design-system/tokens';
+import { FormModal } from './FormModal';
+import { t } from '../i18n';
 import { PaperFormInput } from './PaperFormInput';
 
 function padDatePart(value) {
@@ -77,49 +77,20 @@ export function PaperDateInput({
           onPressIn={openPicker}
           showSoftInputOnFocus={false}
           caretHidden
-        />
+ />
       </Pressable>
-      <Modal transparent visible={visible} animationType="slide" onRequestClose={() => setVisible(false)}>
-        <ModalSafeArea style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+      <FormModal visible={visible} theme={theme} title={label} onClose={() => setVisible(false)} testID={`${testID}-modal`} actions={Platform.OS === 'ios' ? <>
+        <AppButton variant="outlined" borderColor={theme.buttonSecondaryBorder} label={t('common_cancel')} onPress={() => setVisible(false)} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} />
+        <AppButton testID={`${testID}-confirm`} label={t('common_save')} onPress={onConfirm} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} />
+      </> : null}>
             <DateTimePicker
               testID={`${testID}-picker`}
               value={draftDate}
               mode="date"
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
               onChange={onDateChange}
-            />
-            {Platform.OS === 'ios' ? (
-              <View style={styles.actionsRow}>
-                <AppButton label="Cancelar" onPress={() => setVisible(false)} backgroundColor={theme.surface} pressedColor={theme.surface} textColor={theme.textPrimary} style={styles.actionButton} />
-                <AppButton testID={`${testID}-confirm`} label="Guardar" onPress={onConfirm} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.actionButton} />
-              </View>
-            ) : null}
-          </View>
-        </ModalSafeArea>
-      </Modal>
+ />
+      </FormModal>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    borderTopWidth: 1,
-    borderTopLeftRadius: tokens.radius.lg,
-    borderTopRightRadius: tokens.radius.lg,
-    padding: tokens.spacing.md,
-    gap: tokens.spacing.md,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: tokens.spacing.xs,
-  },
-  actionButton: {
-    flex: 1,
-    minWidth: tokens.spacing.none,
-  },
-});

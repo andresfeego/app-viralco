@@ -24,6 +24,9 @@ interface AppButtonProps {
   backgroundColor: string;
   pressedColor: string;
   textColor: string;
+  variant?: 'filled' | 'outlined';
+  borderColor?: string;
+  singleLine?: boolean;
   testID?: string;
   disabled?: boolean;
   gradient?: AppButtonGradient;
@@ -36,6 +39,9 @@ export function AppButton({
   backgroundColor,
   pressedColor,
   textColor,
+  variant = 'filled',
+  borderColor = textColor,
+  singleLine = false,
   testID,
   disabled = false,
   gradient,
@@ -45,13 +51,17 @@ export function AppButton({
     <Pressable
       testID={testID}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={{ disabled }}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
+        variant === 'outlined' ? styles.outlined : null,
         style,
         {
           backgroundColor: pressed ? pressedColor : backgroundColor,
+          borderColor: variant === 'outlined' ? borderColor : undefined,
           opacity: disabled ? tokens.opacity.disabled : 1,
         },
       ]}
@@ -73,7 +83,7 @@ export function AppButton({
               style={StyleSheet.absoluteFill}
             />
           ) : null}
-          <Text style={[styles.label, { color: textColor }]}>{label}</Text>
+          <Text numberOfLines={singleLine ? 1 : undefined} style={[styles.label, { color: textColor }]}>{label}</Text>
         </>
       )}
     </Pressable>
@@ -82,13 +92,16 @@ export function AppButton({
 
 const styles = StyleSheet.create({
   button: {
-    minWidth: 160,
+    minWidth: tokens.spacing.xl * 5,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderRadius: tokens.radius.pill,
     paddingVertical: tokens.spacing.sm,
     paddingHorizontal: tokens.spacing.lg,
+  },
+  outlined: {
+    borderWidth: tokens.border.thin,
   },
   label: {
     fontSize: tokens.typography.body,

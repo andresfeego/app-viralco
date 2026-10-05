@@ -1,9 +1,11 @@
-import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { tokens } from '../design-system/tokens';
 import { t } from '../i18n';
-import { MirrorCanvasSurface } from './MirrorCanvasSurface';
+import { MirrorCanvasSurface, MIRROR_CANVAS_REFERENCE_WIDTH } from './MirrorCanvasSurface';
 import { RuntimeFontText } from './RuntimeFontText';
+import { MirrorCanvasImage } from './MirrorCanvasImage';
+import { photoFrameLayers } from '../domain/magicMirrorConfig';
 
 export function mirrorResourceUrl(resource) {
   const asset = resource?.asset || {};
@@ -19,7 +21,9 @@ export function mirrorResourceUrl(resource) {
     || '';
 }
 
-function CanvasContent({ config, theme, resourcesById, compact = false, renderSlot, renderFrameLayer, onLayout, canvasHandlers }) {
+export function CanvasContent({ config, theme, resourcesById, compact = false, renderSlot, renderFrameLayer, onLayout, canvasHandlers, textScale, onImageState }) {
+  const [canvasWidth, setCanvasWidth] = useState(MIRROR_CANVAS_REFERENCE_WIDTH);
+  const fontScale = textScale ?? canvasWidth / MIRROR_CANVAS_REFERENCE_WIDTH;
   const background = resourcesById[String(config.resources.backgroundResourceId || '')];
   const template = resourcesById[String(config.resources.templateResourceId || '')];
   const frame = resourcesById[String(config.resources.frameResourceId || '')];
@@ -29,30 +33,34 @@ function CanvasContent({ config, theme, resourcesById, compact = false, renderSl
   const frameLayers = Array.isArray(config.layout.frameLayers) ? config.layout.frameLayers : [];
   const backgroundLayers = Array.isArray(config.layout.backgroundLayers) ? config.layout.backgroundLayers : [];
   return (
-    <View style={styles.canvasContent} onLayout={onLayout} {...canvasHandlers}>
+    <View style={styles.canvasContent} onLayout={(event) => { setCanvasWidth(event.nativeEvent.layout.width); onLayout?.(event); }} {...canvasHandlers}>
       {backgroundLayers.length ? backgroundLayers.slice().sort((left, right) => Number(left.order || 0) - Number(right.order || 0)).map((layer) => {
         const style = [styles.backgroundLayer, { left: `${layer.x}%`, top: `${layer.y}%`, width: `${layer.width}%`, height: `${layer.height}%`, transform: [{ rotate: `${Number(layer.rotation || 0)}deg` }] }];
         if (layer.kind === 'color') return <View pointerEvents="none" key={layer.id} style={[style, { backgroundColor: layer.color }]} />;
         const url = mirrorResourceUrl(resourcesById[String(layer.resourceId || '')]);
-        return url ? <Image pointerEvents="none" key={layer.id} source={{ uri: url }} resizeMode="cover" style={style} /> : null;
-      }) : backgroundUrl ? <Image pointerEvents="none" source={{ uri: backgroundUrl }} resizeMode="cover" style={StyleSheet.absoluteFillObject} /> : null}
-      {templateUrl ? <Image pointerEvents="none" source={{ uri: templateUrl }} resizeMode="stretch" style={StyleSheet.absoluteFillObject} /> : null}
-      {(config.layout.slots || []).map((slot, index) => renderSlot ? renderSlot(slot) : (
-        <View key={slot.slotId || `${slot.photoNumber}-${index}`} style={[styles.slot, { borderColor: theme.primary, backgroundColor: tokens.colors.blue[100], left: `${slot.x}%`, top: `${slot.y}%`, width: `${slot.width}%`, height: `${slot.height}%`, transform: [{ rotate: `${Number(slot.rotation || 0)}deg` }] }]}>
+        return url ? <MirrorCanvasImage onImageState={onImageState} pointerEvents="none" key={layer.id} source={{ uri: url }} resizeMode="cover" style={style} /> : null;
+      }) : backgroundUrl ? <MirrorCanvasImage onImageState={onImageState} pointerEvents="none" source={{ uri: backgroundUrl }} resizeMode="cover" style={StyleSheet.absoluteFill} /> : null}
+      {templateUrl ? <MirrorCanvasImage onImageState={onImageState} pointerEvents="none" source={{ uri: templateUrl }} resizeMode="stretch" style={StyleSheet.absoluteFill} /> : null}
+      {photoFrameLayers(config.layout).map(({ kind, item, slotId }) => {
+        if (kind === 'frame') {
+          if (renderFrameLayer) return renderFrameLayer(item);
+          const url = mirrorResourceUrl(resourcesById[String(item.resourceId || '')]);
+          return url ? <MirrorCanvasImage onImageState={onImageState} pointerEvents="none" key={slotId} source={{ uri: url }} resizeMode="stretch" style={[styles.frameLayer, { left: `${item.x}%`, top: `${item.y}%`, width: `${item.width}%`, height: `${item.height}%`, transform: [{ rotate: `${Number(item.rotation || 0)}deg` }] }]} /> : null;
+        }
+        const slot = item;
+        return renderSlot ? renderSlot(slot) : (
+        <View pointerEvents="none" key={slotId} style={[styles.slot, { borderColor: theme.primary, backgroundColor: tokens.colors.blue[100], left: `${slot.x}%`, top: `${slot.y}%`, width: `${slot.width}%`, height: `${slot.height}%`, transform: [{ rotate: `${Number(slot.rotation || 0)}deg` }] }]}>
           <Text style={[styles.slotNumber, compact ? styles.slotNumberCompact : null, { color: tokens.colors.blue[800] }]}>{slot.photoNumber}</Text>
         </View>
-      ))}
-      {frameLayers.length ? frameLayers.slice().sort((left, right) => Number(left.order || 0) - Number(right.order || 0)).map((layer) => {
-        if (renderFrameLayer) return renderFrameLayer(layer);
-        const url = mirrorResourceUrl(resourcesById[String(layer.resourceId || '')]);
-        return url ? <Image pointerEvents="none" key={layer.id} source={{ uri: url }} resizeMode="stretch" style={[styles.frameLayer, { left: `${layer.x}%`, top: `${layer.y}%`, width: `${layer.width}%`, height: `${layer.height}%`, transform: [{ rotate: `${Number(layer.rotation || 0)}deg` }] }]} /> : null;
-      }) : frameUrl ? <Image pointerEvents="none" source={{ uri: frameUrl }} resizeMode="stretch" style={StyleSheet.absoluteFillObject} /> : null}
+        );
+      })}
+      {!frameLayers.length && frameUrl ? <MirrorCanvasImage onImageState={onImageState} pointerEvents="none" source={{ uri: frameUrl }} resizeMode="stretch" style={StyleSheet.absoluteFill} /> : null}
       {(config.layout.stickerLayers || []).slice().sort((left, right) => Number(left.order || 0) - Number(right.order || 0)).map((layer) => {
         const stickerUrl = mirrorResourceUrl(resourcesById[String(layer.resourceId || '')]);
-        return stickerUrl ? <Image pointerEvents="none" key={layer.id} source={{ uri: stickerUrl }} resizeMode="contain" style={[styles.stickerLayer, { left: `${layer.x}%`, top: `${layer.y}%`, width: `${layer.width}%`, height: `${layer.height}%`, transform: [{ rotate: `${Number(layer.rotation || 0)}deg` }] }]} /> : null;
+        return stickerUrl ? <MirrorCanvasImage onImageState={onImageState} pointerEvents="none" key={layer.id} source={{ uri: stickerUrl }} resizeMode="contain" style={[styles.stickerLayer, { left: `${layer.x}%`, top: `${layer.y}%`, width: `${layer.width}%`, height: `${layer.height}%`, transform: [{ rotate: `${Number(layer.rotation || 0)}deg` }] }]} /> : null;
       })}
       {(config.layout.textLayers || []).filter((layer) => layer.text).slice().sort((left, right) => Number(left.order || 0) - Number(right.order || 0)).map((layer) => (
-        <RuntimeFontText pointerEvents="none" key={layer.id} layer={layer} resource={resourcesById[String(layer.fontResourceId || '')]} numberOfLines={2} style={[styles.textLayer, { color: layer.color, left: `${layer.x}%`, top: `${layer.y}%`, width: `${layer.width}%`, fontSize: compact ? tokens.typography.caption : layer.size, transform: [{ rotate: `${Number(layer.rotation || 0)}deg` }] }]}>{layer.text}</RuntimeFontText>
+        <RuntimeFontText pointerEvents="none" allowFontScaling={false} key={layer.id} layer={layer} resource={resourcesById[String(layer.fontResourceId || '')]} numberOfLines={2} style={[styles.textLayer, { color: layer.color, left: `${layer.x}%`, top: `${layer.y}%`, width: `${layer.width}%`, fontSize: layer.size * fontScale, transform: [{ rotate: `${Number(layer.rotation || 0)}deg` }] }]}>{layer.text}</RuntimeFontText>
       ))}
     </View>
   );

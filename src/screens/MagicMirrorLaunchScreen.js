@@ -1,539 +1,687 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, Share as NativeShare, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { PrinterGuideModal } from '../components/PrinterGuideModal';
+import { ActivityIndicator, Alert, AppState, Image, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Share from 'react-native-share';
 import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 import QRCode from 'react-native-qrcode-svg';
-import { API_BASE_URL } from '../config/api';
-import { AppButton } from '../design-system/components/AppButton';
-import { SurfaceCard } from '../design-system/components/SurfaceCard';
-import { MediaPreview } from '../design-system/components/MediaPreview';
 import { tokens } from '../design-system/tokens';
 import { getTheme } from '../design-system/theme';
-import { IconTextButton } from '../components/IconTextButton';
 import { MirrorRuntimeCamera } from '../components/MirrorRuntimeCamera';
+import { MirrorCaptureMask } from '../components/MirrorCaptureMask';
 import { MirrorOutputComposer } from '../components/MirrorOutputComposer';
-import { StatusBadge } from '../components/StatusBadge';
+import { GuestAction, GuestAnimation, GuestGallery, GuestModal, GuestResult, GuestStage, GuestWelcome } from '../components/MirrorGuestScene';
+import { LaunchPatternGate } from '../components/LaunchPatternGate';
+import { MirrorOfflinePreparation } from '../components/MirrorOfflinePreparation';
+import { canPrintComposition } from '../domain/mirrorPrint';
+import { printCompositions, recoverPrintJobs } from '../services/mirrorPrinting';
+import { detectPrinter, getPrinterBinding } from '../services/printers';
+import { authorizeMirrorOperation, assertOfflineOperation, subscribeOperationAccess, readOperationAccess } from '../services/mirrorOperationAccess';
+import { beginBillingLaunch, endBillingLaunch } from '../services/offlineBillingGrant';
+import { refreshMirrorRecovery, verifyMirrorAccess } from '../services/mirrorRecoveryAccess';
+import { IconTextButton } from '../components/IconTextButton';
+import { collectLocalCompositions, compositionKey, loadArchivedCompositions, setCompositionArchived, syncCompositionArchives } from '../services/mirrorLocalGallery';
+import { createMirrorGalleryZip } from '../services/mirrorGalleryZip';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../providers/ToastProvider';
 import { t } from '../i18n';
-import {
-  captureCount,
-  createClientUuid,
-  createMirrorRuntimeState,
-  evaluateMirrorPreflight,
-  LOCAL_SYNC_STATUSES,
-  MIRROR_RUNTIME_STAGES,
-} from '../domain/mirrorRuntime';
-import {
-  endMagicMirrorSessionApi,
-  forceEndMagicMirrorSessionApi,
-  getActiveMagicMirrorSessionApi,
-  getMagicMirrorSessionPackageApi,
-  recordMagicMirrorDeliveryApi,
-  startMagicMirrorSessionApi,
-  updateMagicMirrorSessionApi,
-} from '../services/api/events';
-import { recordClientTechnicalError, userErrorMessage } from '../services/errorHandling';
-import {
-  cacheMirrorPackage,
-  clearMirrorRuntime,
-  getMirrorInstallationId,
-  getMirrorStorageInfo,
-  loadMirrorRuntime,
-  persistMirrorCapture,
-  persistMirrorOutput,
-  saveMirrorRuntime,
-} from '../services/mirrorRuntimeStorage';
+import { captureCount, createClientUuid, createMirrorRuntimeState, evaluateMirrorPreflight, GUEST_STAGE as S, guestSequenceReducer, recoverGuestStage, nextMissingPhoto, selectedPhotos, chooseStageAnimation, mergeRunAcknowledgements } from '../domain/mirrorRuntime';
+import { endMagicMirrorSessionApi, forceEndMagicMirrorSessionApi, updateMagicMirrorSessionApi, recordMagicMirrorDeliveryApi } from '../services/api/events';
+import { resolveMirrorLaunchPackage } from '../services/mirrorLaunchPackage';
+import { recordClientTechnicalError } from '../services/errorHandling';
+import { cacheMirrorPackage, archiveMirrorRuntime, loadMirrorArchives, cleanGuestOriginals, clearMirrorRuntime, getMirrorInstallationId, getMirrorStorageInfo, loadMirrorRuntime, persistMirrorCapture, persistMirrorOutput, saveMirrorRuntime } from '../services/mirrorRuntimeStorage';
 import { isMirrorRuntimeOnline, subscribeMirrorConnectivity, syncMirrorRun } from '../services/mirrorRuntimeSync';
 
-const ANIMATION_FALLBACK_MS = 2500;
-
-function stageResource(runtime, stage) {
-  return (runtime?.localManifest || []).find((item) => item.purpose === 'animation' && item.placement === stage) || null;
-}
-
-function animationDuration(resource) {
-  const duration = Number(resource?.metadata?.durationMs || resource?.asset?.metadata?.durationMs || 0);
-  return duration > 0 ? duration : ANIMATION_FALLBACK_MS;
-}
-
-function PreflightCard({ theme, checks }) {
-  return (
-    <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-      <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('runtime_003')}</Text>
-      <View style={styles.stackSmall}>
-        {checks.map((check) => (
-          <View key={check.key} style={styles.checkRow}>
-            <StatusBadge theme={theme} label={check.ok ? t('runtime_004') : t('runtime_005')} flag={check.ok ? 'success' : 'warn'} />
-            <Text style={[styles.rowText, { color: theme.textPrimary }]}>{t(check.labelKey)}</Text>
-          </View>
-        ))}
-      </View>
-    </SurfaceCard>
-  );
-}
-
-function StageAnimation({ runtime, stage, theme }) {
-  const resource = stageResource(runtime, stage);
-  if (!resource) return null;
-  return (
-    <MediaPreview
-      uri={resource.uri}
-      mediaType={resource.mimeType || 'video/mp4'}
-      borderColor={theme.border}
-      textColor={theme.textPrimary}
-      resizeMode="contain"
-      aspectRatio={tokens.layout.verticalVideoAspectRatio}
-      autoPlay
-      repeat
-      controls={false}
-    />
-  );
-}
-
-export function MagicMirrorLaunchScreen({ event, eventMode, accountId, canManage = false, onBack }) {
+export function MagicMirrorLaunchScreen({ event, eventMode, accountId, canManage = false, onBack, onConfigure }) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const eventId = String(event?.id || '');
   const eventModeId = String(eventMode?.id || '');
-  const cameraRef = useRef(null);
-  const composerRef = useRef(null);
-  const runtimeRef = useRef(null);
-  const syncQueueRef = useRef(Promise.resolve());
-  const sequenceTimer = useRef(null);
+  const backRef = useRef(onBack);
+  backRef.current = onBack;
+  const camera = useRef(null);
+  const composer = useRef(null);
+  const current = useRef(null);
+  const mounted = useRef(true);
+  const epoch = useRef(0);
+  const inFlight = useRef(false);
+  const operation = useRef('start');
+  const closing = useRef(false);
+  const exiting = useRef(false);
+  const shutterBarrier = useRef(Promise.resolve());
+  const [archives, setArchives] = useState([]);
+  const [hiddenCompositions, setHiddenCompositions] = useState({});
+  const [selectedCompositions, setSelectedCompositions] = useState([]);
+  const [galleryBusy, setGalleryBusy] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const printLock = useRef(false);
+  const [printerName, setPrinterName] = useState('');
+  const [pattern, setPattern] = useState(null);
+  const [patternVisible, setPatternVisible] = useState(false);
+  const [replacePatternVisible, setReplacePatternVisible] = useState(false);
+  const recoveryScope = useMemo(() => ({ userId: String(user?.id || ''), accountId: String(accountId || event?.accountId || ''), eventId, eventModeId }), [user?.id, accountId, event?.accountId, eventId, eventModeId]);
+  useEffect(() => {
+    let active = true;
+    recoverPrintJobs().catch(() => {});
+    getPrinterBinding(recoveryScope.accountId).then(value => { if (active) setPrinterName(value?.name || ''); }).catch(() => {});
+    return () => { active = false; };
+  }, [recoveryScope.accountId]);
+  const cameraAvailability = useRef(null);
+  const writes = useRef(Promise.resolve());
+  const uploads = useRef(Promise.resolve());
+  const animationWait = useRef(null);
+  const delays = useRef(new Set());
   const [runtime, setRuntime] = useState(null);
+  const [sequence, dispatch] = useReducer(guestSequenceReducer, { stage: S.WELCOME, countdown: 0 });
+  const sequenceRef = useRef(sequence);
+  sequenceRef.current = sequence;
   const [preparing, setPreparing] = useState(true);
-  const [downloadProgress, setDownloadProgress] = useState(null);
+  const [preparationOpen, setPreparationOpen] = useState(true);
+  const [accessRevoked, setAccessRevoked] = useState(false);
+  const [publicationConfirmed, setPublicationConfirmed] = useState(false);
+  const launchSelection = useRef(null);
+  const [accepted, setAccepted] = useState(false);
+  const [progress, setProgress] = useState(null);
   const [storage, setStorage] = useState({ freeSpace: 0 });
   const [cameraState, setCameraState] = useState({ permission: false, ready: false });
+  const [cameraKey, setCameraKey] = useState(0);
+  const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [online, setOnline] = useState(true);
-  const [countdown, setCountdown] = useState(0);
-  const [conflictingSession, setConflictingSession] = useState(null);
-  const [operatorMenu, setOperatorMenu] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [conflict, setConflict] = useState(null);
+  const [modal, setModal] = useState(null);
+  const [viewing, setViewing] = useState(null);
+  const [nativeDialog, setNativeDialog] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const [counterHeight, setCounterHeight] = useState(0);
+  const [animation, setAnimation] = useState(null);
+  const [resumeNeeded, setResumeNeeded] = useState(false);
+  useEffect(() => {
+    if (!foreground || !online || !recoveryScope.userId) return;
+    const refresh = () => { refreshMirrorRecovery(recoveryScope).catch(() => {}); };
+    refresh();
+    const timer = setInterval(refresh, 30000);
+    return () => clearInterval(timer);
+  }, [recoveryScope, foreground, online, patternVisible]);
+  cameraAvailability.current = cameraState;
 
-  const persistRuntime = useCallback((nextOrUpdater) => {
-    setRuntime((current) => {
-      const next = typeof nextOrUpdater === 'function' ? nextOrUpdater(current) : nextOrUpdater;
-      runtimeRef.current = next;
-      if (next) saveMirrorRuntime(next).catch((error) => recordClientTechnicalError({ code: 'MIRROR_RUNTIME_SAVE_FAILED', detail: error?.message }));
-      return next;
-    });
+  const report = useCallback((error, code, label) => {
+    recordClientTechnicalError({ code, detail: error?.details ? JSON.stringify({ message: error.message, ...error.details }) : error?.message || String(error) });
+    // Guest operations expose only our stage-specific message, never arbitrary
+    // native/driver text that might evade a technical-message pattern.
+    if (mounted.current && label) showToast({ type: 'error', message: t(String(error?.code || error?.message || '').startsWith('BILLING_') || error?.code === 'MIRROR_OPERATION_NOT_AUTHORIZED' ? 'billing_accessHelp' : label) });
+  }, [showToast]);
+  const persist = useCallback((updater) => {
+    if (closing.current) return current.current;
+    const next = typeof updater === 'function' ? updater(current.current) : updater;
+    current.current = next;
+    if (mounted.current) setRuntime(next);
+    if (next) writes.current = writes.current.catch(() => {}).then(() => saveMirrorRuntime(next)).catch((error) => report(error, 'MIRROR_RUNTIME_SAVE_FAILED'));
+    return next;
+  }, [report]);
+  const transition = useCallback((action) => {
+    sequenceRef.current = guestSequenceReducer(sequenceRef.current, action);
+    dispatch(action);
+    persist((value) => value ? { ...value, stage: sequenceRef.current.stage } : value);
+  }, [persist]);
+  const invalidate = useCallback(() => {
+    epoch.current += 1;
+    delays.current.forEach((cancel) => cancel());
+    animationWait.current?.();
+    animationWait.current = null;
+    setFlash(false);
+  }, []);
+  useEffect(() => {
+    mounted.current = true;
+    const pendingDelays = delays.current;
+    return () => { endBillingLaunch(); mounted.current = false; epoch.current += 1; pendingDelays.forEach((cancel) => cancel()); animationWait.current?.(); };
   }, []);
 
-  const syncRun = useCallback(async (run) => {
-    if (!run) return run;
-    syncQueueRef.current = syncQueueRef.current.catch(() => null).then(async () => {
-      const current = runtimeRef.current;
-      const latest = current?.activeRun?.clientRunId === run.clientRunId
-        ? current.activeRun
-        : (current?.completedRuns || []).find((item) => item.clientRunId === run.clientRunId) || run;
-      if (!current?.session?.id) return latest;
+  const acknowledge = useCallback((remote) => !closing.current && persist((value) => {
+    if (!value) return value;
+    return { ...value, activeRun: mergeRunAcknowledgements(value.activeRun, remote),
+      completedRuns: (value.completedRuns || []).map((run) => mergeRunAcknowledgements(run, remote)) };
+  }), [persist]);
+  const sync = useCallback((run) => {
+    if (closing.current) return uploads.current;
+    const context = current.current;
+    uploads.current = uploads.current.catch(() => {}).then(async () => {
+      const latest = current.current;
+      if (closing.current || !latest || latest.session.id !== context.session.id) return;
+      const target = latest.activeRun?.clientRunId === run.clientRunId ? latest.activeRun : latest.completedRuns.find((item) => item.clientRunId === run.clientRunId);
+      if (!target) return;
       try {
-        return await syncMirrorRun(current, latest, (partial) => {
-          persistRuntime((value) => value ? { ...value, activeRun: value.activeRun?.clientRunId === partial.clientRunId ? partial : value.activeRun } : value);
-        });
-      } catch (error) {
-        recordClientTechnicalError({ code: 'MIRROR_RUNTIME_SYNC_FAILED', detail: error?.message });
-        return { ...latest, syncStatus: LOCAL_SYNC_STATUSES.FAILED };
-      }
+        const remote = await syncMirrorRun(latest, target, acknowledge);
+        if (closing.current) return;
+        acknowledge(remote);
+        const completed = current.current?.completedRuns.find((item) => item.clientRunId === run.clientRunId);
+        if (completed) {
+          const cleaned = await cleanGuestOriginals(latest, completed);
+          persist((value) => ({ ...value, completedRuns: value.completedRuns.map((item) => item.clientRunId === cleaned.clientRunId ? cleaned : item) }));
+        }
+      } catch (error) { report(error, 'MIRROR_RUNTIME_SYNC_FAILED'); }
     });
-    return syncQueueRef.current;
-  }, [persistRuntime]);
+    return uploads.current;
+  }, [acknowledge, persist, report]);
 
-  const preparePackage = useCallback(async (payload, installationId, localBase = null) => {
-    const base = createMirrorRuntimeState({
-      ...(localBase || {}), eventId, eventModeId, eventName: event?.name, accountId,
-      installationId, session: payload.session, version: payload.version, manifest: payload.manifest,
-      clientSessionId: payload.session.clientSessionId,
-    });
-    const localManifest = await cacheMirrorPackage(payload, setDownloadProgress);
-    const recoveredStage = localBase?.activeRun ? (localBase.stage || MIRROR_RUNTIME_STAGES.REVIEW) : MIRROR_RUNTIME_STAGES.READY;
-    const ready = { ...base, localManifest, stage: recoveredStage, updatedAt: new Date().toISOString() };
-    persistRuntime(ready);
-    setStorage(await getMirrorStorageInfo());
-    setDownloadProgress(null);
-  }, [accountId, event?.name, eventId, eventModeId, persistRuntime]);
-
-  const initialize = useCallback(async () => {
+  const initialize = useCallback(async (selection = launchSelection.current) => {
+    if (!selection?.package) return;
+    launchSelection.current = selection;
+    setPreparationOpen(false); setPublicationConfirmed(false);
     setPreparing(true);
     try {
+      if (await isMirrorRuntimeOnline()) {
+        try { await authorizeMirrorOperation(recoveryScope); }
+        catch (error) {
+          if (error.status && error.status < 500) throw error;
+          await assertOfflineOperation(eventId, eventModeId);
+        }
+      } else await assertOfflineOperation(eventId, eventModeId);
       const installationId = await getMirrorInstallationId();
-      const local = await loadMirrorRuntime(eventModeId);
-      if (local) { runtimeRef.current = local; setRuntime(local); }
-      const connected = await isMirrorRuntimeOnline();
+      let local = await loadMirrorRuntime(eventModeId);
+      let connected = !selection.offline && await isMirrorRuntimeOnline();
       setOnline(connected);
-      if (connected && local?.pendingSessionAction === 'end' && local?.session?.id) {
-        await endMagicMirrorSessionApi(eventId, eventModeId, local.session.id);
-        await clearMirrorRuntime(eventModeId);
-        onBack();
-        return;
-      }
-      if (!connected) {
-        if (!local?.session?.id || !local?.version?.id || !local?.localManifest?.length) throw new Error('MIRROR_FIRST_LAUNCH_REQUIRES_NETWORK');
-        setStorage(await getMirrorStorageInfo());
-        return;
-      }
-      const active = await getActiveMagicMirrorSessionApi(eventId, eventModeId);
-      if (active?.session && active.session.deviceInstallationId !== installationId && active.session.clientSessionId !== local?.clientSessionId) {
-        setConflictingSession(active.session);
-        return;
-      }
-      let payload = active?.session ? active : null;
-      if (!payload?.session) {
-        payload = await startMagicMirrorSessionApi(eventId, eventModeId, {
-          clientSessionId: local?.clientSessionId || createClientUuid(),
-          deviceInstallationId: installationId,
-          metadata: { platform: 'mobile-kaptura' },
-        });
-      } else {
-        payload = await getMagicMirrorSessionPackageApi(eventId, eventModeId, payload.session.id);
-      }
-      await preparePackage(payload, installationId, local);
-    } catch (error) {
-      recordClientTechnicalError({ code: 'MIRROR_RUNTIME_PREPARE_FAILED', detail: error?.message });
-      showToast({ type: 'error', message: userErrorMessage(error, t('runtime_006')) });
-    } finally { setPreparing(false); }
-  }, [eventId, eventModeId, onBack, preparePackage, showToast]);
-
-  useEffect(() => { initialize(); }, [initialize]);
-  useEffect(() => {
-    const unsubscribe = subscribeMirrorConnectivity((connected) => {
-      setOnline(connected);
-      const current = runtimeRef.current;
-      if (connected && current?.activeRun) syncRun(current.activeRun).then((synced) => persistRuntime((value) => value ? { ...value, activeRun: synced } : value));
-      if (connected) (current?.completedRuns || []).filter((run) => run.syncStatus !== LOCAL_SYNC_STATUSES.SYNCED).forEach((run) => {
-        syncRun(run).then((synced) => persistRuntime((value) => value ? { ...value, completedRuns: value.completedRuns.map((item) => item.clientRunId === synced.clientRunId ? synced : item) } : value));
-      });
-    });
-    return unsubscribe;
-  }, [persistRuntime, syncRun]);
-  useEffect(() => () => { if (sequenceTimer.current) clearTimeout(sequenceTimer.current); }, []);
-  useEffect(() => {
-    if (!runtime?.session?.id || !online || !['preparing', 'running'].includes(runtime.session.status)) return undefined;
-    const heartbeat = setInterval(() => updateMagicMirrorSessionApi(eventId, eventModeId, runtime.session.id, { status: runtime.session.status })
-      .catch((error) => recordClientTechnicalError({ code: 'MIRROR_HEARTBEAT_FAILED', detail: error?.message })), 15000);
-    return () => clearInterval(heartbeat);
-  }, [eventId, eventModeId, online, runtime?.session?.id, runtime?.session?.status]);
-  const config = runtime?.config;
-  const preflight = useMemo(() => evaluateMirrorPreflight({ runtime, freeSpace: storage.freeSpace, cameraPermission: cameraState.permission, cameraReady: cameraState.ready }), [cameraState, runtime, storage.freeSpace]);
-
-  const setStage = useCallback((stage) => persistRuntime((value) => value ? { ...value, stage, updatedAt: new Date().toISOString() } : value), [persistRuntime]);
-
-  const runTimedStage = useCallback((stage, next) => {
-    setStage(stage);
-    const resource = stageResource(runtimeRef.current, stage);
-    sequenceTimer.current = setTimeout(next, resource ? animationDuration(resource) : 0);
-  }, [setStage]);
-
-  const beginCountdown = useCallback((seconds) => {
-    setStage(MIRROR_RUNTIME_STAGES.COUNTDOWN);
-    setCountdown(seconds);
-    const tick = (remaining) => {
-      if (remaining <= 0) {
-        setCountdown(0);
-        setStage(MIRROR_RUNTIME_STAGES.CAPTURING);
-        return;
-      }
-      setCountdown(remaining);
-      sequenceTimer.current = setTimeout(() => tick(remaining - 1), 1000);
-    };
-    tick(seconds);
-  }, [setStage]);
-
-  const startExperience = useCallback(async () => {
-    if (!preflight.ready || busy) return;
-    setBusy(true);
-    try {
-      let session = runtimeRef.current.session;
-      if (online && session.status === 'preparing') session = await updateMagicMirrorSessionApi(eventId, eventModeId, session.id, { status: 'running' }).then((payload) => payload.session);
-      const run = {
-        clientRunId: createClientUuid(),
-        startedAt: new Date().toISOString(),
-        captures: [],
-        syncStatus: LOCAL_SYNC_STATUSES.LOCAL,
-        nextPhotoNumber: 1,
-      };
-      persistRuntime((value) => ({ ...value, session, activeRun: run, stage: MIRROR_RUNTIME_STAGES.WELCOME }));
-      runTimedStage('start', () => runTimedStage('beforeCountdown', () => beginCountdown(Number(config.capture.firstCountdownSeconds || 0))));
-    } finally { setBusy(false); }
-  }, [beginCountdown, busy, config?.capture?.firstCountdownSeconds, eventId, eventModeId, online, persistRuntime, preflight.ready, runTimedStage]);
-
-  const takePhoto = useCallback(async () => {
-    const current = runtimeRef.current;
-    const run = current?.activeRun;
-    if (!run || busy) return;
-    setBusy(true);
-    try {
-      const raw = await cameraRef.current.takePhoto();
-      const photoNumber = Number(run.nextPhotoNumber || 1);
-      const previousAttempts = run.captures.filter((item) => item.photoNumber === photoNumber).length;
-      const clientCaptureId = createClientUuid();
-      const file = await persistMirrorCapture({ sessionId: current.session.id, runId: run.clientRunId, clientCaptureId, sourcePath: raw.path });
-      const capture = { ...file, clientCaptureId, photoNumber, attempt: previousAttempts + 1, capturedAt: new Date().toISOString(), selected: true, syncStatus: LOCAL_SYNC_STATUSES.LOCAL };
-      const captures = [...run.captures.map((item) => item.photoNumber === photoNumber ? { ...item, selected: false } : item), capture];
-      const nextPhotoNumber = photoNumber + 1;
-      const nextRun = { ...run, captures, nextPhotoNumber, syncStatus: LOCAL_SYNC_STATUSES.PENDING };
-      persistRuntime((value) => ({ ...value, activeRun: nextRun }));
-      syncRun(nextRun).then((synced) => persistRuntime((value) => value ? { ...value, activeRun: synced } : value));
-      runTimedStage('afterCapture', () => {
-        if (nextPhotoNumber <= captureCount(config)) beginCountdown(Number(config.capture.nextCountdownSeconds || 0));
-        else setStage(MIRROR_RUNTIME_STAGES.REVIEW);
-      });
-    } catch (error) {
-      recordClientTechnicalError({ code: 'MIRROR_CAPTURE_FAILED', detail: error?.message });
-      showToast({ type: 'error', message: t('runtime_007') });
-    } finally { setBusy(false); }
-  }, [beginCountdown, busy, config, persistRuntime, runTimedStage, setStage, showToast, syncRun]);
-
-  const retake = useCallback((photoNumber) => {
-    persistRuntime((value) => ({ ...value, activeRun: { ...value.activeRun, nextPhotoNumber: photoNumber }, stage: MIRROR_RUNTIME_STAGES.COUNTDOWN }));
-    beginCountdown(Number(config.capture.nextCountdownSeconds || 0));
-  }, [beginCountdown, config?.capture?.nextCountdownSeconds, persistRuntime]);
-
-  const processRun = useCallback(async () => {
-    const current = runtimeRef.current;
-    if (!current?.activeRun || busy) return;
-    setBusy(true);
-    setStage(MIRROR_RUNTIME_STAGES.PROCESSING);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 350));
-      const temporaryPath = await composerRef.current.compose();
-      const clientAssetId = createClientUuid();
-      const file = await persistMirrorOutput({ sessionId: current.session.id, runId: current.activeRun.clientRunId, clientAssetId, sourcePath: temporaryPath });
-      const output = { ...file, clientAssetId, createdAt: new Date().toISOString(), syncStatus: LOCAL_SYNC_STATUSES.LOCAL };
-      const nextRun = { ...current.activeRun, output, syncStatus: LOCAL_SYNC_STATUSES.PENDING };
-      persistRuntime((value) => ({ ...value, activeRun: nextRun, stage: MIRROR_RUNTIME_STAGES.DELIVERY }));
-      const synced = await syncRun(nextRun);
-      persistRuntime((value) => value ? { ...value, activeRun: synced, stage: MIRROR_RUNTIME_STAGES.DELIVERY } : value);
-    } catch (error) {
-      recordClientTechnicalError({ code: 'MIRROR_COMPOSE_FAILED', detail: error?.message });
-      showToast({ type: 'error', message: t('runtime_008') });
-      setStage(MIRROR_RUNTIME_STAGES.REVIEW);
-    } finally { setBusy(false); }
-  }, [busy, persistRuntime, setStage, showToast, syncRun]);
-
-  const finishRun = useCallback(() => {
-    const completed = runtimeRef.current?.activeRun;
-    if (!completed) return;
-    persistRuntime((value) => ({ ...value, activeRun: null, completedRuns: [...(value.completedRuns || []), completed], stage: MIRROR_RUNTIME_STAGES.READY }));
-  }, [persistRuntime]);
-
-  useEffect(() => {
-    if (runtime?.stage !== MIRROR_RUNTIME_STAGES.DELIVERY || !runtime?.activeRun?.output) return undefined;
-    const seconds = Number(runtime?.config?.runtime?.autoResetSeconds || 0);
-    if (seconds <= 0) return undefined;
-    const timer = setTimeout(() => finishRun(), seconds * 1000);
-    return () => clearTimeout(timer);
-  }, [finishRun, runtime?.activeRun?.output, runtime?.config?.runtime?.autoResetSeconds, runtime?.stage]);
-
-  const closeSession = useCallback(() => {
-    Alert.alert(t('runtime_009'), t('runtime_010'), [
-      { text: t('account_028'), style: 'cancel' },
-      { text: t('runtime_011'), style: 'destructive', onPress: async () => {
-        try {
-          if (online) {
-            await endMagicMirrorSessionApi(eventId, eventModeId, runtimeRef.current.session.id);
-            await clearMirrorRuntime(eventModeId);
-          } else {
-            persistRuntime((value) => ({ ...value, pendingSessionAction: 'end' }));
+      if (local?.pendingSessionAction === 'end') {
+        await archiveMirrorRuntime(local);
+        if (connected && !local.offlineSession) {
+          try {
+            await endMagicMirrorSessionApi(eventId, eventModeId, local.session.id);
+            await archiveMirrorRuntime({ ...local, pendingSessionAction: null });
+          } catch (failure) {
+            if (failure.status !== 0 && failure.code !== 'NETWORK_ERROR') throw failure;
+            connected = false; setOnline(false);
           }
-          onBack();
-        } catch (error) { showToast({ type: 'error', message: userErrorMessage(error, t('runtime_012')) }); }
-      } },
-    ]);
-  }, [eventId, eventModeId, onBack, online, persistRuntime, showToast]);
-
-  const takeOver = useCallback(async () => {
-    if (!canManage || !conflictingSession) return;
-    setBusy(true);
-    try {
-      await forceEndMagicMirrorSessionApi(eventId, eventModeId, conflictingSession.id);
-      setConflictingSession(null);
-      await initialize();
-    } catch (error) { showToast({ type: 'error', message: userErrorMessage(error, t('runtime_013')) }); }
-    finally { setBusy(false); }
-  }, [canManage, conflictingSession, eventId, eventModeId, initialize, showToast]);
-
-  const shareOutput = useCallback(async () => {
-    const output = runtimeRef.current?.activeRun?.output;
-    if (!output) return;
-    try {
-      await Share.open({ url: output.uri, type: output.mimeType, failOnCancel: false });
-      if (online && output.publicHash) recordMagicMirrorDeliveryApi(output.publicHash, 'share').catch((error) => recordClientTechnicalError({ code: 'MIRROR_DELIVERY_LOG_FAILED', detail: error?.message }));
-    }
-    catch (error) {
-      if (error?.message && !/cancel/i.test(error.message)) {
-        recordClientTechnicalError({ code: 'MIRROR_SHARE_FAILED', detail: error.message });
-        await NativeShare.share({ url: output.uri, message: event?.name || 'Kaptura' });
+        }
+        local = null;
       }
+      if (local && (local.offlineSession || !connected) && String(local.version?.id) !== String(selection.package.version.id)) {
+        await archiveMirrorRuntime({ ...local, pendingSessionAction: local.offlineSession ? null : 'end' });
+        local = null;
+      }
+      // Resume pending deliveries even when a previous session was explicitly closed.
+      let next = local;
+      if (connected && !local?.offlineSession) {
+        try {
+        const { payload, reuseLocal, reuseFiles } = await resolveMirrorLaunchPackage({ eventId, eventModeId, installationId, local, preparedVersionId: selection.package.version.id,
+          choosePrevious: async () => false,
+        });
+        next = createMirrorRuntimeState({ ...(reuseLocal ? local : {}), eventId, eventModeId, eventName: event?.name, accountId, installationId, session: payload.session, version: payload.version, manifest: payload.manifest, clientSessionId: payload.session.clientSessionId });
+        if (String(payload.version.id) !== String(selection.package.version.id) && !reuseLocal) throw new Error('MIRROR_PUBLISHED_VERSION_CHANGED');
+        next.localManifest = reuseFiles ? local.localManifest : String(payload.version.id) === String(selection.package.version.id)
+          ? selection.package.localManifest : await cacheMirrorPackage(payload, setProgress);
+        } catch (failure) {
+          if (failure.status !== 0 && failure.code !== 'NETWORK_ERROR') throw failure;
+          connected = false; setOnline(false);
+        }
+      }
+      if (!connected || local?.offlineSession) {
+        const reusable = local?.session?.id && local?.config && local.localManifest?.length === local.manifest?.length && !local.localManifest?.some((item) => item.localAvailable === false);
+        if (reusable) next = local;
+        else {
+          if (local) await archiveMirrorRuntime(local);
+          const id = createClientUuid();
+          next = createMirrorRuntimeState({ eventId, eventModeId, eventName: event?.name, accountId, installationId, ...selection.package,
+            clientSessionId: id, offlineSession: true,
+            session: { id: `offline-${id}`, clientSessionId: id, configVersionId: selection.package.version.id, status: 'running', startedAt: new Date().toISOString() },
+          });
+        }
+      }
+      next = { ...next, userId: String(user?.id || ''), stage: recoverGuestStage(next) };
+      await beginBillingLaunch(next, (await readOperationAccess(eventId, eventModeId))?.grant);
+      persist(next);
+      setArchives((await loadMirrorArchives()).filter((item) => String(item.eventId) === eventId && String(item.session.id) !== String(next.session.id)));
+      if (connected) syncCompositionArchives(eventId, [eventModeId]).catch((error) => report(error, 'MIRROR_ARCHIVE_SYNC_PENDING'));
+      setHiddenCompositions(await loadArchivedCompositions());
+      setStorage(await getMirrorStorageInfo());
+      setProgress(null);
+    } catch (error) { if (error.session) setConflict(error.session); else { report(error, 'MIRROR_PREPARE_FAILED', 'runtime_006'); setPreparationOpen(true); } }
+    finally { if (mounted.current) setPreparing(false); }
+  }, [accountId, event?.name, eventId, eventModeId, persist, report, recoveryScope, user?.id]);
+  useEffect(() => subscribeOperationAccess(state => {
+    if (String(state.eventId) === eventId && String(state.eventModeId) === eventModeId) setAccessRevoked(!state.allowed);
+  }), [eventId, eventModeId]);
+  useEffect(() => subscribeMirrorConnectivity((connected) => {
+    setOnline(connected);
+    if (connected && current.current) {
+      authorizeMirrorOperation(current.current || recoveryScope).catch(error => report(error, 'MIRROR_OPERATION_RECHECK_FAILED'));
+      if (current.current.activeRun) sync(current.current.activeRun);
+      current.current.completedRuns.filter((run) => run.syncStatus !== 'synced').forEach(sync);
     }
-  }, [event?.name, online]);
+  }), [sync, recoveryScope, report]);
+  useEffect(() => {
+    if (!online || !runtime?.session?.id || preparing) return;
+    let cancelled = false;
+    const synchronize = async () => {
+      const value = current.current;
+      if (value?.activeRun) sync(value.activeRun);
+      (value?.completedRuns || []).filter(run => run.syncStatus !== 'synced').forEach(sync);
+      for (const archive of await loadMirrorArchives()) {
+        if (cancelled) return;
+        if (String(archive.eventModeId) !== eventModeId || String(archive.session.id) === String(value?.session?.id)) continue;
+        try {
+          const completedRuns = [];
+          for (const run of archive.completedRuns || []) completedRuns.push(run.syncStatus === 'synced' ? run : await syncMirrorRun(archive, run));
+          if (archive.pendingSessionAction === 'end' && !archive.offlineSession) await endMagicMirrorSessionApi(archive.eventId, archive.eventModeId, archive.session.id);
+          await archiveMirrorRuntime({ ...archive, completedRuns, pendingSessionAction: null });
+        } catch (error) { report(error, 'MIRROR_ARCHIVE_SYNC_FAILED'); }
+      }
+    };
+    synchronize().catch(error => report(error, 'MIRROR_ARCHIVE_SYNC_FAILED'));
+    return () => { cancelled = true; };
+  }, [online, preparing, runtime?.session?.id, eventModeId, sync, report]);
+  useEffect(() => {
+    if (!runtime?.session?.id || runtime.offlineSession || !online) return undefined;
+    const timer = setInterval(() => updateMagicMirrorSessionApi(eventId, eventModeId, runtime.session.id, { status: runtime.session.status }).catch((error) => report(error, 'MIRROR_HEARTBEAT_FAILED')), 15000);
+    return () => clearInterval(timer);
+  }, [eventId, eventModeId, online, report, runtime?.session?.id, runtime?.session?.status, runtime?.offlineSession]);
 
-  const saveOutput = useCallback(async () => {
-    const output = runtimeRef.current?.activeRun?.output;
-    if (!output) return;
+  const config = runtime?.config;
+  const preflight = evaluateMirrorPreflight({ runtime, freeSpace: storage.freeSpace, cameraPermission: cameraState.permission, cameraReady: cameraState.ready });
+  const alive = (token) => mounted.current && !closing.current && !exiting.current && epoch.current === token && AppState.currentState === 'active';
+  const pause = (ms) => new Promise((resolve) => {
+    const finishDelay = () => { clearTimeout(timer); delays.current.delete(finishDelay); resolve(); };
+    const timer = setTimeout(finishDelay, ms);
+    delays.current.add(finishDelay);
+  });
+  const animationDone = useCallback(() => { animationWait.current?.(); animationWait.current = null; }, []);
+  const playStage = async (stage, token) => {
+    const resource = chooseStageAnimation(current.current, stage);
+    if (!resource || !alive(token)) return;
+    setAnimation(resource);
+    transition({ type: stage === S.BEFORE ? 'BEGIN' : 'AFTER' });
+    await new Promise((resolve) => {
+      // Advance on the actual video end/error, not an estimated duration.
+      animationWait.current = resolve;
+    });
+    animationWait.current = null;
+    if (alive(token)) setAnimation(null);
+  };
+  const composeRun = async (token) => {
+    const processingStarted = Date.now();
+    operation.current = 'compose';
+    if (nextMissingPhoto(current.current.config, current.current.activeRun)) throw new Error('MIRROR_CAPTURES_INCOMPLETE');
+    transition({ type: 'PROCESS' });
+    setAnimation(chooseStageAnimation(current.current, 'processing'));
+    // Allow the dedicated output surface to commit its current photos before capture.
+    await pause(100);
+    if (!alive(token)) return;
+    const run = current.current.activeRun;
+    const sourcePath = await composer.current.compose();
+    if (!alive(token) || current.current.activeRun?.clientRunId !== run.clientRunId) return;
+    const clientAssetId = createClientUuid();
+    operation.current = 'saveOutput';
+    const output = await persistMirrorOutput({ sessionId: current.current.session.id, runId: run.clientRunId, clientAssetId, sourcePath });
+    await pause(Math.max(0, 3000 - (Date.now() - processingStarted)));
+    if (!alive(token)) return;
+    const nextRun = { ...current.current.activeRun, retakePhotoNumber: null, output: { ...output, clientAssetId, createdAt: new Date().toISOString(), syncStatus: 'local' }, syncStatus: 'pending' };
+    persist((value) => ({ ...value, activeRun: nextRun }));
+    setAnimation(null);
+    transition({ type: 'RESULT' });
+    sync(nextRun);
+  };
+  const handleFailure = (error) => {
+    const failures = {
+      start: ['MIRROR_GUEST_START_FAILED', 'guest_start_failed'],
+      camera: ['MIRROR_GUEST_CAMERA_FAILED', 'guest_camera_failed'],
+      saveCapture: ['MIRROR_GUEST_CAPTURE_SAVE_FAILED', 'guest_capture_save_failed'],
+      compose: ['MIRROR_GUEST_COMPOSE_FAILED', 'runtime_008'],
+      saveOutput: ['MIRROR_GUEST_OUTPUT_SAVE_FAILED', 'guest_output_save_failed'],
+    };
+    const [code, label] = failures[operation.current] || failures.start;
+    report(error, code, label);
+    setAnimation(null);
+    setFlash(false);
+    setResumeNeeded(true);
+    transition({ type: 'WAIT', welcome: !current.current?.activeRun });
+  };
+  const begin = async () => {
+    if (accessRevoked) return;
+    if (inFlight.current || exiting.current || modal || nativeDialog || !pattern || patternVisible || !foreground || preparing) return;
+    if (![S.WELCOME, S.WAITING].includes(sequenceRef.current.stage)) return;
+    if (preflight.checks.some((check) => !['cameraPermission', 'camera'].includes(check.key) && !check.ok)) return;
+    setAccepted(true);
+    inFlight.current = true;
+    const token = ++epoch.current;
+    operation.current = 'start';
+    setResumeNeeded(false);
     try {
-      await CameraRoll.saveAsset(output.uri, { type: 'photo', album: 'Kaptura' });
-      if (online && output.publicHash) recordMagicMirrorDeliveryApi(output.publicHash, 'download').catch((error) => recordClientTechnicalError({ code: 'MIRROR_DELIVERY_LOG_FAILED', detail: error?.message }));
-      showToast({ type: 'success', message: t('runtime_014') });
+      await assertOfflineOperation(eventId, eventModeId, current.current?.clientSessionId);
+      if (!current.current.activeRun) {
+        let session = current.current.session;
+        if (online && !current.current?.offlineSession && session.status === 'preparing') session = (await updateMagicMirrorSessionApi(eventId, eventModeId, session.id, { status: 'running' })).session;
+        if (!alive(token)) return;
+        persist((value) => ({ ...value, session, activeRun: { clientRunId: createClientUuid(), startedAt: new Date().toISOString(), captures: [], retentionPolicyVersion: 2, syncStatus: 'local' } }));
+      }
+      const run = current.current.activeRun;
+      const photoNumber = run.retakePhotoNumber || nextMissingPhoto(config, run);
+      if (!photoNumber) { await composeRun(token); return; }
+      await playStage(S.BEFORE, token);
+      if (!alive(token)) return;
+      transition({ type: 'COUNT', seconds: 0 });
+      const cameraDeadline = Date.now() + 20000;
+      while (!cameraAvailability.current.ready) {
+        if (!alive(token)) return;
+        if (Date.now() > cameraDeadline) throw new Error('MIRROR_CAMERA_NOT_READY');
+        await pause(100);
+      }
+      if (!alive(token)) return;
+      const seconds = Number(!run.retakePhotoNumber && selectedPhotos(run).length === 0 ? config.capture.firstCountdownSeconds : config.capture.nextCountdownSeconds);
+      for (let count = seconds; count > 0; count -= 1) {
+        transition({ type: 'COUNT', seconds: count });
+        await pause(1000);
+        if (!alive(token)) return;
+      }
+      transition({ type: 'CAPTURE' });
+      operation.current = 'camera';
+      if (config.capture.flashEnabled) { setFlash(true); await pause(120); }
+      if (!alive(token)) return;
+      let releaseShutter;
+      const captureContext = current.current;
+      shutterBarrier.current = new Promise((resolve) => { releaseShutter = resolve; });
+      try {
+      const raw = await camera.current.takePhoto();
+      setFlash(false);
+      const clientCaptureId = createClientUuid();
+      operation.current = 'saveCapture';
+      const file = await persistMirrorCapture({ sessionId: current.current.session.id, runId: run.clientRunId, clientCaptureId, sourcePath: raw.path });
+      // Persist a completed shutter even if the app was interrupted, without advancing.
+      const captures = run.captures.map((photo) => photo.photoNumber === photoNumber ? { ...photo, selected: false } : photo);
+      const capture = { ...file, clientCaptureId, photoNumber, previewAspectRatio: viewport.width > 0 && viewport.height > 0 ? viewport.width / viewport.height : undefined, simulated: raw.simulated === true, attempt: captures.filter((photo) => photo.photoNumber === photoNumber).length + 1, capturedAt: new Date().toISOString(), selected: true, syncStatus: 'local' };
+      if (closing.current || !mounted.current) {
+        await archiveMirrorRuntime({ ...captureContext, pendingSessionAction: 'end', activeRun: { ...run, captures: [...captures, capture], output: null, syncStatus: 'pending' } });
+        return;
+      }
+      persist((value) => ({ ...value, activeRun: { ...value.activeRun, captures: [...captures, capture], latestCaptureId: clientCaptureId, output: null, syncStatus: 'pending', retakePhotoNumber: null } }));
+      } finally { releaseShutter(); }
+      if (!alive(token)) return;
+      if (nextMissingPhoto(config, current.current.activeRun)) {
+        transition({ type: 'PROCESS' });
+        setAnimation(chooseStageAnimation(current.current, 'processing'));
+        await pause(3000);
+        if (alive(token)) { setAnimation(null); transition({ type: 'WAIT', welcome: true }); }
+      } else await composeRun(token);
+    } catch (error) { if (alive(token)) handleFailure(error); }
+    finally { inFlight.current = false; }
+  };
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      setForeground(state === 'active');
+      if (state === 'active' && current.current) {
+        assertOfflineOperation(eventId, eventModeId, current.current.clientSessionId).catch(error => { setAccessRevoked(true); report(error, 'BILLING_FOREGROUND_CHECK_FAILED'); });
+      }
+      if (state !== 'active') {
+        epoch.current += 1;
+        delays.current.forEach((cancel) => cancel());
+        animationWait.current?.();
+        if (![S.WELCOME, S.WAITING, S.RESULT].includes(sequenceRef.current.stage)) {
+          setAnimation(null); setFlash(false); setResumeNeeded(true);
+          transition({ type: 'WAIT', welcome: !current.current?.activeRun });
+        }
+      }
+    });
+    return () => subscription.remove();
+  }, [transition, eventId, eventModeId, report]);
+
+  const enterGuests = async () => {
+    if (exiting.current || modal || nativeDialog || preparing || !pattern) return;
+    if (preflight.checks.some((check) => !['cameraPermission', 'camera'].includes(check.key) && !check.ok)) {
+      showToast({ type: 'error', message: t(preflight.checks.find((check) => !['cameraPermission', 'camera'].includes(check.key) && !check.ok).labelKey) });
+      return;
     }
-    catch (error) { recordClientTechnicalError({ code: 'MIRROR_SAVE_PHOTO_FAILED', detail: error?.message }); showToast({ type: 'error', message: t('runtime_015') }); }
-  }, [online, showToast]);
-
-  if (preparing) return <View style={[styles.center, { backgroundColor: theme.background }]}><ActivityIndicator color={theme.primary} /><Text style={[styles.body, { color: theme.textSecondary }]}>{downloadProgress ? `${t('runtime_001')} ${downloadProgress.item}/${downloadProgress.total} · ${downloadProgress.percent}%` : t('runtime_000')}</Text></View>;
-
-  if (conflictingSession) return (
-    <View style={[styles.page, styles.centerPadding, { backgroundColor: theme.background }]}>
-      <SurfaceCard surfaceColor={theme.surface} borderColor={theme.border}>
-        <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('runtime_016')}</Text>
-        <Text style={[styles.body, { color: theme.textSecondary }]}>{t('runtime_017')}</Text>
-        <View style={styles.buttonCluster}>
-          <AppButton label={t('account_028')} onPress={onBack} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} style={styles.flexButton} />
-          {canManage ? <AppButton label={t('runtime_018')} onPress={takeOver} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} disabled={busy} style={styles.flexButton} /> : null}
-        </View>
-      </SurfaceCard>
-    </View>
-  );
-
-  if (!runtime?.config) return <View style={[styles.center, { backgroundColor: theme.background }]}><Text style={[styles.body, { color: theme.textSecondary }]}>{t('runtime_006')}</Text><AppButton label={t('resource_045')} onPress={initialize} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} /></View>;
-
-  const run = runtime.activeRun;
-  const selectedCaptures = (run?.captures || []).filter((item) => item.selected !== false);
-  const output = run?.output;
-  const publicUrl = output?.publicHash ? `${API_BASE_URL}/api/public/assets/${output.publicHash}?method=qr` : '';
-  const animationStage = [MIRROR_RUNTIME_STAGES.WELCOME, 'start'].includes(runtime.stage) ? 'start' : runtime.stage;
-
-  return (
-    <View style={[styles.page, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { borderBottomColor: theme.border }]}> 
-        <IconTextButton theme={theme} icon="arrow-left" variant="ghost" accessibilityLabel={t('runtime_019')} onPress={() => setOperatorMenu(true)} />
-        <View style={styles.headerText}>
-          <Text numberOfLines={1} style={[styles.headerTitle, { color: theme.textPrimary }]}>{event?.name || t('runtime_020')}</Text>
-          <Text style={[styles.headerMeta, { color: online ? tokens.colors.success[400] : tokens.colors.warn[400] }]}>{online ? t('runtime_021') : t('runtime_022')}</Text>
-        </View>
-        <IconTextButton theme={theme} icon="bars" variant="outline" accessibilityLabel={t('runtime_023')} onPress={() => setOperatorMenu((value) => !value)} />
+    setCameraState({ permission: true, ready: false });
+    setAccepted(true);
+    const recovered = recoverGuestStage(current.current);
+    if (recovered === S.RESULT) {
+      transition({ type: 'RESULT' });
+      if (current.current.activeRun.syncStatus !== 'synced') sync(current.current.activeRun);
+    }
+    else if (recovered === S.PROCESS) {
+      inFlight.current = true;
+      const token = ++epoch.current;
+      try { await composeRun(token); }
+      catch (error) { if (alive(token)) handleFailure(error); }
+      finally { inFlight.current = false; }
+    } else transition({ type: 'WAIT', welcome: true });
+    current.current.completedRuns.filter((run) => run.syncStatus !== 'synced').forEach(sync);
+  };
+  useEffect(() => {
+    if (!preparing && pattern && runtime?.activeRun && !accepted) enterGuests();
+    // Recovery is decided once after initialization, not on sync acknowledgements.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preparing, pattern]);
+  const finish = useCallback(() => {
+    invalidate();
+    const run = current.current?.activeRun;
+    if (run) {
+      persist((value) => ({ ...value, activeRun: null, completedRuns: [...value.completedRuns, { ...run, configSnapshot: value.config }] }));
+      sync(run);
+    }
+    setViewing(null); setAnimation(null); setModal(null); setResumeNeeded(false);
+    transition({ type: 'WAIT', welcome: true });
+  }, [invalidate, persist, sync, transition]);
+  const closeSession = (configure = false) => {
+    if (printLock.current) return;
+    setNativeDialog(true);
+    Alert.alert(t('runtime_009'), t('runtime_010'), [
+      { text: t('account_028'), style: 'cancel', onPress: () => setNativeDialog(false) },
+      { text: t('runtime_011'), style: 'destructive', onPress: async () => {
+        if (closing.current || exiting.current) return;
+        exiting.current = true;
+        invalidate();
+        try {
+          // Wait only for the atomic shutter+local save, never for network sync.
+          await new Promise((resolve) => {
+            const timer = setTimeout(() => { report(new Error('MIRROR_SHUTTER_EXIT_TIMEOUT'), 'MIRROR_SHUTTER_EXIT_TIMEOUT'); resolve(); }, 15000);
+            shutterBarrier.current.then(() => { clearTimeout(timer); resolve(); });
+          });
+          closing.current = true;
+          const value = current.current;
+          if (!value) { backRef.current(); return; }
+          const archived = { ...value, completedRuns: [...value.completedRuns, ...(value.activeRun ? [value.activeRun] : [])], activeRun: null, pendingSessionAction: 'end' };
+          await writes.current;
+          await archiveMirrorRuntime(archived);
+          await saveMirrorRuntime(archived);
+          // The backend accepts uploads from runs started before the session ended.
+          if (online && !value.offlineSession) {
+            try {
+              await endMagicMirrorSessionApi(eventId, eventModeId, value.session.id);
+              await archiveMirrorRuntime({ ...archived, pendingSessionAction: null });
+              await clearMirrorRuntime(eventModeId);
+            } catch (error) { report(error, 'MIRROR_END_PENDING'); }
+          }
+          if (configure && canManage && onConfigure) onConfigure(); else backRef.current();
+        } catch (error) { closing.current = false; exiting.current = false; report(error, 'MIRROR_END_FAILED', 'runtime_012'); }
+        finally { setNativeDialog(false); }
+      } },
+    ], { cancelable: false });
+  };
+  const operator = () => {
+    if (!pattern || preparing || closing.current || printLock.current) return;
+    if (inFlight.current) {
+      invalidate();
+      setAnimation(null); setResumeNeeded(true);
+      transition({ type: 'WAIT' });
+    }
+    setPatternVisible(true);
+  };
+  const retake = (photoNumber) => {
+    if (inFlight.current || accessRevoked || printLock.current) return;
+    invalidate();
+    persist((value) => ({ ...value, activeRun: { ...value.activeRun, retakePhotoNumber: photoNumber } }));
+    transition({ type: 'WAIT', welcome: true });
+  };
+  const galleryRuns = collectLocalCompositions([...archives, runtime], eventId).filter((item) => !hiddenCompositions[compositionKey(item)]);
+  const displayRun = viewing ? galleryRuns.find((run) => run.clientRunId === viewing) : runtime?.activeRun;
+  const output = displayRun?.output?.localAvailable === false ? null : displayRun?.output;
+  const printableRun = displayRun ? { ...displayRun, sessionId: displayRun.sessionId || String(runtime?.session?.id), clientSessionId: displayRun.clientSessionId || runtime?.clientSessionId, configSnapshot: displayRun.configSnapshot || config, printManifest: displayRun.printManifest || runtime?.localManifest } : null;
+  const printPhotos = async (photos) => {
+    if (printLock.current || accessRevoked || galleryBusy) return;
+    printLock.current = true; setPrinting(true); setNativeDialog(true);
+    try {
+      const status = await printCompositions(photos, recoveryScope);
+      if (status !== 'cancelled') showToast({ type: ['unknown', 'failed'].includes(status) ? 'error' : 'success', message: t(status === 'unknown' ? 'print_unknown' : status === 'failed' ? 'print_failed' : 'print_submitted') });
+      const binding = await getPrinterBinding(recoveryScope.accountId);
+      if (mounted.current) setPrinterName(binding?.name || '');
+    } catch (error) {
+      const key = ['PRINT_PAPER_UNSUPPORTED', 'PRINT_MARGIN_UNSUPPORTED'].includes(error.code) ? 'print_paper_error'
+        : error.code === 'PRINT_PRINTER_UNAVAILABLE' ? 'print_unavailable' : 'print_failed';
+      report(error, 'MIRROR_PRINT_FAILED', key);
+    } finally { printLock.current = false; if (mounted.current) { setPrinting(false); setNativeDialog(false); } }
+  };
+  const selectPrinter = async () => {
+    if (printLock.current) return;
+    if (Platform.OS === 'android') { showToast({ type: 'info', message: t('print_android_destination') }); return; }
+    printLock.current = true; setPrinting(true); setNativeDialog(true);
+    try { const binding = await detectPrinter(recoveryScope.accountId); if (binding && mounted.current) setPrinterName(binding.name); }
+    catch (error) { report(error, 'MIRROR_PRINTER_FAILED', 'print_unavailable'); }
+    finally { printLock.current = false; if (mounted.current) { setPrinting(false); setNativeDialog(false); } }
+  };
+  const deliver = async (method) => {
+    if (!output || printLock.current) return;
+    setNativeDialog(true);
+    try {
+      if (method === 'whatsapp') await Share.shareSingle({ url: output.uri, type: output.mimeType, social: Share.Social.WHATSAPP });
+      else if (method === 'share') await Share.open({ url: output.uri, type: output.mimeType, failOnCancel: false });
+      else { await CameraRoll.saveAsset(output.uri, { type: 'photo', album: 'Kaptura' }); showToast({ type: 'success', message: t('runtime_014') }); }
+      if (online && output.publicHash) await recordMagicMirrorDeliveryApi(output.publicHash, method === 'whatsapp' ? 'share' : method);
+    } catch (error) { report(error, 'MIRROR_DELIVERY_FAILED', 'runtime_015'); }
+    finally { setNativeDialog(false); }
+  };
+  const closeModal = () => { if (!printLock.current) { setModal(null); setViewing(null); } };
+  const galleryAction = async (zip = false) => {
+    if (galleryBusy || printLock.current) return;
+    setGalleryBusy(true); setNativeDialog(true);
+    try {
+      // ZIP exports the normal event gallery; archived items never leak into sharing.
+      const runs = zip || !selectedCompositions.length ? galleryRuns : galleryRuns.filter((item) => selectedCompositions.includes(compositionKey(item)));
+      if (zip) await Share.open({ url: await createMirrorGalleryZip(runs), type: 'application/zip', failOnCancel: false });
+      else await Share.open({ urls: runs.map((item) => item.output.uri), type: 'image/jpeg', failOnCancel: false });
+    } catch (error) { report(error, 'MIRROR_GALLERY_EXPORT_FAILED', 'gallery_failed'); }
+    finally { setGalleryBusy(false); setNativeDialog(false); }
+  };
+  const archiveComposition = async (item) => {
+    if (printLock.current) return;
+    try {
+      setHiddenCompositions(await setCompositionArchived(item, true, { eventId, eventModeId }));
+      setSelectedCompositions((value) => value.filter((key) => key !== compositionKey(item)));
+      if (item.clientRunId === current.current?.activeRun?.clientRunId) { finish(); setModal('gallery'); }
+    } catch (error) { report(error, 'MIRROR_ARCHIVE_COMPOSITION_FAILED', 'gallery_failed'); }
+  };
+  const action = (label, onPress, disabled = false) => <GuestAction label={t(label)} onPress={() => { if (!printLock.current) onPress(); }} disabled={disabled || printing} theme={theme} />;
+  const publicUrl = output?.publicUrl || '';
+  const deliveryActions = <View style={styles.actions}>
+    {canPrintComposition(printableRun) ? action('print_action', () => printPhotos([printableRun]), printing || accessRevoked) : null}
+    {printing ? <Text accessibilityLiveRegion="polite" style={{ color: theme.textSecondary }}>{t('print_working')}</Text> : null}
+    {(displayRun?.configSnapshot || config)?.delivery.share ? <><IconTextButton theme={theme} icon="whatsapp" iconStyle="brand" label="WhatsApp" onPress={() => deliver('whatsapp')} />{action('runtime_032', () => deliver('share'))}</> : null}
+    {(displayRun?.configSnapshot || config)?.delivery.download ? action('runtime_033', () => deliver('download')) : null}
+    {(displayRun?.configSnapshot || config)?.delivery.qr ? action('guest_qr', () => setModal('qr'), !publicUrl || output?.syncStatus !== 'synced') : null}
+  </View>;
+  const run = runtime?.activeRun;
+  const stage = sequence.stage;
+  const awaiting = [S.WELCOME, S.WAITING].includes(stage);
+  const photoNumber = run?.retakePhotoNumber || nextMissingPhoto(config, run) || captureCount(config);
+  const welcomeVideo = useMemo(() => chooseStageAnimation(runtime, 'start'), [runtime?.session?.id, runtime?.activeRun?.clientRunId, runtime?.activeRun?.latestCaptureId, runtime?.activeRun?.retakePhotoNumber]); // eslint-disable-line react-hooks/exhaustive-deps
+  const slot = config?.layout.slots.find((item) => item.photoNumber === photoNumber);
+  const slotRatio = slot ? config.layout.output.width * slot.width / (config.layout.output.height * slot.height) / (config.layout.duplicateStrip ? 2 : 1) : 1;
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    if (pattern && !preparing && config && awaiting && !welcomeVideo && !modal && !patternVisible && !resumeNeeded) begin();
+    // Start only on entry to a welcome phase, not on synchronization updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pattern, preparing, stage, modal, patternVisible, Boolean(welcomeVideo)]);
+  return <GuestStage theme={theme} eventName="" progress="" onOperator={operator} menuEnabled={config?.runtime.operatorMenuEnabled}
+    overlay={accepted && stage === S.RESULT && run?.output ? <GuestResult output={run.output} config={config} theme={theme} onRetake={retake} /> : null}
+    footer={accepted && stage === S.RESULT ? <View style={styles.resultActions}>
+      <View style={styles.resultLeft}>
+        <View style={styles.galleryShortcut}>{galleryRuns.slice(0, 3).map((item) => <Pressable key={compositionKey(item)} accessibilityRole="button" accessibilityLabel={t('guest_gallery')} onPress={() => setModal('gallery')}><Image source={{ uri: item.output.uri }} style={styles.galleryThumb} resizeMode="contain" /></Pressable>)}</View>
+        <IconTextButton theme={theme} icon="plus" label={t('guest_again')} onPress={finish} />
       </View>
-
-      {operatorMenu ? (
-        <View style={[styles.operatorPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('runtime_023')}</Text>
-          <AppButton label={t('runtime_024')} onPress={() => { setOperatorMenu(false); finishRun(); }} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} disabled={!run} />
-          <AppButton label={t('runtime_011')} onPress={closeSession} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.alert} />
-          <AppButton label={t('account_028')} onPress={() => setOperatorMenu(false)} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.textPrimary} />
-        </View>
-      ) : null}
-
-      <ScrollView contentContainerStyle={styles.content}>
-        {runtime.stage === MIRROR_RUNTIME_STAGES.READY ? (
-          <View style={styles.stack}>
-            <PreflightCard theme={theme} checks={preflight.checks} />
-            <View style={styles.preflightCamera}>
-              <MirrorRuntimeCamera ref={cameraRef} active flashEnabled={config.capture.flashEnabled} lens={config.capture.lens} theme={theme} onAvailabilityChange={setCameraState} />
-            </View>
-            <AppButton label={t('runtime_025')} onPress={startExperience} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} disabled={!preflight.ready || busy} style={styles.primaryAction} />
-          </View>
-        ) : null}
-
-        {[MIRROR_RUNTIME_STAGES.WELCOME, 'start', 'beforeCountdown', 'afterCapture'].includes(runtime.stage) ? (
-          <View style={styles.mediaStage}><StageAnimation runtime={runtime} stage={animationStage} theme={theme} /></View>
-        ) : null}
-
-        {runtime.stage === MIRROR_RUNTIME_STAGES.COUNTDOWN ? (
-          <View style={styles.countdownWrap}><Text accessibilityLiveRegion="assertive" style={[styles.countdown, { color: theme.tertiary }]}>{countdown}</Text></View>
-        ) : null}
-
-        {runtime.stage === MIRROR_RUNTIME_STAGES.CAPTURING ? (
-          <View style={styles.captureCover}>
-            <MirrorRuntimeCamera ref={cameraRef} active flashEnabled={config.capture.flashEnabled} lens={config.capture.lens} theme={theme} onAvailabilityChange={setCameraState} />
-            <AppButton label={`${t('runtime_026')} ${run?.nextPhotoNumber || 1}/${captureCount(config)}`} onPress={takePhoto} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} disabled={busy || !cameraState.ready} style={styles.primaryAction} />
-          </View>
-        ) : null}
-
-        {runtime.stage === MIRROR_RUNTIME_STAGES.REVIEW ? (
-          <View style={styles.stack}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('runtime_028')}</Text>
-            <View style={styles.photoGrid}>
-              {selectedCaptures.map((capture) => (
-                <View key={capture.clientCaptureId} style={styles.photoCell}>
-                  <Image source={{ uri: capture.uri }} style={styles.photo} />
-                  <IconTextButton theme={theme} icon="rotate" variant="filled" accessibilityLabel={t('runtime_029')} onPress={() => retake(capture.photoNumber)} style={styles.photoAction} />
-                </View>
-              ))}
-            </View>
-            <MirrorOutputComposer ref={composerRef} config={config} captures={selectedCaptures} localManifest={runtime.localManifest} theme={theme} />
-            <AppButton label={t('runtime_030')} onPress={processRun} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} disabled={busy} style={styles.primaryAction} />
-          </View>
-        ) : null}
-
-        {runtime.stage === MIRROR_RUNTIME_STAGES.PROCESSING ? (
-          <View style={styles.processingStage}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('runtime_027')}</Text>
-            <View style={styles.processingFrame}>
-              <MirrorOutputComposer ref={composerRef} config={config} captures={selectedCaptures} localManifest={runtime.localManifest} theme={theme} />
-              <View pointerEvents="none" style={[styles.processingCover, { backgroundColor: theme.background }]}>
-                {stageResource(runtime, 'processing') ? <StageAnimation runtime={runtime} stage="processing" theme={theme} /> : <ActivityIndicator color={theme.primary} />}
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        {runtime.stage === MIRROR_RUNTIME_STAGES.DELIVERY && output ? (
-          <View style={styles.stack}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t('runtime_031')}</Text>
-            <Image source={{ uri: output.uri }} resizeMode="contain" style={[styles.result, { borderColor: theme.border }]} />
-            <View style={styles.buttonCluster}>
-              {config.delivery.share ? <AppButton label={t('runtime_032')} onPress={shareOutput} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.flexButton} /> : null}
-              {config.delivery.download ? <AppButton label={t('runtime_033')} onPress={saveOutput} backgroundColor={theme.surface} pressedColor={theme.background} textColor={theme.primary} style={styles.flexButton} /> : null}
-            </View>
-            {config.delivery.qr && publicUrl ? (
-              <SurfaceCard surfaceColor={tokens.colors.gray[0]} borderColor={theme.border}>
-                <View style={styles.qr}><QRCode value={publicUrl} size={tokens.spacing.xl * 5} /></View>
-                <Text style={[styles.qrHelp, { color: tokens.colors.gray[8] }]}>{t('runtime_034')}</Text>
-              </SurfaceCard>
-            ) : config.delivery.qr ? <Text style={[styles.body, { color: theme.textSecondary }]}>{t('runtime_035')}</Text> : null}
-            <AppButton label={t('runtime_036')} onPress={finishRun} backgroundColor={theme.buttonBg} pressedColor={theme.buttonBgPressed} textColor={theme.buttonText} style={styles.primaryAction} />
-          </View>
-        ) : null}
-      </ScrollView>
-    </View>
-  );
+      {config.delivery.share || config.delivery.download || config.delivery.qr ? <IconTextButton theme={theme} icon="share-nodes" accessibilityLabel={t('guest_delivery')} onPress={() => setModal('delivery')} /> : null}
+    </View> : null}>
+    {config && accepted ? <View style={StyleSheet.absoluteFill} onLayout={(layoutEvent) => setViewport(layoutEvent.nativeEvent.layout)}>
+      <MirrorRuntimeCamera key={cameraKey + runtime.cameraPosition} ref={camera} active={foreground && ![S.RESULT, S.PROCESS].includes(stage)} position={runtime.cameraPosition} quality={config.capture.quality} lens={config.capture.lens} theme={theme} onAvailabilityChange={setCameraState} />
+      {accepted && awaiting && !cameraState.ready ? <Text style={[styles.cameraWait, { color: theme.textPrimary, backgroundColor: theme.surface }]}>{t('guest_camera_wait')}</Text> : null}
+      {accepted && [S.COUNTDOWN, S.CAPTURE].includes(stage) ? <MirrorCaptureMask width={viewport.width} height={viewport.height} ratio={slotRatio} theme={theme} /> : null}
+      {accepted && [S.BEFORE, S.AFTER].includes(stage) ? <GuestAnimation key={stage + animation?.eventResourceId} stage={stage} versionId={runtime.version.id} resource={animation} onDone={animation ? animationDone : undefined} paused={!foreground || Boolean(modal)} label={t('guest_photo_saved')} theme={theme} /> : null}
+      {accepted && stage === S.COUNTDOWN && sequence.countdown > 0 ? <View pointerEvents="none" onLayout={(e) => setCounterHeight(e.nativeEvent.layout.height)} style={[styles.counterPosition, { transform: [{ translateY: counterHeight / 2 }] }]}><Text accessibilityLiveRegion="assertive" style={styles.countdown}>{sequence.countdown}</Text></View> : null}
+      {accepted && stage === S.PROCESS ? <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.background }]}>
+        {!nextMissingPhoto(config, run) ? <MirrorOutputComposer ref={composer} config={config} captures={selectedPhotos(run)} localManifest={runtime.localManifest} theme={theme} /> : null}
+        <GuestAnimation resource={animation} stage="processing" versionId={runtime.version.id} loop paused={!foreground || Boolean(modal)} label={t('guest_processing')} theme={theme} effect={config.experience.style} />
+      </View> : null}
+      {accepted && stage === S.RESULT ? <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.background }]} /> : null}
+    </View> : null}
+    {flash ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.flash]} /> : null}
+    {awaiting && pattern && !preparing && config && !conflict ? <>
+      <GuestWelcome theme={theme} video={welcomeVideo} versionId={runtime.version.id} paused={!foreground || Boolean(modal) || patternVisible} onStart={begin} />
+      {!online ? <Text style={[styles.cameraWait, { color: theme.textSecondary }]}>{t('guest_offline_version')}</Text> : null}
+    </> : null}
+    {/* Keep one native presenter while preparation, confirmation and pattern change content. */}
+    <Modal testID="mirror-launch-preparation" visible={!pattern} transparent animationType="fade" onRequestClose={() => current.current ? closeSession() : backRef.current()}>
+    {preparationOpen ? <MirrorOfflinePreparation embedded scope={recoveryScope} theme={theme} onLaunch={initialize} onClose={() => backRef.current()} /> : null}
+    {accessRevoked && !preparationOpen && !pattern ? <GuestModal embedded theme={theme} title={t('offline_access_denied')} onClose={() => closeSession()}>
+      <Text style={{ color: theme.textSecondary }}>{t('offline_revoked_photos_kept')}</Text>
+      {action('guest_exit_event', () => closeSession())}
+    </GuestModal> : null}
+    {!accessRevoked && !preparationOpen && !accepted && (preparing || !config || conflict) ? <GuestModal embedded scroll title={t('runtime_000')} theme={theme} onClose={() => current.current ? closeSession() : backRef.current()}>
+      {preparing ? <><ActivityIndicator color={theme.primary} /><Text style={{ color: theme.textPrimary }}>{progress ? t('runtime_001') + ' ' + progress.item + '/' + progress.total : t('runtime_000')}</Text></> : conflict ? <>
+        <Text style={{ color: theme.textPrimary }}>{t('runtime_017')}</Text>
+        {canManage ? action('runtime_018', async () => { try { await forceEndMagicMirrorSessionApi(eventId, eventModeId, conflict.id); setConflict(null); await initialize(); } catch (error) { report(error, 'MIRROR_TAKEOVER_FAILED', 'runtime_013'); } }) : null}
+      </> : action('resource_045', () => initialize())}
+    </GuestModal> : null}
+    {!accessRevoked && !preparationOpen && !preparing && config && !conflict && !publicationConfirmed ? <GuestModal embedded theme={theme} title={`${t('offline_launch_confirm')} ${runtime.version.version}`} onClose={() => closeSession()}>
+      {!online ? <Text style={{ color: theme.textSecondary }}>{t('offline_latest_unknown')}</Text> : null}
+      {action('offline_continue', () => setPublicationConfirmed(true))}
+    </GuestModal> : null}
+    {!accessRevoked && !pattern && !preparing && config && !conflict && publicationConfirmed ? <LaunchPatternGate embedded theme={theme} onReady={(value) => setPattern(value)} onClose={() => closeSession()} /> : null}
+    </Modal>
+    {accessRevoked && pattern ? <GuestModal theme={theme} title={t('offline_access_denied')} onClose={() => closeSession()}>
+      <Text style={{ color: theme.textSecondary }}>{t('offline_revoked_photos_kept')}</Text>
+      {action('guest_exit_event', () => closeSession())}
+    </GuestModal> : null}
+    {patternVisible ? <LaunchPatternGate theme={theme} pattern={pattern} verifyPattern={(value) => verifyMirrorAccess(recoveryScope, value, pattern)} onReady={() => { setPatternVisible(false); setModal('operator'); }} onClose={() => setPatternVisible(false)} /> : null}
+    {replacePatternVisible ? <LaunchPatternGate theme={theme} title={t('pattern_replace')} onReady={(value) => { setPattern(value); setReplacePatternVisible(false); setModal('operator'); }} onClose={() => { setReplacePatternVisible(false); setModal('operator'); }} /> : null}
+    {modal === 'operator' ? <GuestModal scroll theme={theme} title={t('runtime_023')} onClose={closeModal}>
+      {config?.print?.enabled ? <>
+        {action('print_destination', selectPrinter, printing || accessRevoked)}
+        {action('guide_title', () => setModal('printer-guide'))}
+        <Text style={{ color: theme.textSecondary }}>{Platform.OS === 'android' ? t('print_android_destination') : printerName || t('print_destination_empty')}</Text>
+      </> : null}
+      {action('pattern_replace', () => { setModal('pattern-change'); setReplacePatternVisible(true); })}
+      {action('guest_switch', () => { setCameraState({ permission: true, ready: false }); persist((value) => ({ ...value, cameraPosition: value.cameraPosition === 'front' ? 'back' : 'front' })); closeModal(); }, stage === S.RESULT || inFlight.current)}
+      {action('guest_restart', () => { setCameraState({ permission: true, ready: false }); setCameraKey((value) => value + 1); closeModal(); }, stage === S.RESULT || inFlight.current)}
+      {action('guest_cancel_action', () => { setNativeDialog(true); Alert.alert(t('guest_cancel'), t('guest_cancel_help'), [{ text: t('account_028'), onPress: () => setNativeDialog(false) }, { text: t('guest_cancel_action'), onPress: async () => { invalidate(); await shutterBarrier.current; setNativeDialog(false); finish(); } }], { cancelable: false }); }, !run)}
+      {action('guest_gallery', () => setModal('gallery'))}
+      {canManage && onConfigure ? action('guest_configure', () => closeSession(true)) : null}
+      {action('guest_exit_event', () => closeSession(false))}
+    </GuestModal> : null}
+    {modal === 'printer-guide' ? <PrinterGuideModal theme={theme} metadata={runtime?.localManifest?.find(file => String(file.eventResourceId) === String(config?.print?.profileResourceId))?.metadata} onClose={() => setModal('operator')} onSelectPrinter={Platform.OS === 'ios' ? selectPrinter : null} /> : null}
+    {modal === 'gallery' ? <GuestModal theme={theme} title={t('guest_gallery')} onClose={closeModal}>
+      {galleryRuns.some(canPrintComposition) ? <IconTextButton theme={theme} icon="print" label={t('print_selected')} disabled={printing || accessRevoked || !selectedCompositions.length || galleryRuns.filter(item => selectedCompositions.includes(compositionKey(item))).some(item => !canPrintComposition(item))} onPress={() => printPhotos(galleryRuns.filter(item => selectedCompositions.includes(compositionKey(item))))} /> : null}
+      {printing ? <Text accessibilityLiveRegion="polite" style={{ color: theme.textSecondary }}>{t('print_working')}</Text> : null}
+      <View style={styles.galleryShortcut}><IconTextButton theme={theme} icon="share-nodes" accessibilityLabel={t('gallery_share')} disabled={galleryBusy || !galleryRuns.length} onPress={() => galleryAction()} /><IconTextButton theme={theme} icon="file-zipper" accessibilityLabel={t('gallery_zip')} disabled={galleryBusy || !galleryRuns.length} onPress={() => galleryAction(true)} /></View>
+      {galleryBusy ? <Text style={{ color: theme.textPrimary }}>{t('gallery_busy')}</Text> : null}
+      <GuestGallery runs={galleryRuns} theme={theme} selected={selectedCompositions} onToggle={(item) => { const key = compositionKey(item); setSelectedCompositions((value) => value.includes(key) ? value.filter((id) => id !== key) : [...value, key]); }} onArchive={archiveComposition} onPrint={(item) => printPhotos([item])} printing={printing || accessRevoked} onSelect={(item) => { if (!printLock.current) { setViewing(item.clientRunId); setModal('viewer'); } }} />
+    </GuestModal> : null}
+    {modal === 'viewer' && output ? <GuestModal theme={theme} title={t('guest_photo')} onClose={() => { if (!printLock.current) { setViewing(null); setModal('gallery'); } }}><GuestResult output={output} config={displayRun.configSnapshot || config} />{deliveryActions}</GuestModal> : null}
+    {modal === 'delivery' ? <GuestModal theme={theme} title={t('guest_delivery')} onClose={closeModal}>{deliveryActions}</GuestModal> : null}
+    {modal === 'qr' ? <GuestModal theme={theme} title={t('guest_qr')} onClose={() => setModal(viewing ? 'viewer' : 'delivery')}>
+      {publicUrl ? <View style={styles.qr}><QRCode value={publicUrl} size={tokens.spacing.xl * 6} /></View> : <Text style={{ color: theme.textPrimary }}>{t('runtime_035')}</Text>}
+    </GuestModal> : null}
+  </GuestStage>;
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: tokens.spacing.md, padding: tokens.spacing.lg },
-  centerPadding: { justifyContent: 'center', padding: tokens.spacing.lg },
-  header: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, paddingHorizontal: tokens.spacing.md, paddingVertical: tokens.spacing.sm, borderBottomWidth: tokens.border.thin },
-  headerText: { flex: 1, minWidth: 0, gap: tokens.spacing.xxs },
-  headerTitle: { fontSize: tokens.typography.heading, fontWeight: '800' },
-  headerMeta: { fontSize: tokens.typography.caption, fontWeight: '700' },
-  content: { flexGrow: 1, padding: tokens.spacing.md, gap: tokens.spacing.md },
-  stack: { gap: tokens.spacing.md },
-  stackSmall: { gap: tokens.spacing.xs },
-  cardTitle: { fontSize: tokens.typography.heading, fontWeight: '800' },
-  sectionTitle: { fontSize: tokens.typography.heading, fontWeight: '800' },
-  body: { fontSize: tokens.typography.body, textAlign: 'center' },
-  checkRow: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm },
-  rowText: { flex: 1, minWidth: 0, fontSize: tokens.typography.body, fontWeight: '600' },
-  primaryAction: { alignSelf: 'stretch' },
-  captureCover: { flex: 1, minHeight: tokens.spacing.xl * 14, gap: tokens.spacing.md },
-  mediaStage: { flex: 1, justifyContent: 'center' },
-  processingStage: { flex: 1, minHeight: tokens.spacing.xl * 12, justifyContent: 'center', gap: tokens.spacing.md },
-  processingFrame: { position: 'relative', width: '100%', minWidth: 0 },
-  processingCover: { ...StyleSheet.absoluteFillObject, alignItems: 'stretch', justifyContent: 'center' },
-  countdownWrap: { flex: 1, minHeight: tokens.spacing.xl * 12, alignItems: 'center', justifyContent: 'center' },
-  countdown: { fontSize: tokens.spacing.xl * 4, fontWeight: '900' },
-  preflightCamera: { minHeight: tokens.spacing.xl * 8 },
-  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
-  photoCell: { width: '48%', aspectRatio: 1, position: 'relative' },
-  photo: { width: '100%', height: '100%', borderRadius: tokens.radius.md },
-  photoAction: { position: 'absolute', top: tokens.spacing.xs, right: tokens.spacing.xs },
-  result: { width: '100%', aspectRatio: 1, borderWidth: tokens.border.thin, borderRadius: tokens.radius.md },
-  buttonCluster: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
-  flexButton: { flexGrow: 1, minWidth: tokens.spacing.xl * 5 },
-  qr: { alignItems: 'center', padding: tokens.spacing.md },
-  qrHelp: { fontSize: tokens.typography.caption, textAlign: 'center' },
-  operatorPanel: { position: 'absolute', zIndex: 20, top: tokens.spacing.xl, left: tokens.spacing.md, right: tokens.spacing.md, borderWidth: tokens.border.thin, borderRadius: tokens.radius.lg, padding: tokens.spacing.md, gap: tokens.spacing.sm },
+  counterPosition: { position: 'absolute', bottom: '30%', width: '100%', alignItems: 'center' },
+  resultActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: tokens.spacing.sm },
+  resultLeft: { flexShrink: 1, minWidth: 0, gap: tokens.spacing.xs },
+  center: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  centerText: { textAlign: 'center', fontSize: tokens.typography.body },
+  countdown: { color: tokens.colors.gray[0], fontWeight: '900', fontSize: tokens.spacing.xl * 4 },
+  flash: { backgroundColor: tokens.colors.gray[0] },
+  actions: { gap: tokens.spacing.sm },
+  guideRegion: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  galleryShortcut: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm },
+  galleryThumb: { width: tokens.spacing.xl + tokens.spacing.md, aspectRatio: 1 },
+  cameraWait: { textAlign: 'center', padding: tokens.spacing.md },
+  qr: { alignSelf: 'center', padding: tokens.spacing.md, backgroundColor: tokens.colors.gray[0] },
 });

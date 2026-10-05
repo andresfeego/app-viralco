@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { AppButton } from '../design-system/components/AppButton';
+import { ResourceSourceButton } from './ResourceSourceButton';
 import { tokens } from '../design-system/tokens';
 import { t } from '../i18n';
 import { SelectableChipGroup } from './SelectableChipGroup';
@@ -16,13 +16,12 @@ export function ResourceUploadAction({ theme, purpose, onPurposeChange, disabled
   return (
     <View style={styles.wrap}>
       <SelectableChipGroup theme={theme} label={t('resource_013')} options={purposes} value={purpose} onChange={onPurposeChange} disabled={disabled} />
-      <AppButton
+      <ResourceSourceButton
+        theme={theme}
+        purpose={purpose}
         label={t('resource_004')}
-        onPress={onUpload}
+        onSelect={onUpload}
         disabled={disabled}
-        backgroundColor={theme.buttonBg}
-        pressedColor={theme.buttonBgPressed}
-        textColor={theme.buttonText}
         style={styles.button}
       />
     </View>

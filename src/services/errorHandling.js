@@ -5,6 +5,7 @@ const CLIENT_ERROR_LOG_KEY = 'kaptura_technical_errors_v1';
 const MAX_CLIENT_ERRORS = 50;
 const MAX_DETAIL_LENGTH = 2000;
 const TECHNICAL_PATTERNS = [
+  /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/,
   /failed query/i,
   /\b(select|insert into|update|delete from)\b[\s\S]*\b(from|where|values|set)\b/i,
   /\bparams\s*:/i,
@@ -13,6 +14,9 @@ const TECHNICAL_PATTERNS = [
   /\b(typeerror|referenceerror|syntaxerror)\b/i,
   /\bat\s+[A-Za-z0-9_$.[\]<>]+\s*\([^)]*:\d+:\d+\)/,
   /request failed\s*\(\d+\)/i,
+  /drawViewHierarchyInRect|renderInContext|UIGraphicsImageRenderer|reactTag|findNodeHandle|TurboModuleRegistry/i,
+  /the view cannot be captured|failed to capture view snapshot|NativeModules\./i,
+  /required entitlement|errSecMissingEntitlement|keychain|OSStatus/i,
 ];
 
 function redact(value) {
@@ -28,6 +32,7 @@ export function isTechnicalErrorMessage(message) {
 }
 
 export function userErrorMessage(error, fallback = t('error_000')) {
+  if (String(error?.code || error?.message || '').startsWith('BILLING_')) return t('billing_accessHelp');
   const message = typeof error === 'string' ? error : error?.message;
   if (!message || isTechnicalErrorMessage(message) || error?.code === 'INTERNAL_ERROR') return fallback;
   return String(message);

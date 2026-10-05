@@ -36,7 +36,7 @@ function AssetCard({ item, selected, theme, disabled, onPress, onRemove }) {
             accessibilityLabel={`${t('mirror_048')}: ${name}`}
             disabled={disabled}
             onPress={() => onRemove(item)}
-          />
+ />
         </View>
       ) : null}
     </Pressable>
@@ -63,7 +63,7 @@ export function DesignAssetCarousel({ label, items = [], selectedItems = [], lea
               disabled={disabled}
               onPress={onSelect}
               onRemove={onRemove}
-            />
+ />
           ))}
         </ScrollView>
       ) : (
@@ -72,14 +72,14 @@ export function DesignAssetCarousel({ label, items = [], selectedItems = [], lea
           {onEmptyAction && emptyActionLabel && onSecondaryEmptyAction && secondaryEmptyActionLabel ? (
             <ResourceEmptyActions theme={theme} primaryLabel={emptyActionLabel} onPrimary={onEmptyAction} secondaryLabel={secondaryEmptyActionLabel} onSecondary={onSecondaryEmptyAction} disabled={disabled} />
           ) : onEmptyAction && emptyActionLabel ? (
-            <AppButton
+            <AppButton variant="outlined" borderColor={theme.textSecondary}
               label={emptyActionLabel}
               onPress={onEmptyAction}
               backgroundColor={theme.surface}
               pressedColor={theme.background}
               textColor={theme.primary}
               style={styles.emptyAction}
-            />
+ />
           ) : null}
         </View>
       )}

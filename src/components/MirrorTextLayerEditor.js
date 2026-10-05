@@ -10,6 +10,7 @@ import { ColorPickerModal, ColorPickerTrigger } from './ColorPickerModal';
 import { IconTextButton } from './IconTextButton';
 import { hitTestMirrorGesture } from './MirrorLayoutEditor';
 import { MirrorConfigPreview } from './MirrorConfigPreview';
+import { MIRROR_CANVAS_REFERENCE_WIDTH } from './MirrorCanvasSurface';
 import { MirrorEditorHelpModal } from './MirrorEditorHelpModal';
 import { MirrorEditorToolbar } from './MirrorEditorToolbar';
 import { PaperFormInput } from './PaperFormInput';
@@ -36,7 +37,8 @@ function useLatest(value) {
 
 function textHitHeight(layer, canvasSize) {
   if (!canvasSize.height) return tokens.spacing.xs;
-  return Math.min(100 - Number(layer.y || 0), (Math.max(tokens.spacing.lg, Number(layer.size || 0) + tokens.spacing.xs) / canvasSize.height) * 100);
+  const fontSize = Number(layer.size || 0) * canvasSize.width / MIRROR_CANVAS_REFERENCE_WIDTH;
+  return Math.min(100 - Number(layer.y || 0), (Math.max(tokens.spacing.lg, fontSize + tokens.spacing.xs) / canvasSize.height) * 100);
 }
 
 function gestureLayers(layers, canvasSize) {
@@ -249,7 +251,7 @@ export function MirrorTextLayerEditor({ config, onChange, theme, disabled = fals
         <DesignAssetCarousel label={t('mirror_133')} items={favoriteFonts} selectedItems={selectedFonts} theme={theme} disabled={disabled || !active} emptyLabel={t('mirror_134')} emptyActionLabel={t('mirror_148')} onEmptyAction={onOpenResources} secondaryEmptyActionLabel={t('resource_060')} onSecondaryEmptyAction={onUploadFont} onSelect={(item) => active && onSelectFont?.(item, active.id)} onRemove={() => active && onRemoveFont?.(active.id, active.fontResourceId)} />
         <View style={styles.controlStack}><Text style={[styles.controlLabel, { color: theme.textSecondary }]}>{t('mirror_text_color')}</Text><View style={styles.palette}>{colors.map((color) => <Pressable key={color} accessibilityRole="radio" accessibilityState={{ checked: active?.color === color, disabled: disabled || !active }} accessibilityLabel={`${t('mirror_text_color')} ${color}`} disabled={disabled || !active} onPress={() => patchActive({ color })} style={[styles.swatch, { backgroundColor: color, borderColor: active?.color === color ? theme.primary : theme.border }]} />)}<ColorPickerTrigger theme={theme} disabled={disabled || !active} onPress={() => setColorPickerVisible(true)} /></View></View>
         <ValueStepper testID="mirror-text-size" label={t('mirror_054')} value={active?.size || TEXT_LAYER_DEFAULTS[0].size} onChange={(size) => patchActive({ size })} min={8} max={54} step={2} theme={theme} disabled={disabled || !active} />
-        <SelectableChipGroup testID="mirror-text-shortcuts" theme={theme} options={FIXED_LAYER_IDS.map((id) => ({ value: id, label: t(`mirror_text_${id}`) }))} value={FIXED_LAYER_IDS.includes(active?.id) ? active.id : ''} disabled={disabled} onChange={addFixed} />
+        <SelectableChipGroup testID="mirror-text-shortcuts" theme={theme} backgroundColor={theme.surface} variant="outlined" options={FIXED_LAYER_IDS.map((id) => ({ value: id, label: t(`mirror_text_${id}`) }))} value={FIXED_LAYER_IDS.includes(active?.id) ? active.id : ''} disabled={disabled} onChange={addFixed} />
       </SurfaceCard>
       <MirrorEditorHelpModal visible={helpVisible} items={helpItems} theme={theme} onClose={() => setHelpVisible(false)} />
       <ColorPickerModal visible={colorPickerVisible} initialColor={active?.color || tokens.colors.gray[9]} theme={theme} onClose={() => setColorPickerVisible(false)} onSelect={(color) => patchActive({ color })} />

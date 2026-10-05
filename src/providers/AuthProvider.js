@@ -1,4 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   forgotPasswordApi,
@@ -12,30 +13,32 @@ import {
 import { confirmSuperAdminPasswordApi } from '../services/api/admin';
 import { configureHttpAuth } from '../services/api/http';
 import { recordClientTechnicalError } from '../services/errorHandling';
-
-const STORAGE_KEY = 'viralco_session_v1';
+import { loadSecureSession, saveSecureSession, clearSecureSession } from '../services/secureSession';
+import { networkAvailable, setOfflineUser } from '../services/offlineCatalog';
+import { primeOfflineCatalog } from '../services/primeOfflineCatalog';
+import { syncOfflineOutbox } from '../services/syncOfflineOutbox';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState(null);
+  const [offlineMode, setOfflineMode] = useState(true);
   const [accessToken, setAccessToken] = useState(null);
   const [refreshToken, setRefreshToken] = useState(null);
   const [superAdminConfirmationToken, setSuperAdminConfirmationToken] = useState(null);
 
   const accessTokenRef = useRef(null);
   const refreshTokenRef = useRef(null);
+  const userRef = useRef(null);
+  const epoch = useRef(0);
 
   const persistSession = useCallback(async (nextAccessToken, nextRefreshToken) => {
-    await AsyncStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ accessToken: nextAccessToken, refreshToken: nextRefreshToken })
-    );
+    await saveSecureSession({ accessToken: nextAccessToken, refreshToken: nextRefreshToken, user: userRef.current });
   }, []);
 
   const clearSessionStorage = useCallback(async () => {
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    await clearSecureSession();
   }, []);
 
   const applyTokens = useCallback(
@@ -55,10 +58,40 @@ export function AuthProvider({ children }) {
   );
 
   const clearSession = useCallback(async () => {
+    epoch.current += 1;
+    userRef.current = null;
+    setOfflineUser(null);
+    setOfflineMode(true);
     setUser(null);
     setSuperAdminConfirmationToken(null);
     await applyTokens(null, null);
   }, [applyTokens]);
+
+  const acceptProfile = useCallback(async profile => {
+    userRef.current = profile;
+    setOfflineUser(profile?.id);
+    setUser(profile);
+    await persistSession(accessTokenRef.current, refreshTokenRef.current);
+  }, [persistSession]);
+
+  const revalidate = useCallback(async () => {
+    const currentEpoch = epoch.current;
+    if (!accessTokenRef.current) return;
+    if (!(await networkAvailable())) { setOfflineMode(true); return; }
+    try {
+      const profile = await meApi();
+      if (currentEpoch !== epoch.current) return;
+      await acceptProfile(profile);
+      setOfflineMode(false);
+      syncOfflineOutbox().catch(error => recordClientTechnicalError({ code: 'OFFLINE_OUTBOX_PENDING', detail: error.message }));
+      primeOfflineCatalog().catch(error => recordClientTechnicalError({ code: 'OFFLINE_CATALOG_PENDING', detail: error.message }));
+    } catch (error) {
+      if (currentEpoch !== epoch.current) return;
+      setOfflineMode(true);
+      if ([401, 403].includes(error.status)) await clearSession();
+      recordClientTechnicalError({ code: 'AUTH_REVALIDATE_PENDING', detail: error.message }).catch(() => {});
+    }
+  }, [acceptProfile, clearSession]);
 
   useEffect(() => {
     configureHttpAuth({
@@ -75,38 +108,54 @@ export function AuthProvider({ children }) {
 
   const bootstrap = useCallback(async () => {
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (!raw) {
+      const parsed = await loadSecureSession();
+      if (!parsed) {
         return;
       }
 
-      const parsed = JSON.parse(raw);
       if (!parsed.accessToken || !parsed.refreshToken) {
         return;
       }
 
+      userRef.current = parsed.user || null;
+      setUser(userRef.current);
+      setOfflineUser(parsed.user?.id);
       await applyTokens(parsed.accessToken, parsed.refreshToken);
-      const profile = await meApi();
-      setUser(profile);
+      if (parsed.user) revalidate();
+      else await revalidate();
     } catch (error) {
       await recordClientTechnicalError({ code: 'AUTH_BOOTSTRAP_FAILED', path: 'AuthProvider.bootstrap', detail: error?.message || String(error) });
-      await clearSession();
+      // A transient network/storage failure must not destroy the saved identity.
     }
-  }, [applyTokens, clearSession]);
+  }, [applyTokens, revalidate]);
 
   useEffect(() => {
     (async () => {
-      await bootstrap();
-      setInitializing(false);
+      try { await bootstrap(); } finally { setInitializing(false); }
     })();
   }, [bootstrap]);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setOfflineMode(true);
+      if (state.isConnected && state.isInternetReachable !== false) revalidate();
+    });
+    const foreground = AppState.addEventListener('change', state => { if (state === 'active') revalidate(); });
+    return () => { unsubscribe(); foreground.remove(); };
+  }, [revalidate]);
 
   const login = useCallback(
     async (email, password) => {
       const payload = await loginApi({ email, password });
+      epoch.current += 1;
+      userRef.current = payload.user;
+      setOfflineUser(payload.user?.id);
       await applyTokens(payload.accessToken, payload.refreshToken);
       setUser(payload.user);
+      setOfflineMode(false);
+      syncOfflineOutbox().catch(error => recordClientTechnicalError({ code: 'OFFLINE_OUTBOX_PENDING', detail: error.message }));
       setSuperAdminConfirmationToken(null);
+      primeOfflineCatalog().catch(error => recordClientTechnicalError({ code: 'OFFLINE_CATALOG_PENDING', detail: error.message }));
       return payload;
     },
     [applyTokens]
@@ -115,22 +164,18 @@ export function AuthProvider({ children }) {
   const register = useCallback(async (input) => registerApi(input), []);
 
   const logout = useCallback(async () => {
-    try {
-      if (refreshTokenRef.current) {
-        await logoutApi(refreshTokenRef.current);
-      }
-    } catch (error) {
-      await recordClientTechnicalError({ code: 'AUTH_LOGOUT_FAILED', path: 'AuthProvider.logout', detail: error?.message || String(error) });
-    }
-
+    const token = refreshTokenRef.current;
+    const request = token ? logoutApi(token).catch(error => recordClientTechnicalError({ code: 'AUTH_LOGOUT_FAILED', detail: error.message })) : Promise.resolve();
     await clearSession();
+    await request;
+
   }, [clearSession]);
 
   const reloadMe = useCallback(async () => {
     const profile = await meApi();
-    setUser(profile);
+    await acceptProfile(profile);
     return profile;
-  }, []);
+  }, [acceptProfile]);
 
   const forgotPassword = useCallback(async (email) => forgotPasswordApi({ email }), []);
 
@@ -147,15 +192,16 @@ export function AuthProvider({ children }) {
 
   const updateThemeMode = useCallback(async (themeMode) => {
     const profile = await updateMyThemeApi(themeMode);
-    setUser(profile);
+    await acceptProfile(profile);
     return profile;
-  }, []);
+  }, [acceptProfile]);
 
   const value = useMemo(
     () => ({
       initializing,
+      offlineMode,
       user,
-      isAuthenticated: Boolean(accessToken && refreshToken),
+      isAuthenticated: Boolean(user && accessToken && refreshToken),
       accessToken,
       refreshToken,
       superAdminConfirmationToken,
@@ -173,6 +219,7 @@ export function AuthProvider({ children }) {
       confirmSuperAdminPassword,
       forgotPassword,
       initializing,
+      offlineMode,
       login,
       logout,
       refreshToken,

@@ -9,6 +9,8 @@ export function getTheme(mode: ThemeMode) {
     secondary: tokens.colors.secondary,
     tertiary: tokens.colors.tertiary,
     gradients: tokens.gradients,
+    headerGradient: tokens.gradients.header,
+    statusBarStyle: isDark ? 'light-content' as const : 'dark-content' as const,
     alert: tokens.colors.alert,
     background: isDark ? tokens.colors.backgroundDark : tokens.colors.backgroundLight,
     surface: isDark ? tokens.colors.surfaceDark : tokens.colors.surfaceLight,
@@ -18,5 +20,6 @@ export function getTheme(mode: ThemeMode) {
     buttonBg: tokens.colors.primary,
     buttonBgPressed: tokens.colors.actionPrimaryPressed,
     buttonText: tokens.colors.actionPrimaryText,
+    buttonSecondaryBorder: isDark ? tokens.colors.gray[4] : tokens.colors.gray[5],
   };
 }

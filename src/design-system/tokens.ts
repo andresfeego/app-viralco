@@ -4,10 +4,28 @@ const brandColors = {
   tertiary: '#03FAFF',
 } as const;
 
+// Derive the softer header stops from the brand colors, without a separate palette.
+const secondaryOverPrimary = (secondaryWeight: number) => {
+  const channels = [1, 3, 5].map(offset => {
+    const primary = parseInt(brandColors.primary.slice(offset, offset + 2), 16);
+    const secondary = parseInt(brandColors.secondary.slice(offset, offset + 2), 16);
+    return Math.round(primary + (secondary - primary) * secondaryWeight)
+      .toString(16).padStart(2, '0');
+  });
+  return `#${channels.join('')}`;
+};
+
 const gradient45 = {
   angle: 45,
   angleCenter: { x: 0.9, y: 0.5 },
   locations: [0.15, 0.65],
+  start: { x: 0, y: 1 },
+  end: { x: 1, y: 0 },
+} as const;
+
+const headerGradient = {
+  colors: [0, 0.09, 0.32, 0.6, 0.9].map(secondaryOverPrimary),
+  locations: [0, 0.35, 0.6, 0.82, 1],
   start: { x: 0, y: 1 },
   end: { x: 1, y: 0 },
 } as const;
@@ -127,6 +145,14 @@ export const tokens = {
       ...gradient45,
       colors: [brandColors.secondary, brandColors.primary],
     },
+    secondaryToPrimaryVertical: {
+      colors: [0.65, 0.5, 0.3, 0.14, 0.04, 0].map(secondaryOverPrimary),
+      locations: [0, 0.2, 0.4, 0.6, 0.8, 1],
+      start: { x: 0.5, y: 0 },
+      end: { x: 0.5, y: 1 },
+    },
+    header: headerGradient,
+    eventHeader: headerGradient,
   },
   spacing: {
     none: 0,
@@ -164,6 +190,12 @@ export const tokens = {
   },
   opacity: {
     disabled: 0.6,
+  },
+  layers: {
+    floating: 20,
+  },
+  effects: {
+    captureOutsideBlur: 16,
   },
 } as const;
 

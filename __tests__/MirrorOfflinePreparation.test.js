@@ -1,0 +1,66 @@
+import React from 'react';
+import renderer, { act } from 'react-test-renderer';
+import { MirrorOfflinePreparation } from '../src/components/MirrorOfflinePreparation';
+import { getTheme } from '../src/design-system/theme';
+import * as packages from '../src/services/mirrorOfflinePackage';
+import { getPublishedMagicMirrorConfigApi } from '../src/services/api/events';
+import { isMirrorRuntimeOnline } from '../src/services/mirrorRuntimeSync';
+jest.mock('../src/components/MirrorGuestScene', () => ({ GuestModal: ({ children }) => require('react').createElement('Modal', null, children) }));
+jest.mock('../src/design-system/components/AppButton', () => ({ AppButton: props => require('react').createElement('Action', props) }));
+jest.mock('../src/services/mirrorOfflinePackage', () => ({ loadOfflineMirrorPackage: jest.fn(), prepareOfflineMirrorPackage: jest.fn(), clearOfflineMirrorPackage: jest.fn() }));
+jest.mock('../src/services/api/events', () => ({ getPublishedMagicMirrorConfigApi: jest.fn() }));
+jest.mock('../src/services/mirrorRuntimeSync', () => ({ isMirrorRuntimeOnline: jest.fn(), subscribeMirrorConnectivity: () => () => {} }));
+const scope = { userId: '1', accountId: '2', eventId: '3', eventModeId: '4' };
+const cached = { version: { id: '100', version: 7 }, recoveryAvailable: true };
+let tree;
+beforeEach(() => { jest.clearAllMocks(); packages.loadOfflineMirrorPackage.mockResolvedValue(cached); isMirrorRuntimeOnline.mockResolvedValue(false); });
+afterEach(() => { if (tree) act(() => tree.unmount()); });
+it.each(['light', 'dark'])('shows actual downloaded publication and allows launching offline in %s theme', async mode => {
+  const onLaunch = jest.fn();
+  await act(async () => { tree = renderer.create(<MirrorOfflinePreparation scope={scope} theme={getTheme(mode)} onLaunch={onLaunch} />); });
+  const launch = tree.root.findAllByType('Action').find(item => item.props.label === 'Lanzar con la publicación 7');
+  expect(launch.props.disabled).toBe(false);
+  act(() => launch.props.onPress());
+  expect(onLaunch).toHaveBeenCalledWith({ package: cached, offline: true });
+  expect(getPublishedMagicMirrorConfigApi).not.toHaveBeenCalled();
+});
+it('removes a previously downloaded package when the server rejects access', async () => {
+  isMirrorRuntimeOnline.mockResolvedValue(true);
+  getPublishedMagicMirrorConfigApi.mockRejectedValue({ status: 403 });
+  await act(async () => { tree = renderer.create(<MirrorOfflinePreparation scope={scope} theme={getTheme('dark')} />); });
+  expect(packages.clearOfflineMirrorPackage).toHaveBeenCalledWith(scope);
+  expect(tree.root.findAllByType('Action').some(item => item.props.label.startsWith('Lanzar'))).toBe(false);
+});
+it('automatically prepares a newer publication before enabling launch', async () => {
+  isMirrorRuntimeOnline.mockResolvedValue(true);
+  const updated = { ...cached, version: { id: '101', version: 8 } };
+  getPublishedMagicMirrorConfigApi.mockResolvedValue(updated);
+  let finish;
+  packages.prepareOfflineMirrorPackage.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const onLaunch = jest.fn();
+  await act(async () => { tree = renderer.create(<MirrorOfflinePreparation scope={scope} theme={getTheme('dark')} onLaunch={onLaunch} />); });
+  expect(packages.prepareOfflineMirrorPackage).toHaveBeenCalledTimes(1);
+  expect(tree.root.findAllByType('Action').find(item => item.props.label.startsWith('Lanzar')).props.disabled).toBe(true);
+  await act(async () => finish(updated));
+  const launch = tree.root.findAllByType('Action').find(item => item.props.label === 'Lanzar con la publicación 8');
+  act(() => launch.props.onPress());
+  expect(onLaunch).toHaveBeenCalledWith({ package: updated, offline: false });
+});
+it('does not download again when the verified local publication is current', async () => {
+  isMirrorRuntimeOnline.mockResolvedValue(true);
+  getPublishedMagicMirrorConfigApi.mockResolvedValue(cached);
+  await act(async () => { tree = renderer.create(<MirrorOfflinePreparation scope={scope} theme={getTheme('light')} />); });
+  expect(packages.prepareOfflineMirrorPackage).not.toHaveBeenCalled();
+});
+it('preserves the usable local package if automatic update fails', async () => {
+  isMirrorRuntimeOnline.mockResolvedValue(true);
+  getPublishedMagicMirrorConfigApi.mockResolvedValue({ version: { id: '101', version: 8 } });
+  packages.prepareOfflineMirrorPackage.mockRejectedValue(new Error('NETWORK_ERROR'));
+  const onLaunch = jest.fn();
+  await act(async () => { tree = renderer.create(<MirrorOfflinePreparation scope={scope} theme={getTheme('dark')} onLaunch={onLaunch} />); });
+  const launch = tree.root.findAllByType('Action').find(item => item.props.label === 'Lanzar con la publicación 7');
+  expect(launch.props.disabled).toBe(false);
+  act(() => launch.props.onPress());
+  expect(onLaunch).toHaveBeenCalledWith({ package: cached, offline: true });
+  expect(packages.clearOfflineMirrorPackage).not.toHaveBeenCalled();
+});
