@@ -86,7 +86,8 @@
     "ios": {
       "modulesProvider": {
         "NativeKapturaFontLoader": "RCTNativeKapturaFontLoader",
-        "NativeKapturaPrinter": "RCTNativeKapturaPrinter"
+        "NativeKapturaPrinter": "RCTNativeKapturaPrinter",
+        "NativeKapturaDocuments": "RCTNativeKapturaDocuments"
       }
     }
   }

@@ -1,4 +1,5 @@
 /* global jest */
+jest.mock('@react-native-clipboard/clipboard', () => ({ __esModule: true, default: { setString: jest.fn(), getString: jest.fn(async () => '') } }));
 jest.mock('@react-native-documents/picker', () => ({ pick: jest.fn(async () => []) }));
 jest.mock('react-native-keychain', () => ({
   ACCESSIBLE: { AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 'device' },

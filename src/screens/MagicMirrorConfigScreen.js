@@ -128,7 +128,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
   const eventId = String(event?.id || '');
   const eventModeId = String(eventMode?.id || '');
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
-  const canEdit = isSuperAdmin || ['owner', 'admin'].includes(roleForAccount(user, accountId));
+  const canEdit = isSuperAdmin || roleForAccount(user, accountId) === 'owner' || event?.access?.roleSlug === 'admin' || (user?.events || []).some(item => String(item.eventId) === eventId && item.roleSlug === 'admin');
   const [section, setSection] = useState('design');
   const [designSection, setDesignSection] = useState('format');
   const [recoveryVisible, setRecoveryVisible] = useState(false);
@@ -202,13 +202,13 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
   }, []);
 
   const loadDesignLibrary = useCallback(async () => {
-    if (!accountId) return;
+    if (!accountId || !canEdit) return;
     setDesignLibraryLoading(true);
     setDesignLibraryError('');
     try {
-      const query = (type, extra = {}) => listAccountLibraryApi(accountId, { scope: 'available', favorite: true, type, page: 1, pageSize: 100, ...extra });
+      const query = (type, extra = {}) => listAccountLibraryApi(accountId, { scope: 'available', favorite: true, type, page: 1, pageSize: 100, ...extra }, eventId);
       const [templatesGlobal, templatesFavorites, frames, backgrounds, stickers, fonts, animations, printProfiles] = await Promise.all([
-        listAccountLibraryApi(accountId, { scope: 'global', type: 'template', page: 1, pageSize: 100 }),
+        listAccountLibraryApi(accountId, { scope: 'global', type: 'template', page: 1, pageSize: 100 }, eventId),
         query('template'), query('frame'), query('background'), query('sticker', { motion: 'static' }), query('font'), query('animation'), query('print_profile'),
       ]);
       setDesignLibrary({
@@ -226,14 +226,14 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     } finally {
       setDesignLibraryLoading(false);
     }
-  }, [accountId]);
+  }, [accountId, eventId, canEdit]);
 
   useEffect(() => { loadDesignLibrary(); }, [loadDesignLibrary]);
 
   useEffect(() => {
     if (!accountId) return;
     getPrinterBinding(accountId).then(setPrinterBinding).catch(() => setPrinterBinding(null));
-  }, [accountId]);
+  }, [accountId, eventId]);
 
   const applyLoadedDraft = useCallback((draft, revision, nextStatus = 'clean') => {
     const normalized = normalizeMirrorConfig(draft);
@@ -474,12 +474,12 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
     if (!resourceTarget || !accountId) return;
     setLibraryLoading(true); setLibraryError('');
     try {
-      const response = await listAccountLibraryApi(accountId, { scope: 'available', favorite: libraryFilters.tab === 'favorites' ? true : '', type: libraryFilters.type || resourceTarget.purpose, eventType: libraryFilters.eventType, motion: libraryFilters.type === 'sticker' ? libraryFilters.motion : '', q: libraryFilters.search, page: libraryFilters.page, pageSize: 30 });
+      const response = await listAccountLibraryApi(accountId, { scope: 'available', favorite: libraryFilters.tab === 'favorites' ? true : '', type: libraryFilters.type || resourceTarget.purpose, eventType: libraryFilters.eventType, motion: libraryFilters.type === 'sticker' ? libraryFilters.motion : '', q: libraryFilters.search, page: libraryFilters.page, pageSize: 30 }, eventId);
       setLibrary((response?.library || []).map(normalizeLibraryItem));
       setPagination(response?.pagination || { page: 1, pageCount: 0, total: 0, pageSize: 30 });
     } catch (error) { setLibraryError(userErrorMessage(error, t('resource_028'))); }
     finally { setLibraryLoading(false); }
-  }, [accountId, libraryFilters, resourceTarget]);
+  }, [accountId, eventId, libraryFilters, resourceTarget]);
 
   useEffect(() => { loadLibrary(); }, [loadLibrary]);
 
@@ -531,7 +531,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
         if (!assignmentBase.current) assignmentBase.current = config;
         replacedResourceIds.current.add(String(previousLegacyResourceId));
       }
-      const response = await getAccountPhotoLayoutTemplateApi(accountId, item.libraryAssetId);
+      const response = await getAccountPhotoLayoutTemplateApi(accountId, item.libraryAssetId, eventId);
       const origin = {
         libraryAssetId: String(item.libraryAssetId),
         name: response?.asset?.name || item.displayName || item.asset?.name || t('mirror_preset_template'),
@@ -743,7 +743,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
         layout: customizePhotoLayout(config).layout,
         appliesToAllEventTypes: true,
         metadata: { source: 'magic-mirror-editor' },
-      });
+      }, eventId);
       setTemplateSaveVisible(false);
       setTemplateName('');
       await loadDesignLibrary();
@@ -777,8 +777,8 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
       const maxBytes = String(file.type || '').startsWith('video/') ? MAX_VIDEO_UPLOAD_BYTES : MAX_STANDARD_UPLOAD_BYTES;
       if (!file.fileSize || file.fileSize > maxBytes) throw new Error(t('resource_043'));
       setUploadProgress(1);
-      const asset = await uploadAccountLibraryFileApi(accountId, file, purpose, setUploadProgress);
-      if (asset?.id) await updateAccountLibraryFavoriteApi(accountId, asset.id, true);
+      const asset = await uploadAccountLibraryFileApi(accountId, file, purpose, setUploadProgress, eventId);
+      if (asset?.id) await updateAccountLibraryFavoriteApi(accountId, asset.id, true, eventId);
       setUploadProgress(0);
       setDeviceUploadVisible(false);
       await loadDesignLibrary();
@@ -796,7 +796,7 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
 
   const toggleFavorite = async (item) => {
     if (!canEdit) return;
-    try { await updateAccountLibraryFavoriteApi(accountId, item.libraryAssetId, !item.isFavorite); await loadLibrary(); }
+    try { await updateAccountLibraryFavoriteApi(accountId, item.libraryAssetId, !item.isFavorite, eventId); await loadLibrary(); }
     catch (error) { setMessage(userErrorMessage(error, t('resource_030'))); }
   };
 
@@ -1061,17 +1061,17 @@ export function MagicMirrorConfigScreen({ event, eventMode, accountId: accountId
       const binding = await detectPrinter(accountId);
       if (!binding) return;
       setPrinterBinding(binding);
-      const available = await listAccountLibraryApi(accountId, { scope: 'available', type: 'print_profile', page: 1, pageSize: 100 });
+      const available = await listAccountLibraryApi(accountId, { scope: 'available', type: 'print_profile', page: 1, pageSize: 100 }, eventId);
       const matching = (available?.library || []).map(normalizeLibraryItem).find((item) => {
         const profile = printProfileConfig(item);
         return profile && String(binding.name).toLowerCase().includes(String(profile.model || '').toLowerCase());
       });
       let item = matching;
       if (item) {
-        const response = await updateAccountLibraryFavoriteApi(accountId, item.libraryAssetId, true);
+        const response = await updateAccountLibraryFavoriteApi(accountId, item.libraryAssetId, true, eventId);
         item = normalizeLibraryItem(response?.library || { ...item, isFavorite: true });
       } else {
-        const response = await createAccountPrintProfileApi(accountId, detectedPrinterProfileInput(binding));
+        const response = await createAccountPrintProfileApi(accountId, detectedPrinterProfileInput(binding), eventId);
         item = normalizeLibraryItem({ libraryAssetId: response?.asset?.id, isFavorite: true, asset: response?.asset });
       }
       await loadDesignLibrary();

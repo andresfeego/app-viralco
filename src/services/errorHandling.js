@@ -32,6 +32,14 @@ export function isTechnicalErrorMessage(message) {
 }
 
 export function userErrorMessage(error, fallback = t('error_000')) {
+  const memberMessage = {
+    EVENT_MEMBER_REGISTER_FIRST: 'event_member_register_first',
+    EVENT_MEMBER_EMAIL_INVALID: 'event_member_invalid_email',
+    EVENT_MEMBER_EXISTS: 'event_member_exists',
+    EVENT_MEMBER_INACTIVE: 'event_member_inactive',
+    EVENT_MEMBER_ALREADY_HAS_ACCESS: 'event_member_has_access',
+  }[error?.code];
+  if (memberMessage) return t(memberMessage);
   if (String(error?.code || error?.message || '').startsWith('BILLING_')) return t('billing_accessHelp');
   const message = typeof error === 'string' ? error : error?.message;
   if (!message || isTechnicalErrorMessage(message) || error?.code === 'INTERNAL_ERROR') return fallback;

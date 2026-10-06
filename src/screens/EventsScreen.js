@@ -26,7 +26,7 @@ import { PaperDateInput } from '../components/PaperDateInput';
 import { PaperFormInput } from '../components/PaperFormInput';
 import { SelectableChipGroup } from '../components/SelectableChipGroup';
 import { ToastViewport, useToast } from '../providers/ToastProvider';
-import { listAccountsApi } from '../services/api/accounts';
+import { EventMembersCard } from '../components/EventMembersCard';
 import {
   createAccountLibraryAssetApi,
   createEventApi,
@@ -38,6 +38,7 @@ import {
   listAccountLibraryApi,
   listEventResourcesApi,
   listEventsApi,
+  listEventAccountsApi,
   listEventModesApi,
   listEventTypesApi,
   prepareAccountLibraryUploadApi,
@@ -56,6 +57,7 @@ function normalizeEvent(item) {
   if (!item) return null;
   return {
     id: String(item.id || ''),
+    access: item.access || null,
     accountId: String(item.accountId || ''),
     name: String(item.name || ''),
     slug: String(item.slug || ''),
@@ -167,7 +169,8 @@ export function EventsScreen({
   const [libraryForm, setLibraryForm] = useState({ name: '', purpose: 'overlay', key: '', fileUrl: '', mimeType: 'image/png', sizeBytes: '1' });
   const [resourceForm, setResourceForm] = useState({ libraryAssetId: '', purpose: 'overlay', placement: '', orderIndex: '0', isActive: true });
 
-  const roleSlug = activeAccountRole(user, accountId);
+  const accountRole = activeAccountRole(user, accountId) === 'owner' ? 'owner' : '';
+  const roleSlug = section === 'detail' ? (selectedEvent?.access?.roleSlug || (user?.events || []).find(item => String(item.eventId) === selectedEventId)?.roleSlug || accountRole) : accountRole;
   const canEdit = !offlineMode && (isSuperAdmin || ['owner', 'admin'].includes(roleSlug));
   const activeAccount = accounts.find((account) => String(account.id) === String(accountId)) || null;
   const contractedModeSlugs = useMemo(() => accountContractedModeSlugs(activeAccount), [activeAccount]);
@@ -175,7 +178,7 @@ export function EventsScreen({
     () => (contractedModeSlugs.length ? modes.filter((mode) => contractedModeSlugs.includes(mode.slug)) : modes),
     [contractedModeSlugs, modes]
   );
-  const canCreateEvent = !offlineMode && normalizedSections.includes('create');
+  const canCreateEvent = !offlineMode && (isSuperAdmin || accountRole === 'owner' || (!accountsLoading && !accounts.length)) && normalizedSections.includes('create');
 
   const filteredEvents = useMemo(
     () => (eventStatus ? events.filter((event) => event.status === eventStatus) : events),
@@ -193,7 +196,7 @@ export function EventsScreen({
   const loadAccounts = useCallback(async () => {
     setAccountsLoading(true);
     try {
-      const payload = await listAccountsApi();
+      const payload = await listEventAccountsApi();
       const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
       setAccounts(rows);
       setAccountId((current) => {
@@ -267,7 +270,7 @@ export function EventsScreen({
     if (!accountId) return;
     try {
       const [libraryPayload, resourcePayload] = await Promise.all([
-        listAccountLibraryApi(accountId, { scope: 'available' }),
+        listAccountLibraryApi(accountId, { scope: 'available' }, eventId),
         eventId ? listEventResourcesApi(eventId) : Promise.resolve({ resources: [] }),
       ]);
       const normalizedLibrary = (libraryPayload?.library || []).map(normalizeLibraryEntry);
@@ -388,7 +391,7 @@ export function EventsScreen({
     if (!accountId || !canEdit) return;
     setSaving(true); clearMessages();
     try {
-      const payload = await prepareAccountLibraryUploadApi(accountId, { purpose: libraryForm.purpose, fileName: `${libraryForm.purpose}.png`, contentType: libraryForm.mimeType, sizeBytes: Number(libraryForm.sizeBytes || 1) });
+      const payload = await prepareAccountLibraryUploadApi(accountId, { purpose: libraryForm.purpose, fileName: `${libraryForm.purpose}.png`, contentType: libraryForm.mimeType, sizeBytes: Number(libraryForm.sizeBytes || 1) }, selectedEventId);
       setLibraryForm((prev) => ({ ...prev, key: payload.key, fileUrl: payload.fileUrl }));
       setOk('Upload R2 preparado para biblioteca');
     } catch (err) { setError(userErrorMessage(err, 'No se pudo preparar upload')); }
@@ -500,7 +503,7 @@ export function EventsScreen({
       const purpose = 'logo';
       const image = await pickEventResourceImage({ source, purpose });
       if (!image) return;
-      const asset = await createProcessedAccountImageAssetApi(accountId, image, purpose);
+      const asset = await createProcessedAccountImageAssetApi(accountId, image, purpose, selectedEventId);
       if (!asset?.id) throw new Error(t('event_114'));
       const payload = await createEventResourceApi(selectedEventId, { libraryAssetId: asset.id, purpose, orderIndex: 0, isActive: true });
       const resourceId = payload?.resource?.id;
@@ -821,7 +824,7 @@ export function EventsScreen({
                     const isMirror = item.mode?.slug === 'espejo';
                     const configureEnabled = Boolean(isMirror && item.isActive !== false && onConfigureMirror && canEdit);
                     const publishedVersionId = item.publishedVersionId || item.config?.publishedVersionId;
-                    const canOperate = isSuperAdmin || ['owner', 'admin', 'operator'].includes(roleSlug);
+                    const canOperate = isSuperAdmin || ['owner', 'admin', 'operario'].includes(roleSlug);
                     const launchEnabled = Boolean(isMirror && item.isActive !== false && event.status === 'active' && publishedVersionId && onLaunchMirror && canOperate);
                     return (
                       <EventModeRow
@@ -844,6 +847,7 @@ export function EventsScreen({
                 </View>
               ) : <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>-</Text>}
           </SurfaceCard>
+          {canEdit ? <EventMembersCard key={event?.id} eventId={event?.id} theme={theme} userId={user?.id} /> : null}
         </View>
       </View>
     );

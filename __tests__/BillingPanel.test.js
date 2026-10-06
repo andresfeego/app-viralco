@@ -7,9 +7,13 @@ import { getTheme } from '../src/design-system/theme';
 import { DestructiveConfirmationModal } from '../src/components/DestructiveConfirmationModal';
 import { SelectableChipGroup } from '../src/components/SelectableChipGroup';
 import { FormModal } from '../src/components/FormModal';
+import { PrivateReceiptModal } from '../src/components/PrivateReceiptModal';
 import { ManagementCard } from '../src/components/ManagementCard';
 import { TransferBankCarousel } from '../src/components/TransferBankCarousel';
-import { ScrollView, RefreshControl } from 'react-native';
+import { TransferBankList } from '../src/components/TransferBankCard';
+import { ScrollView, RefreshControl, Switch as NativeSwitch, Text } from 'react-native';
+import { pick } from '@react-native-documents/picker';
+import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 const mockToast = jest.fn();
 const mockBank = { id: '1', revision: 1, bank: 'Bank', holder: 'Holder', identification: '123', accountType: 'Savings', accountNumber: '000123', instructions: '', active: true };
 const openBankEditor = tree => {
@@ -20,7 +24,14 @@ jest.mock('../src/providers/ToastProvider', () => ({ ToastViewport: () => null, 
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: require('react-native').View, useSafeAreaInsets: () => ({ top: 59, bottom: 34, left: 0, right: 0 }) }));
 jest.mock('../src/services/api/billing', () => ({ billingRequest: jest.fn() }));
-jest.mock('react-native-paper', () => ({ Checkbox: { Item: 'CheckboxItem' }, Switch: 'Switch' }));
+jest.mock('../src/components/PrivateReceiptModal', () => ({ PrivateReceiptModal: 'PrivateReceiptModal' }));
+jest.mock('react-native-paper', () => {
+  const ReactModule = require('react');
+  const MockMenu = props => ReactModule.createElement(require('react-native').View, null, props.anchor, props.visible ? props.children : null);
+  MockMenu.Item = 'MenuItem';
+  return { Checkbox: { Item: 'CheckboxItem' }, Switch: 'Switch', Menu: MockMenu, Portal: { Host: ReactModule.Fragment } };
+});
+jest.mock('react-native-image-picker', () => ({ launchCamera: jest.fn(), launchImageLibrary: jest.fn() }));
 jest.mock('../src/components/PaperFormInput', () => ({ PaperFormInput: 'Input' }));
 beforeEach(() => { jest.clearAllMocks(); });
 
@@ -168,46 +179,187 @@ it('explains permanent deletion, allows cancellation and discards stale confirma
   expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Vuelve a pulsar') }));
   await act(async () => tree.unmount());
 });
-it('restores the annual signup preference and submits that duration with the selected modes', async () => {
-  billingRequest.mockResolvedValue({ active: false, periods: [], orders: [], reports: [], bank: {}, preference: { durationDays: 365, modeSlugs: ['espejo'] }, catalog: [{ modeId: '1', slug: 'espejo', name: 'Espejo', available: true, implemented: true, prices: { 30: 70000, 365: 700000 } }] });
+it('keeps the signup contract read-only and displays its first receipt', async () => {
+  billingRequest.mockResolvedValue({ active: false, periods: [], orders: [{ id: '9', status: 'awaiting_payment', amountCop: 700000, durationDays: 365, snapshot: { items: [{ name: 'Espejo' }] } }], reports: [], banks: [], contract: { durationDays: 365, amountCop: 700000, items: [{ name: 'Espejo' }] } });
   let tree;
   await act(async () => { tree = renderer.create(<BillingPanel theme={getTheme('dark')} accountId="12" />); });
-  expect(tree.root.findByProps({ testID: 'billing-period-switch' }).props.value).toBe(true);
-  const create = () => tree.root.findAllByType(AppButton).find(button => button.props.label === 'Solicitar activación o renovación');
-  await act(async () => { await create().props.onPress(); });
-  expect(billingRequest).toHaveBeenCalledWith('/accounts/12/orders', 'POST', { durationDays: 365, modeIds: ['1'] });
-  await act(async () => { tree.root.findByProps({ testID: 'billing-period-switch' }).props.onValueChange(false); });
-  await act(async () => { await create().props.onPress(); });
-  expect(billingRequest).toHaveBeenCalledWith('/accounts/12/orders', 'POST', { durationDays: 30, modeIds: ['1'] });
+  expect(tree.root.findAllByProps({ testID: 'billing-period-switch' })).toHaveLength(0);
+  expect(tree.root.findAllByType(AppButton).some(button => button.props.label === 'Solicitar activación o renovación')).toBe(false);
+  await act(async () => tree.root.findByProps({ testID: 'billing-receipt-9' }).props.onPress());
+  expect(tree.root.findByType(FormModal).props.testID).toBe('billing-receipt-modal');
+  expect(tree.root.findByType(FormModal).props.portalHost).toBe(true);
+  expect(tree.root.findAllByType('Input').find(input => input.props.label === 'Importe transferido (COP)').props.value).toBe('700000');
+  expect(tree.root.findAllByType(AppButton).find(button => button.props.label === 'Enviar comprobante').props.disabled).toBe(true);
+  expect(billingRequest.mock.calls.every(call => call.length === 1)).toBe(true);
   await act(async () => tree.unmount());
 });
+it('sends a proof from the receipt without selecting a bank or changing the contract', async () => {
+  const order = { id: '9', status: 'awaiting_payment', amountCop: 50000, durationDays: 30, snapshot: { items: [{ name: 'Espejo' }] } };
+  billingRequest.mockImplementation(async (_path, method) => {
+    if (method === 'POST') { order.status = 'pending_review'; return { status: 'pending_review' }; }
+    return { active: order.status === 'pending_review', periods: [], banks: [mockBank], orders: [order], reports: [], contract: { durationDays: 30, amountCop: 50000, items: order.snapshot.items } };
+  });
+  pick.mockResolvedValueOnce([{ uri: 'file:///proof.pdf', name: 'proof.pdf', type: 'application/pdf', size: 100 }]);
+  let tree;
+  await act(async () => { tree = renderer.create(<BillingPanel theme={getTheme('light')} accountId="12" />); });
+  expect(tree.root.findByType(TransferBankCarousel).props.onSelect).toBeUndefined();
+  await act(async () => tree.root.findByProps({ testID: 'billing-receipt-9' }).props.onPress());
+  const button = label => tree.root.findAllByType(AppButton).find(item => item.props.label === label);
+  await act(async () => tree.root.findByProps({ testID: 'billing-receipt-pick' }).props.onPress());
+  expect(pick).not.toHaveBeenCalled();
+  await act(async () => tree.root.findByProps({ testID: 'billing-receipt-source-files' }).props.onPress());
+  expect(tree.root.findAllByType('Input').some(input => input.props.label === 'Referencia de transferencia')).toBe(false);
+  expect(button('Enviar comprobante').props.disabled).toBe(false);
+  await act(async () => button('Enviar comprobante').props.onPress());
+  expect(billingRequest).toHaveBeenCalledWith('/accounts/12/orders/9/reports', 'POST', expect.any(FormData));
+  expect(button('Enviar comprobante')).toBeUndefined();
+  expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
+  await act(async () => tree.unmount());
+});
+it('keeps a bank switch stable while saving and restores its server value on failure', async () => {
+  let rejectSave;
+  billingRequest.mockImplementation(async (path, method) => {
+    if (method === 'PATCH') return new Promise((_resolve, reject) => { rejectSave = reject; });
+    return path.startsWith('/admin/reports') ? { reports: [] } : { banks: [mockBank] };
+  });
+  let tree;
+  await act(async () => { tree = renderer.create(<BillingPanel section="reports" theme={getTheme('dark')} />); });
+  act(() => tree.root.findByProps({ testID: 'billing-bank-open' }).props.onPress());
+  const toggle = () => tree.root.findByType(NativeSwitch);
+  const label = toggle().props.accessibilityLabel;
+  await act(async () => { toggle().props.onValueChange(false); });
+  expect(toggle().props.disabled).toBe(true);
+  expect(toggle().props.value).toBe(true);
+  await act(async () => rejectSave(new Error('Network unavailable')));
+  expect(toggle().props.disabled).toBe(false);
+  expect(toggle().props.value).toBe(true);
+  expect(toggle().props.accessibilityLabel).toBe(label);
+  expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+  await act(async () => tree.unmount());
+});
+it('keeps the receipt draft after picker cancellation and a failed submission', async () => {
+  const order = { id: '9', status: 'awaiting_payment', amountCop: 50000, durationDays: 30, snapshot: { items: [{ name: 'Espejo' }] } };
+  billingRequest.mockImplementation(async (_path, method) => {
+    if (method === 'POST') throw new Error('Offline');
+    return { active: false, periods: [], banks: [], orders: [order], reports: [] };
+  });
+  let tree;
+  await act(async () => { tree = renderer.create(<BillingPanel theme={getTheme('light')} accountId="12" />); });
+  act(() => tree.root.findByProps({ testID: 'billing-receipt-9' }).props.onPress());
+  pick.mockRejectedValueOnce(Object.assign(new Error('Cancelled'), { code: 'OPERATION_CANCELED' }));
+  await act(async () => tree.root.findByProps({ testID: 'billing-receipt-pick' }).props.onPress());
+  await act(async () => tree.root.findByProps({ testID: 'billing-receipt-source-files' }).props.onPress());
+  expect(mockToast).not.toHaveBeenCalled();
+  pick.mockResolvedValueOnce([{ uri: 'file:///proof.pdf', name: 'proof.pdf', type: 'application/pdf', size: 100 }]);
+  await act(async () => tree.root.findByProps({ testID: 'billing-receipt-pick' }).props.onPress());
+  await act(async () => tree.root.findByProps({ testID: 'billing-receipt-source-files' }).props.onPress());
+  const amount = () => tree.root.findAllByType('Input').find(input => input.props.label === 'Importe transferido (COP)');
+  act(() => amount().props.onChangeText('50000'));
+  await act(async () => tree.root.findAllByType(AppButton).find(button => button.props.label === 'Enviar comprobante').props.onPress());
+  expect(amount().props.value).toBe('50000');
+  expect(tree.root.findByProps({ testID: 'billing-receipt-file' })).toBeTruthy();
+  expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+  const submissions = billingRequest.mock.calls.filter(call => call[1] === 'POST').length;
+  act(() => tree.root.findByType(FormModal).props.onClose());
+  expect(tree.root.findAllByType(FormModal)).toHaveLength(0);
+  expect(billingRequest.mock.calls.filter(call => call[1] === 'POST')).toHaveLength(submissions);
+  await act(async () => tree.unmount());
+});
+it.each(['camera', 'gallery'])('attaches from %s without submitting and keeps the file after cancellation or error', async source => {
+  const order = { id: '9', status: 'awaiting_payment', amountCop: 50000, durationDays: 30, snapshot: { items: [{ name: 'Espejo' }] } };
+  billingRequest.mockResolvedValue({ active: false, periods: [], banks: [], orders: [order], reports: [] });
+  const nativePicker = source === 'camera' ? launchCamera : launchImageLibrary;
+  nativePicker.mockResolvedValueOnce({ assets: [{ uri: 'file:///proof.jpg', fileName: 'proof.jpg', type: 'image/jpeg', fileSize: 100 }] })
+    .mockResolvedValueOnce({ didCancel: true })
+    .mockResolvedValueOnce({ errorCode: 'permission', errorMessage: 'Native diagnostic detail' });
+  let tree;
+  await act(async () => { tree = renderer.create(<BillingPanel theme={getTheme('dark')} accountId="12" />); });
+  act(() => tree.root.findByProps({ testID: 'billing-receipt-9' }).props.onPress());
+  const select = async () => {
+    act(() => tree.root.findByProps({ testID: 'billing-receipt-pick' }).props.onPress());
+    await act(async () => tree.root.findByProps({ testID: `billing-receipt-source-${source}` }).props.onPress());
+  };
+  await select();
+  expect(tree.root.findByProps({ testID: 'billing-receipt-file' })).toBeTruthy();
+  expect(billingRequest.mock.calls.every(call => call.length === 1)).toBe(true);
+  await select();
+  expect(mockToast).not.toHaveBeenCalled();
+  expect(tree.root.findByProps({ testID: 'billing-receipt-file' })).toBeTruthy();
+  await select();
+  expect(mockToast).toHaveBeenCalledWith({ type: 'error', message: expect.stringContaining('Permite el acceso') });
+  expect(tree.root.findByProps({ testID: 'billing-receipt-file' })).toBeTruthy();
+  expect(tree.root.findAllByType(AppButton).find(button => button.props.label === 'Enviar comprobante').props.disabled).toBe(false);
+  await act(async () => tree.unmount());
+});
+
 it.each(['light', 'dark'])('shows unpaid status and disables purchase without COP tariffs in %s', async mode => {
   billingRequest.mockResolvedValue({ active: false, current: null, periods: [], catalog: [], orders: [], reports: [], bank: null, notice: { kind: 'unpaid' } });
   let tree;
   await act(async () => { tree = renderer.create(<BillingPanel theme={getTheme(mode)} accountId="12" />); });
   expect(billingRequest).toHaveBeenCalledWith('/accounts/12');
   const create = tree.root.findAllByType(AppButton).find(button => button.props.label === 'Solicitar activación o renovación');
-  expect(create.props.disabled).toBe(true);
+  expect(create).toBeUndefined();
   await act(async () => tree.unmount());
 });
+it.each(['account', 'reports'])('opens private receipts inside the app from %s', async section => {
+  billingRequest.mockImplementation(async path => path === '/admin/banks' ? { banks: [] } : {
+    reports: [{ id: '7', orderId: '9', accountName: 'Account', amountCop: 50000, expectedAmountCop: 50000, status: 'pending_review' }],
+    orders: [{ id: '9', status: 'pending_review', amountCop: 50000, durationDays: 30, snapshot: { items: [{ name: 'Espejo' }] } }], periods: [], banks: [],
+  });
+  let tree;
+  await act(async () => { tree = renderer.create(<BillingPanel section={section} accountId="12" theme={getTheme('dark')} />); });
+  if (section === 'account') act(() => tree.root.findByProps({ testID: 'billing-receipt-9' }).props.onPress());
+  const view = tree.root.findAllByType(AppButton).find(button => button.props.label === 'Ver comprobante privado');
+  await act(async () => view.props.onPress());
+  expect(tree.root.findByType(PrivateReceiptModal).props.reportId).toBe('7');
+  act(() => tree.root.findByType(PrivateReceiptModal).props.onClose());
+  expect(tree.root.findAllByType(PrivateReceiptModal)).toHaveLength(0);
+  if (section === 'account') expect(tree.root.findByType(FormModal)).toBeTruthy();
+  await act(async () => tree.unmount());
+});
+
 it('keeps approval behind review and an explicit received-money confirmation', async () => {
   billingRequest.mockImplementation(async path => path.startsWith('/admin/reports') ? { reports: [{ id: '7', accountName: 'Account', amountCop: 50000, expectedAmountCop: 50000, status: 'pending_review', duplicateCount: 1 }] } : { banks: [] });
   let tree;
   await act(async () => { tree = renderer.create(<BillingPanel section="reports" theme={getTheme('dark')} />); });
   const button = name => tree.root.findAllByType(AppButton).find(item => item.props.label === name);
-  expect(button('Aprobar y conceder período')).toBeUndefined();
+  expect(button('Verificar pago')).toBeUndefined();
   await act(async () => { await button('Revisar pago').props.onPress(); });
-  expect(button('Aprobar y conceder período').props.disabled).toBe(true);
+  expect(button('Verificar pago').props.disabled).toBe(true);
   expect(button('Rechazar reporte').props.disabled).toBe(true);
   act(() => {
     tree.root.findAllByType('Input').find(input => input.props.label === 'Referencia bancaria confirmada').props.onChangeText('BANK-TEST');
-    tree.root.findAllByType('CheckboxItem').find(item => item.props.label === 'Confirmo que recibimos el dinero en el banco').props.onPress();
+    tree.root.findAllByType(NativeSwitch).find(item => item.props.testID === 'billing-review-received').props.onValueChange(true);
+    tree.root.findAllByType('Input').find(input => input.props.testID === 'billing-review-observations').props.onChangeText('Revisado contra movimiento bancario');
   });
-  expect(button('Aprobar y conceder período').props.disabled).toBe(true);
-  act(() => tree.root.findAllByType('CheckboxItem').find(item => item.props.label === 'Revisé la advertencia de duplicados').props.onPress());
-  expect(button('Aprobar y conceder período').props.disabled).toBe(false);
-  await act(async () => button('Aprobar y conceder período').props.onPress());
-  expect(billingRequest).toHaveBeenCalledWith('/admin/reports/7/review', 'POST', expect.objectContaining({ decision: 'approved', receivedAmountCop: 50000, bankReference: 'BANK-TEST', receivedConfirmed: true, duplicatesAcknowledged: true }));
+  expect(button('Verificar pago').props.disabled).toBe(true);
+  act(() => tree.root.findAllByType(NativeSwitch).find(item => item.props.testID === 'billing-review-duplicates').props.onValueChange(true));
+  expect(button('Verificar pago').props.disabled).toBe(false);
+  expect(tree.root.findAllByProps({ testID: 'billing-review-requirements' })).toHaveLength(0);
+  await act(async () => button('Verificar pago').props.onPress());
+  expect(billingRequest).toHaveBeenCalledWith('/admin/reports/7/review', 'POST', expect.objectContaining({ decision: 'approved', receivedAmountCop: 50000, bankReference: 'BANK-TEST', receivedConfirmed: true, duplicatesAcknowledged: true, observations: 'Revisado contra movimiento bancario' }));
+  expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ type: 'success', message: 'Revisión del pago guardada.' }));
+  await act(async () => tree.unmount());
+});
+
+it('saves optional notes separately from the required rejection reason and shows them in admin history', async () => {
+  const report = { id: '7', accountName: 'Account', amountCop: 50000, expectedAmountCop: 50000, status: 'pending_review', duplicateCount: 0 };
+  billingRequest.mockImplementation(async (path, method, payload) => {
+    if (method === 'POST') { Object.assign(report, { status: 'rejected', reason: payload.reason, observations: payload.observations }); return { status: 'rejected' }; }
+    return path.startsWith('/admin/reports') ? { reports: [report] } : { banks: [] };
+  });
+  let tree;
+  await act(async () => { tree = renderer.create(<BillingPanel section="reports" theme={getTheme('light')} />); });
+  const button = name => tree.root.findAllByType(AppButton).find(item => item.props.label === name);
+  const input = name => tree.root.findAllByType('Input').find(item => item.props.label === name);
+  await act(async () => button('Revisar pago').props.onPress());
+  act(() => input('Observaciones (opcional)').props.onChangeText('Volver a revisar con el banco'));
+  expect(button('Rechazar reporte').props.disabled).toBe(true);
+  act(() => input('Motivo de rechazo').props.onChangeText('No se recibió la transferencia'));
+  expect(button('Rechazar reporte').props.disabled).toBe(false);
+  await act(async () => button('Rechazar reporte').props.onPress());
+  expect(billingRequest).toHaveBeenCalledWith('/admin/reports/7/review', 'POST', { decision: 'rejected', reason: 'No se recibió la transferencia', observations: 'Volver a revisar con el banco' });
+  expect(tree.root.findAllByType(Text).some(item => item.props.children === 'Observaciones: Volver a revisar con el banco')).toBe(true);
   await act(async () => tree.unmount());
 });
 
@@ -277,7 +429,7 @@ it('toggles only the chosen transfer option and preserves its state on failure',
   let tree;
   await act(async () => { tree = renderer.create(<BillingPanel section="reports" theme={getTheme('light')} />); });
   act(() => tree.root.findByProps({ testID: 'billing-bank-open' }).props.onPress());
-  const reel = () => tree.root.findByType(TransferBankCarousel);
+  const reel = () => tree.root.findByType(TransferBankList);
   await act(async () => { reel().props.onToggle(mockBank, false); });
   expect(billingRequest).toHaveBeenCalledWith('/admin/banks/1/active', 'PATCH', { active: false, revision: 1 });
   expect(reel().props.disabled).toBe(true);
@@ -305,34 +457,28 @@ it('adds a second destination without replacing the first', async () => {
   act(() => tree.root.findAllByType('Input').filter(input => input.props.label !== 'Buscar cuenta').forEach(input => input.props.onChangeText('New data')));
   await act(async () => save().props.onPress());
   expect(billingRequest).toHaveBeenCalledWith('/admin/banks', 'POST', expect.objectContaining({ active: true, bank: 'New data' }));
-  expect(tree.root.findByType(TransferBankCarousel).props.banks.map(bank => bank.id)).toEqual(['1', '2']);
-  expect(tree.root.findByType(TransferBankCarousel).props.banks[0]).toEqual(mockBank);
+  expect(tree.root.findByType(TransferBankList).props.banks.map(bank => bank.id)).toEqual(['1', '2']);
+  expect(tree.root.findByType(TransferBankList).props.banks[0]).toEqual(mockBank);
   await act(async () => tree.unmount());
 });
 
-it('requires choosing a destination when several are active and submits its ID', async () => {
-  const payload = { active: false, periods: [], reports: [], orders: [], banks: [mockBank, { ...mockBank, id: '2' }], preference: { durationDays: 30, modeSlugs: ['espejo'] }, catalog: [{ modeId: '1', slug: 'espejo', name: 'Espejo', available: true, implemented: true, prices: { 30: 50000, 365: 500000 } }] };
-  billingRequest.mockResolvedValue(payload);
+it('shows multiple active destinations as information without selecting or creating an order', async () => {
+  billingRequest.mockResolvedValue({ active: false, periods: [], reports: [], orders: [], banks: [mockBank, { ...mockBank, id: '2' }] });
   let tree;
   await act(async () => { tree = renderer.create(<BillingPanel section="account" accountId="12" theme={getTheme('light')} />); });
-  const request = () => tree.root.findAllByType(AppButton).find(button => button.props.label === 'Solicitar activación o renovación');
-  expect(request().props.disabled).toBe(true);
-  act(() => tree.root.findByType(TransferBankCarousel).props.onSelect('2'));
-  expect(request().props.disabled).toBe(false);
-  await act(async () => request().props.onPress());
-  expect(billingRequest).toHaveBeenCalledWith('/accounts/12/orders', 'POST', { durationDays: 30, modeIds: ['1'], bankId: '2' });
-  billingRequest.mockResolvedValue({ ...payload, banks: [] });
-  await act(async () => tree.root.findByType(RefreshControl).props.onRefresh());
-  expect(request().props.disabled).toBe(true);
+  const reel = tree.root.findByType(TransferBankCarousel);
+  expect(reel.props.banks).toHaveLength(2);
+  expect(reel.props.onSelect).toBeUndefined();
+  expect(reel.props.onToggle).toBeUndefined();
+  expect(billingRequest.mock.calls.every(call => call.length === 1)).toBe(true);
   await act(async () => tree.unmount());
 });
-
-it('shows an existing order destination even if no current transfer options remain active', async () => {
+it('does not offer a deactivated historical destination for new transfers', async () => {
   billingRequest.mockResolvedValue({ active: false, periods: [], reports: [], banks: [], orders: [{ id: '1', status: 'pending_review', durationDays: 30, amountCop: 50000, snapshot: { items: [{ name: 'Espejo' }], bank: mockBank } }] });
   let tree;
   await act(async () => { tree = renderer.create(<BillingPanel section="account" accountId="12" theme={getTheme('dark')} />); });
   const reel = tree.root.findByType(TransferBankCarousel);
-  expect(reel.props.banks).toEqual([mockBank]);
+  expect(reel.props.banks).toEqual([]);
   expect(reel.props.onSelect).toBeUndefined();
   expect(reel.props.onToggle).toBeUndefined();
   await act(async () => tree.unmount());

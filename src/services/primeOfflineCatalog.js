@@ -15,7 +15,7 @@ async function withLocalLogo(event) {
 
 export async function prepareCatalogForEvent(scope) {
   const identity = offlineIdentity();
-  await Promise.all(['/api/accounts', '/api/permissions/me', '/api/events/types', '/api/events/modes'].map(path => apiRequest(path)));
+  await Promise.all(['/api/events/accounts', '/api/permissions/me', '/api/events/types', '/api/events/modes'].map(path => apiRequest(path)));
   const listPath = `/api/accounts/${scope.accountId}/events`;
   const list = await apiRequest(listPath);
   const detail = await apiRequest(`/api/events/${scope.eventId}`);
@@ -33,7 +33,7 @@ export function primeOfflineCatalog() {
   const request = (async () => {
     await revalidateKnownOperations();
     await Promise.all(['/api/permissions/me', '/api/events/types', '/api/events/modes'].map(path => apiRequest(path)));
-    const payload = await apiRequest('/api/accounts');
+    const payload = await apiRequest('/api/events/accounts');
     for (const account of payload.accounts || []) {
       if (!sameOfflineIdentity(identity)) return;
       const events = await apiRequest(`/api/accounts/${account.id}/events`);

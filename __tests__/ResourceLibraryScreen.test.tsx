@@ -117,13 +117,24 @@ test('loads only the global catalog and keeps it read-only for an operator', asy
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
   await flush();
 
-  expect(listAccountLibraryApi).toHaveBeenCalledWith('10', expect.objectContaining({ scope: 'available', favorite: true, page: 1, pageSize: 60 }));
+  expect(listAccountLibraryApi).toHaveBeenCalledWith('10', expect.objectContaining({ scope: 'available', favorite: true, page: 1, pageSize: 60 }), undefined);
   expect(renderer!.root.findByType(ResourceGallery).props.canManage).toBe(false);
   expect(renderer!.root.findAllByProps({ testID: 'resource-upload-open' })).toHaveLength(0);
   expect(renderer!.root.findByType(ResourceFilters).props.showTabs).toBe(false);
   expect(renderer!.root.findByType(ResourceFilters).props.chipVariant).toBe('outlined');
   expect(renderer!.root.findByType(ResourceFilters).props.eventTypes).toEqual([expect.objectContaining({ slug: 'boda' })]);
   expect(renderer!.root.findByType(HorizontalSubMenu).props.items.map((item: any) => item.label)).toEqual(['Favoritos', 'Global']);
+});
+
+test('an event admin without an owned account manages the library only through the assigned event', async () => {
+  setRole('cliente', []);
+  let tree: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { tree = ReactTestRenderer.create(<ResourceLibraryScreen eventContext={{ id: '20', accountId: '10', name: 'Assigned', access: { roleSlug: 'admin' } }} />); });
+  await flush();
+  expect(listAccountsApi).not.toHaveBeenCalled();
+  expect(listAccountLibraryApi).toHaveBeenCalledWith('10', expect.any(Object), '20');
+  expect(tree!.root.findByType(ResourceGallery).props.canManage).toBe(true);
+  ReactTestRenderer.act(() => tree!.unmount());
 });
 
 test.each(['light', 'dark'])('shows the labeled add-resource action and opens upload in %s', async themeMode => {
@@ -147,8 +158,8 @@ test('uploads from the chosen source and keeps the resource in account favorites
   await flush();
   await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceUploadModal).props.onUpload('frame', 'gallery'));
   expect(pickResourceFromDevice).toHaveBeenCalledWith('frame', 'gallery');
-  expect(uploadAccountLibraryFileApi).toHaveBeenCalledWith('10', file, 'frame', expect.any(Function));
-  expect(updateAccountLibraryFavoriteApi).toHaveBeenCalledWith('10', '99', true);
+  expect(uploadAccountLibraryFileApi).toHaveBeenCalledWith('10', file, 'frame', expect.any(Function), undefined);
+  expect(updateAccountLibraryFavoriteApi).toHaveBeenCalledWith('10', '99', true, undefined);
   expect(renderer!.root.findByType(ResourceUploadModal).props.disabled).toBe(false);
   expect(renderer!.root.findByType(ResourceUploadModal).props.visible).toBe(false);
   await ReactTestRenderer.act(async () => renderer!.unmount());
@@ -214,10 +225,10 @@ test('starts in shared favorites, switches to global and opens a resource previe
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<ResourceLibraryScreen />); });
   await flush();
 
-  expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ scope: 'available', favorite: true }));
+  expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ scope: 'available', favorite: true }), undefined);
   ReactTestRenderer.act(() => renderer!.root.findByType(HorizontalSubMenu).props.onSelect('pool'));
   await flush();
-  expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ scope: 'global', favorite: '' }));
+  expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ scope: 'global', favorite: '' }), undefined);
 
   ReactTestRenderer.act(() => renderer!.root.findByType(ResourceGallery).props.onPressItem(libraryItem));
   expect(renderer!.root.findByType(ResourcePreviewModal).props.item.libraryAssetId).toBe('50');
@@ -230,7 +241,7 @@ test('updates a favorite optimistically and persists the account association', a
 
   await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceGallery).props.onToggleFavorite(libraryItem));
 
-  expect(updateAccountLibraryFavoriteApi).toHaveBeenCalledWith('10', '50', true);
+  expect(updateAccountLibraryFavoriteApi).toHaveBeenCalledWith('10', '50', true, undefined);
   expect(renderer!.root.findByType(ResourceGallery).props.items[0].isFavorite).toBe(true);
   expect(showToast).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
 });
@@ -258,6 +269,6 @@ test('loads and merges the next catalog page without duplicate assets', async ()
   await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceGallery).props.onLoadMore());
   await flush();
 
-  expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ page: 2 }));
+  expect(listAccountLibraryApi).toHaveBeenLastCalledWith('10', expect.objectContaining({ page: 2 }), undefined);
   expect(renderer!.root.findByType(ResourceGallery).props.items.map((item: any) => item.libraryAssetId)).toEqual(['50', '51']);
 });

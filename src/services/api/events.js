@@ -11,6 +11,13 @@ export function setMirrorRecoveryApi(eventId, eventModeId, pattern) {
   return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/recovery-access`, { method: 'PUT', body: JSON.stringify({ pattern }) });
 }
 
+export function listEventAccountsApi() { return apiRequest('/api/events/accounts', { method: 'GET' }); }
+export function listEventMembersApi(eventId) { return apiRequest(`/api/events/${eventId}/members`); }
+export function addEventMemberApi(eventId, input) { return apiRequest(`/api/events/${eventId}/members`, { method: 'POST', body: JSON.stringify(input) }); }
+export function updateEventMemberApi(eventId, memberId, input) { return apiRequest(`/api/events/${eventId}/members/${memberId}`, { method: 'PATCH', body: JSON.stringify(input) }); }
+export function removeEventMemberApi(eventId, memberId) { return apiRequest(`/api/events/${eventId}/members/${memberId}`, { method: 'DELETE' }); }
+const libraryPath = (accountId, eventId) => eventId ? `/api/events/${eventId}/library` : `/api/accounts/${accountId}/library`;
+
 export function listEventsApi(accountId) {
   return apiRequest(`/api/accounts/${accountId}/events`, { method: 'GET' });
 }
@@ -48,25 +55,25 @@ export function listLibraryAssetsApi(accountId) {
   return apiRequest(`/api/library/assets${query}`, { method: 'GET' });
 }
 
-export function listAccountLibraryApi(accountId, filters = {}) {
+export function listAccountLibraryApi(accountId, filters = {}, eventId) {
   const query = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
   });
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  return apiRequest(`/api/accounts/${accountId}/library${suffix}`, { method: 'GET' });
+  return apiRequest(`${libraryPath(accountId, eventId)}${suffix}`, { method: 'GET' });
 }
 
-export function updateAccountLibraryFavoriteApi(accountId, libraryAssetId, isFavorite) {
-  return apiRequest(`/api/accounts/${accountId}/library/${libraryAssetId}/favorite`, { method: 'PATCH', body: JSON.stringify({ isFavorite }) });
+export function updateAccountLibraryFavoriteApi(accountId, libraryAssetId, isFavorite, eventId) {
+  return apiRequest(`${libraryPath(accountId, eventId)}/${libraryAssetId}/favorite`, { method: 'PATCH', body: JSON.stringify({ isFavorite }) });
 }
 
-export function prepareAccountLibraryUploadApi(accountId, input) {
-  return apiRequest(`/api/accounts/${accountId}/library/uploads`, { method: 'POST', body: JSON.stringify(input) });
+export function prepareAccountLibraryUploadApi(accountId, input, eventId) {
+  return apiRequest(`${libraryPath(accountId, eventId)}/uploads`, { method: 'POST', body: JSON.stringify(input) });
 }
 
-export function createAccountLibraryAssetApi(accountId, input) {
-  return apiRequest(`/api/accounts/${accountId}/library/assets`, { method: 'POST', body: JSON.stringify(input) });
+export function createAccountLibraryAssetApi(accountId, input, eventId) {
+  return apiRequest(`${libraryPath(accountId, eventId)}/assets`, { method: 'POST', body: JSON.stringify(input) });
 }
 
 function normalizeUploadUri(value) {
@@ -76,22 +83,22 @@ function normalizeUploadUri(value) {
   return `file://${uri}`;
 }
 
-export async function createProcessedAccountImageAssetApi(accountId, image, purpose) {
+export async function createProcessedAccountImageAssetApi(accountId, image, purpose, eventId) {
   const fileName = image.fileName || image.name || `${purpose}.jpg`;
   const body = new FormData();
   body.append('purpose', purpose);
   body.append('name', fileName);
   body.append('file', { uri: normalizeUploadUri(image.uri), type: image.type || image.contentType || 'image/jpeg', name: fileName });
-  const payload = await apiRequest(`/api/accounts/${accountId}/library/image-upload`, { method: 'POST', body });
+  const payload = await apiRequest(`${libraryPath(accountId, eventId)}/image-upload`, { method: 'POST', body });
   return payload?.asset || null;
 }
 
-export function addAccountLibraryAssetApi(accountId, input) {
-  return apiRequest(`/api/accounts/${accountId}/library`, { method: 'POST', body: JSON.stringify(input) });
+export function addAccountLibraryAssetApi(accountId, input, eventId) {
+  return apiRequest(`${libraryPath(accountId, eventId)}`, { method: 'POST', body: JSON.stringify(input) });
 }
 
-export function cloneAccountLibraryAssetApi(accountId, libraryAssetId, input) {
-  return apiRequest(`/api/accounts/${accountId}/library/${libraryAssetId}/clone`, { method: 'POST', body: JSON.stringify(input) });
+export function cloneAccountLibraryAssetApi(accountId, libraryAssetId, input, eventId) {
+  return apiRequest(`${libraryPath(accountId, eventId)}/${libraryAssetId}/clone`, { method: 'POST', body: JSON.stringify(input) });
 }
 
 export function listEventResourcesApi(eventId) {
@@ -130,10 +137,10 @@ export async function uploadFileToPreparedUrl(uploadUrl, file, onProgress = null
   });
 }
 
-export async function uploadAccountLibraryFileApi(accountId, file, purpose, onProgress = null) {
+export async function uploadAccountLibraryFileApi(accountId, file, purpose, onProgress = null, eventId) {
   if (String(file.type || '').startsWith('image/') && file.type !== 'image/gif') {
     onProgress?.(5);
-    const asset = await createProcessedAccountImageAssetApi(accountId, file, purpose);
+    const asset = await createProcessedAccountImageAssetApi(accountId, file, purpose, eventId);
     onProgress?.(100);
     return asset;
   }
@@ -142,7 +149,7 @@ export async function uploadAccountLibraryFileApi(accountId, file, purpose, onPr
     fileName: file.fileName,
     contentType: file.type,
     sizeBytes: file.fileSize,
-  });
+  }, eventId);
   await uploadFileToPreparedUrl(prepared.uploadUrl, file, onProgress);
   const payload = await createAccountLibraryAssetApi(accountId, {
     name: file.fileName,
@@ -153,7 +160,7 @@ export async function uploadAccountLibraryFileApi(accountId, file, purpose, onPr
     mimeType: file.type,
     sizeBytes: file.fileSize,
     metadata: { mirrorCompatible: true },
-  });
+  }, eventId);
   return payload?.asset || null;
 }
 
@@ -177,20 +184,20 @@ export function getPublishedMagicMirrorConfigApi(eventId, eventModeId, meta = {}
   return apiRequest(`/api/events/${eventId}/modes/${eventModeId}/config/published`, { method: 'GET' }, meta);
 }
 
-export function createAccountPhotoLayoutTemplateApi(accountId, input) {
-  return apiRequest(`/api/accounts/${accountId}/library/layout-templates`, { method: 'POST', body: JSON.stringify(input) });
+export function createAccountPhotoLayoutTemplateApi(accountId, input, eventId) {
+  return apiRequest(`${libraryPath(accountId, eventId)}/layout-templates`, { method: 'POST', body: JSON.stringify(input) });
 }
 
-export function getAccountPhotoLayoutTemplateApi(accountId, libraryAssetId) {
-  return apiRequest(`/api/accounts/${accountId}/library/${libraryAssetId}/layout-template`, { method: 'GET' });
+export function getAccountPhotoLayoutTemplateApi(accountId, libraryAssetId, eventId) {
+  return apiRequest(`${libraryPath(accountId, eventId)}/${libraryAssetId}/layout-template`, { method: 'GET' });
 }
 
-export function createAccountPrintProfileApi(accountId, input) {
-  return apiRequest(`/api/accounts/${accountId}/library/print-profiles`, { method: 'POST', body: JSON.stringify(input) });
+export function createAccountPrintProfileApi(accountId, input, eventId) {
+  return apiRequest(`${libraryPath(accountId, eventId)}/print-profiles`, { method: 'POST', body: JSON.stringify(input) });
 }
 
-export function getAccountPrintProfileApi(accountId, libraryAssetId) {
-  return apiRequest(`/api/accounts/${accountId}/library/${libraryAssetId}/print-profile`, { method: 'GET' });
+export function getAccountPrintProfileApi(accountId, libraryAssetId, eventId) {
+  return apiRequest(`${libraryPath(accountId, eventId)}/${libraryAssetId}/print-profile`, { method: 'GET' });
 }
 
 export function applyPhotoLayoutTemplateApi(eventId, eventModeId, libraryAssetId, expectedRevision) {

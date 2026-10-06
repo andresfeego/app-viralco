@@ -81,7 +81,7 @@ beforeEach(() => {
   });
 });
 
-test.each(['light', 'dark'])('account details refresh data and members without hiding the current account in %s', async themeMode => {
+test.each(['light', 'dark'])('account details refresh account data without requesting members without hiding the current account in %s', async themeMode => {
   mockedUseAuth.mockReturnValue({ user: { themeMode, globalRoles: [], accounts: [{ account: { id: '10' }, role: { slug: 'owner' }, status: 'active' }] }, reloadMe: jest.fn() });
   mockedGetAccount.mockResolvedValue({ account: { id: '10', name: 'ViralCo', status: 'active' } });
   mockedGetMembers.mockResolvedValue({ members: [] });
@@ -93,7 +93,7 @@ test.each(['light', 'dark'])('account details refresh data and members without h
   mockedGetAccount.mockResolvedValue({ account: { id: '10', name: 'Nombre actualizado', status: 'active' } });
   await ReactTestRenderer.act(async () => scroll().props.refreshControl.props.onRefresh());
   expect(mockedGetAccount).toHaveBeenCalledTimes(2);
-  expect(mockedGetMembers).toHaveBeenCalledTimes(2);
+  expect(mockedGetMembers).not.toHaveBeenCalled();
   expect(renderer!.root.findByType(AccountInformationCards).props.account.name).toBe('Nombre actualizado');
   expect(scroll().props.refreshControl.props.refreshing).toBe(false);
   ReactTestRenderer.act(() => renderer!.root.findByProps({ testID: 'account-detail-edit-open' }).props.onPress());
@@ -279,82 +279,17 @@ test('account creation sends contracted service modes instead of a plan slug', a
   expect(mockedCreateAccount.mock.calls[0][0].planSlug).toBeUndefined();
 });
 
-test('account detail membership role changes use the constrained role control', async () => {
-  mockedUseAuth.mockReturnValue({
-    user: { themeMode: 'dark', globalRoles: [] },
-    reloadMe: jest.fn().mockResolvedValue(undefined),
-  });
-  mockedGetAccount.mockResolvedValue({ account: { id: '10', name: 'ViralCo', slug: 'viralco', status: 'active' } });
-  mockedGetMembers.mockResolvedValue({
-    members: [{
-      id: '20',
-      status: 'active',
-      user: { id: '30', name: 'Ana' },
-      role: { id: '40', slug: 'cliente', name: 'Cliente' },
-    }],
-  });
-  mockedUpdateMember.mockResolvedValue({ members: [] });
+test('account detail no longer exposes or loads account memberships', async () => {
+  mockedUseAuth.mockReturnValue({ user: { themeMode: 'dark', globalRoles: [] }, reloadMe: jest.fn() });
+  mockedGetAccount.mockResolvedValue({ account: { id: '10', name: 'ViralCo', status: 'active' } });
   let renderer: ReactTestRenderer.ReactTestRenderer;
-
-  await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(<AccountDetailScreen accountId="10" />);
-  });
-
-  const roleControl = renderer!.root.findAll((node) => node.props.selectedValue === 'cliente')[0];
-  await ReactTestRenderer.act(async () => {
-    await roleControl.props.onValueChange('admin');
-  });
-
-  expect(mockedUpdateMember).toHaveBeenCalledWith('10', '20', { roleSlug: 'admin' });
-});
-
-test('account detail adds an existing user as member', async () => {
-  mockedUseAuth.mockReturnValue({
-    user: { themeMode: 'dark', globalRoles: [] },
-    reloadMe: jest.fn().mockResolvedValue(undefined),
-  });
-  mockedGetAccount.mockResolvedValue({ account: { id: '10', name: 'ViralCo', slug: 'viralco', status: 'active' } });
-  mockedGetMembers.mockResolvedValue({ members: [] });
-  mockedAddMember.mockResolvedValue({ members: [] });
-  let renderer: ReactTestRenderer.ReactTestRenderer;
-
-  await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(<AccountDetailScreen accountId="10" />);
-  });
-  await ReactTestRenderer.act(async () => {
-    renderer!.root.findByProps({ testID: 'account-add-member-open' }).props.onPress();
-  });
-  expect(StyleSheet.flatten(renderer!.root.findByProps({ testID: 'account-member-modal-card' }).props.style)).toMatchObject({ flex: 1, flexShrink: 1, maxHeight: '100%' });
-  await ReactTestRenderer.act(async () => {
-    renderer!.root.findByProps({ testID: 'account-add-member-user-input' }).props.onChangeText('77');
-  });
-  await ReactTestRenderer.act(async () => {
-    await renderer!.root.findByProps({ testID: 'account-add-member-save' }).props.onPress();
-  });
-
-  expect(mockedAddMember).toHaveBeenCalledWith('10', { userId: '77', roleSlug: 'cliente' });
-});
-
-test('account detail blocks adding member without user id', async () => {
-  mockedUseAuth.mockReturnValue({
-    user: { themeMode: 'dark', globalRoles: [] },
-    reloadMe: jest.fn().mockResolvedValue(undefined),
-  });
-  mockedGetAccount.mockResolvedValue({ account: { id: '10', name: 'ViralCo', slug: 'viralco', status: 'active' } });
-  mockedGetMembers.mockResolvedValue({ members: [] });
-  let renderer: ReactTestRenderer.ReactTestRenderer;
-
-  await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(<AccountDetailScreen accountId="10" />);
-  });
-  await ReactTestRenderer.act(async () => {
-    renderer!.root.findByProps({ testID: 'account-add-member-open' }).props.onPress();
-  });
-  await ReactTestRenderer.act(async () => {
-    await renderer!.root.findByProps({ testID: 'account-add-member-save' }).props.onPress();
-  });
-
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<AccountDetailScreen accountId="10" />); });
+  expect(renderer!.root.findAllByProps({ testID: 'account-add-member-open' })).toHaveLength(0);
+  expect(renderer!.root.findAllByProps({ testID: 'account-add-member-user-input' })).toHaveLength(0);
+  expect(mockedGetMembers).not.toHaveBeenCalled();
   expect(mockedAddMember).not.toHaveBeenCalled();
+  expect(mockedUpdateMember).not.toHaveBeenCalled();
+  ReactTestRenderer.act(() => renderer!.unmount());
 });
 
 test('account detail edits account business data', async () => {

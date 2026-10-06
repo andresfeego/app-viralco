@@ -130,8 +130,8 @@ test.each(['sticker', 'frame', 'background', 'animation', 'font'])('routes %s de
   const source = purpose === 'font' ? 'files' : 'gallery';
   await ReactTestRenderer.act(async () => renderer!.root.findByType(ResourceUploadModal).props.onUpload(purpose, source));
   expect(pickResourceFromDevice).toHaveBeenCalledWith(purpose, source, { staticOnly: purpose === 'sticker' });
-  expect(uploadAccountLibraryFileApi).toHaveBeenCalledWith('10', file, purpose, expect.any(Function));
-  expect(updateAccountLibraryFavoriteApi).toHaveBeenCalledWith('10', '99', true);
+  expect(uploadAccountLibraryFileApi).toHaveBeenCalledWith('10', file, purpose, expect.any(Function), '20');
+  expect(updateAccountLibraryFavoriteApi).toHaveBeenCalledWith('10', '99', true, '20');
   expect(saveMagicMirrorConfigApi).not.toHaveBeenCalled();
   expect(renderer!.root.findByType(ResourceUploadModal).props.disabled).toBe(false);
   await ReactTestRenderer.act(async () => renderer!.unmount());
@@ -265,7 +265,7 @@ test('applies a photo layout template locally without saving or creating an even
   expect(renderer!.root.findAllByType(DesignAssetGrid).map((node) => node.props.label)).toContain('Favoritos');
   const globalTemplates = renderer!.root.findAllByType(DesignAssetCarousel).find((node) => node.props.label === 'Global');
   await ReactTestRenderer.act(async () => globalTemplates!.props.onSelect(item));
-  expect(getAccountPhotoLayoutTemplateApi).toHaveBeenCalledWith('10', '329');
+  expect(getAccountPhotoLayoutTemplateApi).toHaveBeenCalledWith('10', '329', '20');
   expect(saveMagicMirrorConfigApi).not.toHaveBeenCalled();
   expect(createEventResourceApi).not.toHaveBeenCalled();
   expect(renderer!.root.findByType(MirrorConfigPreview).props.config.layout.format).toBe('personalizar-5x15');
@@ -463,12 +463,13 @@ test.each(['frame', 'sticker'])('counts, adds and cycles %s instances without re
 });
 
 test('operator sees only the active publication', async () => {
-  mockedAuth.mockReturnValue({ user: { themeMode: 'dark', globalRoles: [], accounts: [{ account, status: 'active', role: { slug: 'operator' } }] } });
+  mockedAuth.mockReturnValue({ user: { themeMode: 'dark', globalRoles: [], accounts: [], events: [{ eventId: '20', accountId: '10', roleSlug: 'operario' }] } });
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(screen()); });
   await flush();
   expect(getPublishedMagicMirrorConfigApi).toHaveBeenCalledWith('20', '30');
   expect(getMagicMirrorConfigApi).not.toHaveBeenCalled();
+  expect(listAccountLibraryApi).not.toHaveBeenCalled();
   expect(renderer!.root.findAllByProps({ testID: 'mirror-save' })).toHaveLength(0);
 });
 

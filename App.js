@@ -67,7 +67,8 @@ export function MainFlow({ bottomInset = 0, topInset = 0, onImmersiveChange }) {
   const closeMirrorConfig = useCallback(() => setEventRoute((current) => ({ name: 'detail', event: current.event, eventMode: null, accountId: current.accountId })), []);
   const openMirrorLaunch = useCallback(({ event, eventMode, accountId, canEdit }) => setEventRoute({ name: 'mirror-launch', event, eventMode, accountId: String(accountId || event?.accountId || ''), canEdit: Boolean(canEdit) }), []);
   const closeMirrorLaunch = useCallback(() => setEventRoute((current) => ({ name: 'detail', event: current.event, eventMode: null, accountId: current.accountId })), []);
-  const openResourceLibrary = useCallback(() => setScreen('recursos'), []);
+  const [resourceEventContext, setResourceEventContext] = useState(null);
+  const openResourceLibrary = useCallback(() => { setResourceEventContext(eventRoute.event); setScreen('recursos'); }, [eventRoute.event]);
 
   const isSuperAdmin = useMemo(
     () => (user?.globalRoles || []).some((role) => role.slug === 'super_admin'),
@@ -78,6 +79,7 @@ export function MainFlow({ bottomInset = 0, topInset = 0, onImmersiveChange }) {
     if (!isAuthenticated) return;
     setScreen('eventos');
     setAccountRoute({ name: 'list', account: null, openCreateRequest: 0 });
+    setResourceEventContext(null);
     setEventRoute({ name: 'list', event: null, eventMode: null, accountId: '' });
   }, [isAuthenticated, user?.id]);
 
@@ -124,6 +126,7 @@ export function MainFlow({ bottomInset = 0, topInset = 0, onImmersiveChange }) {
   const headerBackLabel = isAccountDetail ? t('account_055') : usesEventsHeader ? eventsHeaderConfig.backLabel : 'Volver';
 
   const selectMenuItem = (key) => {
+    setResourceEventContext(null);
     if (key === 'cuenta') {
       setAccountRoute({ name: 'list', account: null, openCreateRequest: 0 });
     }
@@ -197,7 +200,7 @@ export function MainFlow({ bottomInset = 0, topInset = 0, onImmersiveChange }) {
           />
         ) : null}
         {selectedKey === 'recursos' ? (
-          <ResourceLibraryScreen onHeaderChange={setEventsHeaderConfig} onCreateAccount={openAccountCreation} />
+          <ResourceLibraryScreen eventContext={resourceEventContext} onHeaderChange={setEventsHeaderConfig} onCreateAccount={openAccountCreation} />
         ) : null}
         {selectedKey === 'configuracion' ? <ConfigurationScreen /> : null}
       </View>

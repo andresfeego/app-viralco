@@ -2,14 +2,14 @@ import React from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
 import { tokens } from '../design-system/tokens';
 
-export function MirrorToggleRow({ label, value, onChange, theme, disabled = false, detail = '' }) {
+export function MirrorToggleRow({ label, value, onChange, theme, disabled = false, detail = '', testID }) {
   return (
     <View style={styles.row}>
       <View style={styles.copy}>
         <Text style={[styles.label, { color: theme.textPrimary }]}>{label}</Text>
         {detail ? <Text style={[styles.detail, { color: theme.textSecondary }]}>{detail}</Text> : null}
       </View>
-      <Switch value={Boolean(value)} onValueChange={onChange} disabled={disabled} trackColor={{ false: theme.border, true: theme.primary }} />
+      <Switch testID={testID} accessibilityLabel={label} value={Boolean(value)} onValueChange={onChange} disabled={disabled} trackColor={{ false: theme.border, true: theme.primary }} />
     </View>
   );
 }

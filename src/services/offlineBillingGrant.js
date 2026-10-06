@@ -14,7 +14,7 @@ export function verifyBillingGrant(grant, expected = {}, trustedPublicKey = OFFL
     const bytes = Buffer.from(grant.payload, 'base64');
     if (!nacl.sign.detached.verify(bytes, Buffer.from(grant.signature, 'base64'), Buffer.from(trustedPublicKey, 'base64'))) throw failure();
     const claims = JSON.parse(bytes.toString('utf8'));
-    if (claims.v !== 2 || claims.purpose !== 'kaptura-offline-operation' || !Number.isFinite(claims.issuedAt) || !Number.isFinite(claims.expiresAt) || claims.expiresAt <= claims.issuedAt || !claims.services?.includes('espejo')) throw failure();
+    if (claims.v !== 3 || claims.purpose !== 'kaptura-offline-operation' || !Number.isFinite(claims.issuedAt) || !Number.isFinite(claims.expiresAt) || claims.expiresAt <= claims.issuedAt || !claims.services?.includes('espejo')) throw failure();
     for (const [key, value] of Object.entries(expected)) if (String(claims[key]) !== String(value)) throw failure();
     return claims;
   } catch { throw failure(); }
@@ -55,6 +55,7 @@ export function canContinueBillingLaunch(eventId, eventModeId, userId, targetSes
   const current = liveBillingContext(eventId, eventModeId);
   if (current) {
     const claims = verifyBillingGrant(current.grant);
+    if (claims.periods?.find(period => period.startsAt <= current.startedAt && current.startedAt < period.endsAt && period.services.includes('espejo'))?.provisional) return false;
     if (claims.periods?.some(period => period.startsAt > current.startedAt && !period.services.includes('espejo'))) return false;
   }
   return Boolean(current && current.userId === String(userId) && targetSessionId && [current.clientSessionId, current.sessionId].includes(String(targetSessionId)) && (!runStartedAt || new Date(runStartedAt).getTime() >= current.startedAt));

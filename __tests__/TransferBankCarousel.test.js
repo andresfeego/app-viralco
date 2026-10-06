@@ -1,12 +1,17 @@
 import React from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, Switch } from 'react-native';
+import { TransferBankList } from '../src/components/TransferBankCard';
 import renderer, { act } from 'react-test-renderer';
 import { TransferBankCarousel } from '../src/components/TransferBankCarousel';
 import { ManagementCard } from '../src/components/ManagementCard';
 import { getTheme } from '../src/design-system/theme';
 import { tokens } from '../src/design-system/tokens';
 import { setLocale } from '../src/i18n';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { CopyActionButton } from '../src/components/CopyActionButton';
+import { IconTextButton } from '../src/components/IconTextButton';
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
+jest.mock('../src/providers/ToastProvider', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 jest.mock('react-native-paper', () => ({ Checkbox: { Item: 'CheckboxItem' } }));
 const banks = [{ id: '1', bank: 'Bank with a long name', holder: 'Holder', identification: '001', accountNumber: '000123', accountType: 'Savings', active: true }, { id: '2', bank: 'Second bank', active: false }];
 afterEach(() => setLocale('es'));
@@ -39,13 +44,26 @@ describe.each(['light', 'dark'])('transfer card reel in %s', mode => {
     const onToggle = jest.fn(), onEdit = jest.fn();
     let tree;
     act(() => { tree = renderer.create(<TransferBankCarousel theme={theme} banks={banks} onToggle={onToggle} onEdit={onEdit} />); });
-    const checks = tree.root.findAllByType('CheckboxItem');
-    expect(checks.map(check => check.props.status)).toEqual(['checked', 'unchecked']);
-    act(() => checks[1].props.onPress());
+    const checks = tree.root.findAllByType(Switch);
+    expect(checks.map(check => check.props.value)).toEqual([true, false]);
+    act(() => checks[1].props.onValueChange(true));
     expect(onToggle).toHaveBeenCalledWith(banks[1], true);
-    expect(checks[1].props.status).toBe('unchecked');
+    expect(checks[1].props.value).toBe(false);
     act(() => tree.root.findByProps({ testID: 'transfer-banks-edit-1' }).props.onPress());
     expect(onEdit).toHaveBeenCalledWith(banks[0]);
+    act(() => tree.unmount());
+  });
+  it('uses full-width cards in the admin list, with stable labeled switches', () => {
+    let tree;
+    act(() => { tree = renderer.create(<TransferBankList banks={banks} theme={theme} onToggle={jest.fn()} onEdit={jest.fn()} />); });
+    expect(tree.root.findAllByType(ScrollView)).toHaveLength(0);
+    expect(tree.root.findAllByType(ManagementCard)).toHaveLength(2);
+    const toggles = tree.root.findAllByType(Switch);
+    expect(toggles[0].props.accessibilityLabel).toBe(toggles[1].props.accessibilityLabel);
+    const copy = tree.root.findByType(CopyActionButton);
+    expect(copy.props).toMatchObject({ value: '000123', iconOnly: true });
+    act(() => copy.findByType(IconTextButton).props.onPress());
+    expect(Clipboard.setString).toHaveBeenLastCalledWith('000123');
     act(() => tree.unmount());
   });
   it('separates destination selection from administrative activation and supports historical read-only cards', () => {
@@ -58,6 +76,7 @@ describe.each(['light', 'dark'])('transfer card reel in %s', mode => {
     expect(onSelect).toHaveBeenCalledWith('1');
     act(() => tree.update(<TransferBankCarousel theme={theme} banks={[banks[0]]} />));
     expect(tree.root.findByType(ManagementCard).props.actions).toBeNull();
+    expect(tree.root.findByType(CopyActionButton).props.value).toBe('000123');
     act(() => tree.unmount());
   });
 });

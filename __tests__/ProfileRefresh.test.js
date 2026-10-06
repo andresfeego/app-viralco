@@ -11,8 +11,11 @@ import { ManagementCard } from '../src/components/ManagementCard';
 import { SurfaceCard } from '../src/design-system/components/SurfaceCard';
 import { getTheme } from '../src/design-system/theme';
 import { setLocale, t } from '../src/i18n';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { CopyActionButton } from '../src/components/CopyActionButton';
 
 jest.mock('../src/hooks/useAuth', () => ({ useAuth: jest.fn() }));
+jest.mock('../src/providers/ToastProvider', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 jest.mock('@react-native-vector-icons/fontawesome6', () => 'Icon');
 beforeEach(() => jest.clearAllMocks());
 afterEach(() => setLocale('es'));
@@ -24,6 +27,9 @@ it.each(['light', 'dark'])('refreshes profile by gesture while keeping theme cha
   expect(tree.root.findAllByType(ScrollView).find(scroll => scroll.props.testID === 'profile-scroll').props.alwaysBounceVertical).toBe(true);
   expect(tree.root.findAllByType(AppButton)).toHaveLength(0);
   expect(tree.root.findByType(SelectableChipGroup).props).toMatchObject({ value: themeMode, variant: 'outlined' });
+  expect(tree.root.findByType(CopyActionButton).props).toMatchObject({ iconOnly: true, value: 'ana@example.test', accessibilityLabel: t('settings_copy_email') });
+  act(() => tree.root.findByProps({ testID: 'settings-copy-email' }).findByType(require('../src/components/IconTextButton').IconTextButton).props.onPress());
+  expect(Clipboard.setString).toHaveBeenCalledWith('ana@example.test');
   await act(async () => tree.root.findByType(RefreshControl).props.onRefresh());
   expect(reloadMe).toHaveBeenCalledTimes(1);
   expect(updateThemeMode).not.toHaveBeenCalled();

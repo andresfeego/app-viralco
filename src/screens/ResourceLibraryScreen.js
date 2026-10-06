@@ -45,8 +45,10 @@ function accountRole(user, accountId) {
   return membership?.status === 'active' ? membership?.role?.slug || '' : '';
 }
 
-export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount = () => {} }) {
+export function ResourceLibraryScreen({ eventContext = null, onHeaderChange = null, onCreateAccount = () => {} }) {
   const { user } = useAuth();
+  const eventId = eventContext?.id;
+  const eventAccountId = eventContext?.accountId;
   const { showToast } = useToast();
   const theme = useMemo(() => getTheme(user?.themeMode || 'dark'), [user?.themeMode]);
   const isSuperAdmin = (user?.globalRoles || []).some((role) => role.slug === 'super_admin');
@@ -72,7 +74,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
   const favoriteSavingIds = useRef(new Set());
   const requestSequence = useRef(0);
 
-  const canManage = isSuperAdmin || ['owner', 'admin'].includes(accountRole(user, accountId));
+  const canManage = isSuperAdmin || accountRole(user, accountId) === 'owner' || eventContext?.access?.roleSlug === 'admin';
 
   useEffect(() => {
     onHeaderChange?.({ title: t('menu_004'), subtitle: '', iconName: 'images', onBack: null, backLabel: t('event_109') });
@@ -88,7 +90,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
     setAccountsLoading(true);
     try {
       const [payload, eventTypesPayload] = await Promise.all([
-        listAccountsApi(),
+        eventId ? Promise.resolve({ accounts: [{ id: eventAccountId, name: eventContext.name }] }) : listAccountsApi(),
         listEventTypesApi().catch(() => ({ types: [] })),
       ]);
       const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
@@ -100,7 +102,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
     } finally {
       setAccountsLoading(false);
     }
-  }, []);
+  }, [eventId, eventAccountId, eventContext?.name]);
 
   const loadLibrary = useCallback(async ({ page = 1, append = false, refresh = false } = {}) => {
     if (!accountId) { setItems([]); return; }
@@ -119,7 +121,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
         q: debouncedSearch,
         page,
         pageSize: PAGE_SIZE,
-      });
+      }, eventId);
       if (requestId !== requestSequence.current) return;
       const rows = (payload?.library || []).map(normalizeEntry);
       setItems((current) => append ? mergeUnique(current, rows) : rows);
@@ -133,7 +135,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
         setRefreshing(false);
       }
     }
-  }, [accountId, debouncedSearch, filters.eventType, filters.motion, filters.tab, filters.type]);
+  }, [accountId, eventId, debouncedSearch, filters.eventType, filters.motion, filters.tab, filters.type]);
 
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
   useEffect(() => { setItems([]); setPreviewItem(null); loadLibrary(); }, [loadLibrary]);
@@ -158,7 +160,7 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
       .filter((entry) => filters.tab !== 'favorites' || entry.isFavorite));
     setPreviewItem((current) => current?.libraryAssetId === assetId ? { ...current, isFavorite: nextFavorite } : current);
     try {
-      const payload = await updateAccountLibraryFavoriteApi(accountId, assetId, nextFavorite);
+      const payload = await updateAccountLibraryFavoriteApi(accountId, assetId, nextFavorite, eventId);
       const saved = normalizeEntry(payload?.library || { ...item, isFavorite: nextFavorite });
       setItems((current) => current.map((entry) => entry.libraryAssetId === assetId ? { ...entry, ...saved } : entry));
       setPreviewItem((current) => current?.libraryAssetId === assetId ? { ...current, ...saved } : current);
@@ -185,13 +187,13 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
       if (purpose === 'print_profile') {
         const binding = await detectPrinter(accountId);
         if (!binding) return;
-        const available = await listAccountLibraryApi(accountId, { scope: 'available', type: 'print_profile', page: 1, pageSize: 100 });
+        const available = await listAccountLibraryApi(accountId, { scope: 'available', type: 'print_profile', page: 1, pageSize: 100 }, eventId);
         const matching = (available?.library || []).find((item) => {
           const profile = item?.asset?.metadata?.printProfile;
           return profile && String(binding.name).toLowerCase().includes(String(profile.model || '').toLowerCase());
         });
-        if (matching) await updateAccountLibraryFavoriteApi(accountId, matching.libraryAssetId, true);
-        else await createAccountPrintProfileApi(accountId, detectedPrinterProfileInput(binding));
+        if (matching) await updateAccountLibraryFavoriteApi(accountId, matching.libraryAssetId, true, eventId);
+        else await createAccountPrintProfileApi(accountId, detectedPrinterProfileInput(binding), eventId);
         setUploadVisible(false);
         await loadLibrary({ refresh: true });
         showToast({ message: t('print_023'), type: 'success' });
@@ -202,8 +204,8 @@ export function ResourceLibraryScreen({ onHeaderChange = null, onCreateAccount =
       const maxBytes = String(file.type || '').startsWith('video/') ? MAX_VIDEO_UPLOAD_BYTES : MAX_STANDARD_UPLOAD_BYTES;
       if (!file.fileSize || file.fileSize > maxBytes) throw new Error(t('resource_043'));
       setUploadProgress(1);
-      const asset = await uploadAccountLibraryFileApi(accountId, file, purpose, setUploadProgress);
-      if (asset?.id) await updateAccountLibraryFavoriteApi(accountId, asset.id, true);
+      const asset = await uploadAccountLibraryFileApi(accountId, file, purpose, setUploadProgress, eventId);
+      if (asset?.id) await updateAccountLibraryFavoriteApi(accountId, asset.id, true, eventId);
       setUploadProgress(0);
       setUploadVisible(false);
       await loadLibrary({ refresh: true });

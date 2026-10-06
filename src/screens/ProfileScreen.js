@@ -6,6 +6,7 @@ import { tokens } from '../design-system/tokens';
 import { AppButton } from '../design-system/components/AppButton';
 import { ManagementCard } from '../components/ManagementCard';
 import { InformationRow } from '../components/InformationRow';
+import { CopyActionButton } from '../components/CopyActionButton';
 import { StatusBadge } from '../components/StatusBadge';
 import { SelectableChipGroup } from '../components/SelectableChipGroup';
 import { t } from '../i18n';
@@ -43,7 +44,8 @@ export function ProfileScreen({ onLogout }) {
     <ManagementCard testID="settings-profile" theme={theme} title={user?.name || t('settings_profile')} icon="user" prominent
       badge={<StatusBadge compact label={statusLabels[user?.status?.slug] || user?.status?.name || '—'} flag={user?.status?.slug === 'active' ? 'success' : 'warn'} />}>
       <View>
-        <InformationRow theme={theme} icon="envelope" label={t('auth_003')} value={user?.email} />
+        <InformationRow theme={theme} icon="envelope" label={t('auth_003')} value={user?.email}
+          action={user?.email ? <CopyActionButton testID="settings-copy-email" theme={theme} value={user.email} iconOnly accessibilityLabel={t('settings_copy_email')} /> : null} />
         <InformationRow theme={theme} icon="phone" label={t('profile_001')} value={user?.phone} last={!roleNames.length} />
         {roleNames.length ? <InformationRow theme={theme} icon="shield-halved" label={t('settings_roles')} value={roleNames.join(', ')} last /> : null}
       </View>

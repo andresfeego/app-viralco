@@ -1,41 +1,33 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
-import Icon from '@react-native-vector-icons/fontawesome6';
+import { StyleSheet } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { IconTextButton } from './IconTextButton';
 import { tokens } from '../design-system/tokens';
+import { useToast } from '../providers/ToastProvider';
+import { t } from '../i18n';
 
-export function CopyActionButton({ theme, disabled = false, copied = false, onPress = () => {} }) {
-  return (
-    <Pressable
-      style={[
-        styles.button,
-        {
-          borderColor: theme.border,
-          backgroundColor: theme.background,
-          opacity: disabled ? 0.45 : 1,
-        },
-      ]}
-      onPress={onPress}
-      disabled={disabled}
-    >
-      <Icon name="clipboard" iconStyle="regular" size={14} color={theme.textSecondary} />
-      <Text style={[styles.text, { color: theme.textPrimary }]}>{copied ? 'Copiado' : 'Copy'}</Text>
-    </Pressable>
-  );
+export function CopyActionButton({ theme, value, iconOnly = false, accessibilityLabel, testID, disabled = false, copied = false, onPress = () => {} }) {
+  const { showToast } = useToast();
+  const unavailable = disabled || (value != null && !String(value).trim());
+  const copy = () => {
+    if (unavailable) return;
+    if (value == null) { onPress(); return; }
+    try {
+      // Preserve the exact text, including leading zeros in bank account numbers.
+      Clipboard.setString(String(value));
+      showToast({ type: 'info', message: t('common_copied') });
+    } catch {
+      showToast({ type: 'error', message: t('common_copy_failed') });
+    }
+  };
+  return <IconTextButton theme={theme} testID={testID} icon="copy" iconStyle="regular"
+    label={iconOnly ? '' : t(copied ? 'common_copied' : 'common_copy')}
+    accessibilityLabel={accessibilityLabel || t('common_copy')}
+    variant={iconOnly ? 'ghost' : 'outlined'} iconColor={theme.textSecondary}
+    iconSize={tokens.typography.body} style={iconOnly ? styles.iconButton : undefined}
+    borderColor={theme.border} disabled={Boolean(unavailable)} onPress={copy} />;
 }
 
 const styles = StyleSheet.create({
-  button: {
-    borderWidth: 1,
-    borderRadius: tokens.radius.md,
-    minHeight: 44,
-    paddingHorizontal: tokens.spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  text: {
-    fontWeight: '700',
-    fontSize: tokens.typography.caption,
-  },
+  iconButton: { width: tokens.spacing.xl + tokens.spacing.sm, height: tokens.spacing.xl + tokens.spacing.sm, minHeight: tokens.spacing.xl + tokens.spacing.sm, flexShrink: 0 },
 });
-

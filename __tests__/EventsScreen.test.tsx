@@ -26,10 +26,11 @@ jest.mock('@react-native-picker/picker', () => {
 });
 jest.mock('../src/hooks/useAuth', () => ({ useAuth: jest.fn() }));
 jest.mock('../src/providers/ToastProvider', () => ({ ToastViewport: () => null, useToast: jest.fn() }));
-jest.mock('../src/services/api/accounts', () => ({ listAccountsApi: jest.fn() }));
 jest.mock('../src/services/api/events', () => ({
   createAccountLibraryAssetApi: jest.fn(),
   createEventApi: jest.fn(),
+  listEventAccountsApi: jest.fn(),
+  listEventMembersApi: jest.fn(async () => ({ members: [] })),
   deleteEventApi: jest.fn(),
   createEventResourceApi: jest.fn(),
   getEventDetailApi: jest.fn(),
@@ -50,10 +51,10 @@ jest.mock('../src/services/media/imagePicker', () => ({
 
 import { useAuth } from '../src/hooks/useAuth';
 import { useToast } from '../src/providers/ToastProvider';
-import { listAccountsApi } from '../src/services/api/accounts';
-import { createEventApi, deleteEventApi, getEventDetailApi, getPublishedMagicMirrorConfigApi, listEventModesApi, listEventsApi, listEventTypesApi, updateEventApi } from '../src/services/api/events';
+import { listEventAccountsApi, createEventApi, deleteEventApi, getEventDetailApi, getPublishedMagicMirrorConfigApi, listEventModesApi, listEventsApi, listEventTypesApi, updateEventApi } from '../src/services/api/events';
 import { EventListCard } from '../src/components/EventListCard';
 import { EventModeRow } from '../src/components/EventModeRow';
+import { EventMembersCard } from '../src/components/EventMembersCard';
 import { AccountRequiredEmptyState } from '../src/components/AccountRequiredEmptyState';
 import { SelectableChipGroup } from '../src/components/SelectableChipGroup';
 import { IconTextButton } from '../src/components/IconTextButton';
@@ -62,7 +63,7 @@ import { EventsScreen } from '../src/screens/EventsScreen';
 
 const mockedUseAuth = useAuth as jest.Mock;
 const mockedUseToast = useToast as jest.Mock;
-const mockedListAccounts = listAccountsApi as jest.Mock;
+const mockedListAccounts = listEventAccountsApi as jest.Mock;
 const mockedCreateEvent = createEventApi as jest.Mock;
 const mockedDeleteEvent = deleteEventApi as jest.Mock;
 const mockedGetEventDetail = getEventDetailApi as jest.Mock;
@@ -279,6 +280,22 @@ test('enables launch only for an active mode with a published configuration and 
   expect(modeRow.props.canLaunch).toBe(true);
   ReactTestRenderer.act(() => modeRow.props.onLaunch());
   expect(onLaunchMirror).toHaveBeenCalledWith(expect.objectContaining({ eventMode: expect.objectContaining({ id: '30' }) }));
+});
+
+test.each(['admin', 'operario', 'cliente'])('an assigned %s without an account sees only event-level actions', async roleSlug => {
+  const event = { id: '10', accountId: '1', name: 'Assigned', access: { roleSlug }, status: 'active', modes: [{ id: '30', isActive: true, mode: { slug: 'espejo', name: 'Espejo' } }] };
+  mockedUseAuth.mockReturnValue({ user: { id: '80', themeMode: 'dark', globalRoles: [], accounts: [], events: [{ eventId: '10', accountId: '1', roleSlug }] } });
+  mockedListAccounts.mockResolvedValue({ accounts: [{ id: '1', name: 'Event account', eventAssignmentOnly: true }] });
+  mockedListEvents.mockResolvedValue({ events: [event] }); mockedGetEventDetail.mockResolvedValue({ event });
+  mockedGetPublishedMirrorConfig.mockResolvedValue({ version: { id: '99' } });
+  let tree: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { tree = ReactTestRenderer.create(<EventsScreen allowedSections={['list', 'create', 'detail']} onConfigureMirror={jest.fn()} onLaunchMirror={jest.fn()} />); });
+  expect(tree!.root.findAllByProps({ testID: 'event-create-open' })).toHaveLength(0);
+  await ReactTestRenderer.act(async () => tree!.root.findByType(EventListCard).props.onPress());
+  expect(tree!.root.findByType(EventModeRow).props.canLaunch).toBe(roleSlug !== 'cliente');
+  expect(tree!.root.findAllByType(EventMembersCard)).toHaveLength(roleSlug === 'admin' ? 1 : 0);
+  expect(tree!.root.findAllByProps({ testID: 'event-details-edit' }).length > 0).toBe(roleSlug === 'admin');
+  ReactTestRenderer.act(() => tree!.unmount());
 });
 
 test('confirms and activates a draft event from its information card', async () => {

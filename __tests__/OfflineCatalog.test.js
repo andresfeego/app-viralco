@@ -15,11 +15,15 @@ beforeEach(() => {
 });
 afterEach(() => { setOfflineUser(null); global.fetch = original; });
 it('loads accounts, events, detail and permissions without a single network request', async () => {
-  for (const path of ['/api/accounts', '/api/accounts/2/events', '/api/events/3', '/api/permissions/me']) {
+  for (const path of ['/api/accounts', '/api/events/accounts', '/api/accounts/2/events', '/api/events/3', '/api/permissions/me']) {
     await writeCatalog('1', path, { saved: path });
     expect(await apiRequest(path)).toEqual({ saved: path });
   }
   expect(global.fetch).not.toHaveBeenCalled();
+});
+it('does not reuse account-wide catalogs from before event-scoped membership', async () => {
+  await AsyncStorage.setItem('@kaptura/catalog:v1:1:/api/accounts', JSON.stringify({ data: { accounts: ['retired'] } }));
+  await expect(apiRequest('/api/accounts')).rejects.toThrow();
 });
 it('does not show another user catalog', async () => {
   await writeCatalog('1', '/api/accounts', { accounts: ['private'] });
